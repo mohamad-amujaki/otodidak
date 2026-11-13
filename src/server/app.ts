@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, like, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, like, or, type SQL, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { z } from 'zod';
 import { debitIfEnough } from '../billing/ledger';
@@ -57,15 +57,16 @@ import {
   loadConfig,
   ordersFor,
 } from './account';
+import { isSuperadmin } from './admin-access';
 import { DEV_COOKIE, devIdentityFor, identify, signDevSession } from './auth';
 import { cookieHeader, readCookie, timingSafeEqual } from './crypto';
 import { openLesson, startQuiz, startRoadmap } from './generation';
 import { logEvent } from './log';
+import { requestAppOrigin } from './origin';
 import { saveOutline } from './outline-save';
 import { allowWebhookIp } from './rate';
 import { lessonContent, library, mePayload, pathDetail } from './read';
 import { isSecure } from './security';
-import { isSuperadmin } from './admin-access';
 
 function assertSuperadmin(c: { env: Env; get: (key: 'user') => UserRow }) {
   if (!isSuperadmin(c.env, c.get('user').email))
@@ -426,7 +427,9 @@ export function createApp() {
       createdAt: nowIso(),
       paidAt: null,
     });
-    const returnUrl = `${c.env.APP_ORIGIN}/kredit/pesanan/${id}`;
+    const origin = requestAppOrigin(c.req.raw, c.env);
+    const returnUrl = `${origin}/kredit/pesanan/${id}`;
+    const qrPageUrl = `${origin}/kredit/pesanan/${id}/qris`;
     try {
       const payment = await createQrisPayment({
         apiKey: c.env.SUMOPOD_API_KEY,
@@ -434,18 +437,23 @@ export function createApp() {
         orderId,
         amount: pack.priceIdr,
         returnUrl,
+        qrPageUrl,
       });
+      const paymentLinkUrl = payment.paymentCode
+        ? qrPageUrl
+        : payment.paymentLinkUrl;
       await db
         .update(creditOrders)
         .set({
           sumopodPaymentId: payment.paymentId,
-          paymentLinkUrl: payment.paymentLinkUrl,
+          paymentLinkUrl,
+          paymentCode: payment.paymentCode,
         })
         .where(eq(creditOrders.id, id));
       return c.json({
         id,
         orderId,
-        paymentLinkUrl: payment.paymentLinkUrl,
+        paymentLinkUrl,
         paymentCode: payment.paymentCode,
         mock: c.env.SUMOPOD_API_KEY === 'mock',
       });
@@ -556,7 +564,9 @@ export function createApp() {
 
   app.get('/api/admin/stats', async (c) => {
     const db = await database(c.env);
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const weekAgo = new Date(
+      Date.now() - 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
     const row = await db.get<{
       users: number | null;
       newUsers: number | null;
@@ -586,7 +596,7 @@ export function createApp() {
   app.get('/api/admin/users', async (c) => {
     const query = readQuery(c.req.url);
     const db = await database(c.env);
-    let filters = undefined;
+    let filters: SQL | undefined;
     if (query.email) filters = eq(users.email, query.email);
     else if (query.q) {
       const needle = `%${query.q.replace(/%/g, '')}%`;
@@ -1197,6 +1207,7 @@ function publicOrder(order: typeof creditOrders.$inferSelect) {
     credits: order.credits,
     status: order.status,
     paymentLinkUrl: order.paymentLinkUrl,
+    paymentCode: order.paymentCode,
     createdAt: order.createdAt,
     paidAt: order.paidAt,
   };

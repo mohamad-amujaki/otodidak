@@ -12,12 +12,12 @@ export async function createQrisPayment(input: {
   orderId: string;
   amount: number;
   returnUrl: string | null;
+  qrPageUrl: string;
 }): Promise<CreatedPayment> {
   if (input.apiKey === 'mock') {
     return {
       paymentId: `pay_${input.orderId}`,
-      paymentLinkUrl:
-        input.returnUrl ?? `https://pay.sumopod.example/link/${input.orderId}`,
+      paymentLinkUrl: input.qrPageUrl,
       paymentCode: '000201MOCK',
     };
   }

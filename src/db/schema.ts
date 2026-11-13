@@ -83,6 +83,7 @@ export const creditOrders = sqliteTable(
     }).notNull(),
     sumopodPaymentId: text('sumopod_payment_id'),
     paymentLinkUrl: text('payment_link_url'),
+    paymentCode: text('payment_code'),
     createdAt: text('created_at').notNull(),
     paidAt: text('paid_at'),
   },
