@@ -96,6 +96,14 @@
   });
 
   form?.addEventListener('submit', (event) => {
+    const submitter = event.submitter;
+    if (
+      submitter instanceof HTMLButtonElement &&
+      submitter.name === 'aksi' &&
+      submitter.value === 'reset-prompt'
+    ) {
+      return;
+    }
     if (form.dataset.confirmed === '1') {
       delete form.dataset.confirmed;
       return;

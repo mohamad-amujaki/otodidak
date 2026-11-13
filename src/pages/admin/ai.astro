@@ -84,15 +84,14 @@ function taskHref(task: string) {
   />
 
   <div
-    class="mt-4 min-[1100px]:grid min-[1100px]:grid-cols-[minmax(0,1fr)_220px] min-[1100px]:gap-8 min-[1100px]:items-start"
+    class="mt-4 min-w-0 w-full"
     data-admin-ai
     data-prompt-max={String(MAX_PROMPT_CHARS)}
     data-task-code={activeTask}
     data-model-name={String(model.modelName ?? '')}
     data-base-url={String(model.baseUrl ?? '')}
   >
-    <div class="min-w-0">
-      <h1 class="judul mt-2">AI & generasi konten</h1>
+    <h1 class="judul mt-2">AI & generasi konten</h1>
       <p class="mt-2 text-sm text-tinta-lembut">
         Instruksi model dan koneksi penyedia untuk setiap langkah generasi di produk.
       </p>
@@ -121,9 +120,29 @@ function taskHref(task: string) {
         ))}
       </nav>
 
+      <div
+        class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-kontrol border border-garis bg-kertas/40 px-4 py-3 text-sm"
+        role="navigation"
+        aria-label="Terkait tugas ini"
+      >
+        <span class="text-xs font-semibold uppercase tracking-wider text-tinta-lembut">Terkait</span>
+        <a
+          class="text-jalur hover:underline"
+          href={`/admin/antrean?jobKind=${activeTask}&jobStatus=failed`}
+        >
+          Job gagal — {aiTaskLabels[activeTask]}
+        </a>
+        <span class="hidden text-tinta-lembut sm:inline" aria-hidden="true">·</span>
+        <a class="text-jalur hover:underline" href="/admin/konfigurasi">
+          {aiTaskCostHints[activeTask] ?? 'Biaya kredit'} (konfigurasi)
+        </a>
+        <span class="w-full min-[640px]:ml-auto min-[640px]:w-auto text-xs text-tinta-lembut sm:w-auto">
+          Kode tugas: <span class="font-mono text-tinta">{activeTask}</span>
+        </span>
+      </div>
+
       <form class="mt-6 space-y-6" method="post" data-ai-form>
         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-        <input type="hidden" name="aksi" value="ai-task" />
         <input type="hidden" name="task" value={activeTask} />
 
         <section class="rounded-kartu border border-garis bg-kartu p-5" aria-labelledby="prompt-heading">
@@ -142,7 +161,7 @@ function taskHref(task: string) {
           <label class="mt-4 block text-sm" for={`prompt-${activeTask}`}>
             <span class="sr-only">Isi prompt</span>
             <textarea
-              class="mt-2 min-h-48 w-full rounded-kontrol border border-garis bg-kertas px-3 py-2 font-mono text-sm leading-relaxed"
+              class="mt-2 min-h-48 w-full min-[768px]:min-h-[min(50vh,28rem)] rounded-kontrol border border-garis bg-kertas px-3 py-2 font-mono text-sm leading-relaxed"
               id={`prompt-${activeTask}`}
               name="body"
               maxlength={MAX_PROMPT_CHARS}
@@ -160,45 +179,39 @@ function taskHref(task: string) {
             <details class="mt-4 rounded-kontrol border border-garis bg-kertas/40 px-4 py-3" data-prompt-compare-details>
               <summary class="cursor-pointer text-sm font-medium text-tinta">Bandingkan prompt bawaan</summary>
               <p class="mt-2 text-xs text-tinta-lembut" data-prompt-diff-meta aria-live="polite"></p>
-              <div class="mt-3 grid gap-3 min-[768px]:grid-cols-2">
+              <div class="mt-3 grid gap-4">
                 <div class="min-w-0">
                   <p class="text-xs font-semibold uppercase tracking-wide text-tinta-lembut">Saat ini</p>
                   <pre
-                    class="mt-1 max-h-56 overflow-auto whitespace-pre-wrap rounded-kontrol border border-garis bg-kartu p-3 font-mono text-xs text-tinta"
+                    class="mt-1 max-h-[min(40vh,20rem)] overflow-auto whitespace-pre-wrap rounded-kontrol border border-garis bg-kartu p-3 font-mono text-sm leading-relaxed text-tinta"
                     data-prompt-mirror
                   >{promptBody}</pre>
                 </div>
-                <div class="min-w-0">
+                <div class="min-w-0 min-[1024px]:mt-0">
                   <p class="text-xs font-semibold uppercase tracking-wide text-tinta-lembut">Bawaan</p>
                   <pre
-                    class="mt-1 max-h-56 overflow-auto whitespace-pre-wrap rounded-kontrol border border-garis bg-kertas p-3 font-mono text-xs text-tinta-lembut"
+                    class="mt-1 max-h-[min(40vh,20rem)] overflow-auto whitespace-pre-wrap rounded-kontrol border border-garis bg-kertas p-3 font-mono text-sm leading-relaxed text-tinta-lembut"
                     data-prompt-seed
                   >{seedBody}</pre>
                 </div>
               </div>
             </details>
           )}
+          {seedBody && differsFromSeed && (
+            <div class="mt-5 flex flex-wrap items-center gap-3 border-t border-garis pt-5">
+              <button
+                class="min-h-10 rounded-kontrol border border-hangat/40 bg-kertas px-4 text-sm font-medium text-hangat hover:bg-hangat-lembut/30"
+                type="submit"
+                name="aksi"
+                value="reset-prompt"
+                onclick="return confirm('Kembalikan prompt ke teks bawaan untuk tugas ini?');"
+              >
+                Kembalikan prompt bawaan
+              </button>
+              <p class="text-xs text-tinta-lembut">Hanya prompt; pengaturan model tidak berubah.</p>
+            </div>
+          )}
         </section>
-
-        {seedBody && differsFromSeed && (
-          <form
-            class="flex flex-wrap items-center gap-3"
-            method="post"
-            data-ai-reset-form
-            onsubmit="return confirm('Kembalikan prompt ke teks bawaan untuk tugas ini?');"
-          >
-            <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-            <input type="hidden" name="aksi" value="reset-prompt" />
-            <input type="hidden" name="task" value={activeTask} />
-            <button
-              class="min-h-10 rounded-kontrol border border-hangat/40 bg-kertas px-4 text-sm font-medium text-hangat hover:bg-hangat-lembut/30"
-              type="submit"
-            >
-              Kembalikan prompt bawaan
-            </button>
-            <p class="text-xs text-tinta-lembut">Hanya prompt; pengaturan model tidak berubah.</p>
-          </form>
-        )}
 
         <section class="rounded-kartu border border-garis bg-kartu p-5" aria-labelledby="model-heading">
           <h2 id="model-heading" class="text-lg font-semibold text-tinta">Model</h2>
@@ -273,6 +286,8 @@ function taskHref(task: string) {
         <button
           class="min-h-11 w-full min-[640px]:w-auto rounded-kontrol bg-jalur px-8 text-sm font-semibold text-white"
           type="submit"
+          name="aksi"
+          value="ai-task"
         >
           Simpan untuk {aiTaskLabels[activeTask] ?? activeTask}
         </button>
@@ -326,28 +341,6 @@ function taskHref(task: string) {
           </div>
         </form>
       </dialog>
-    </div>
-
-    <aside class="mt-8 min-[1100px]:mt-0 space-y-4 text-sm">
-      <div class="rounded-kartu border border-garis bg-kartu p-4">
-        <p class="text-xs font-semibold uppercase tracking-wider text-tinta-lembut">Terkait</p>
-        <ul class="mt-3 space-y-2">
-          <li>
-            <a class="text-jalur hover:underline" href={`/admin/antrean?jobKind=${activeTask}&jobStatus=failed`}>
-              Job gagal — {aiTaskLabels[activeTask]}
-            </a>
-          </li>
-          <li>
-            <a class="text-jalur hover:underline" href="/admin/konfigurasi">
-              {aiTaskCostHints[activeTask] ?? 'Biaya kredit'} (konfigurasi)
-            </a>
-          </li>
-        </ul>
-      </div>
-      <p class="text-xs text-tinta-lembut">
-        Kode tugas: <span class="font-mono">{activeTask}</span>
-      </p>
-    </aside>
   </div>
   <script src="/scripts/admin-ai.js" defer></script>
 </AdminShell>
