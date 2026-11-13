@@ -1,6 +1,8 @@
 ---
 import { env } from 'cloudflare:workers';
 import AdminShell from '../../components/AdminShell.astro';
+import AdminBadge from '../../components/admin/AdminBadge.astro';
+import AdminStatCard from '../../components/admin/AdminStatCard.astro';
 import { aiTaskLabels, aiTasks } from '../../domain/admin-labels';
 import { isRecord, record } from '../../domain/guard';
 import {
@@ -100,13 +102,14 @@ const cards = [
   },
 ] as const;
 
-const cardClass: Record<string, string> = {
-  neutral: 'border-garis hover:border-jalur/40',
-  warning: 'border-hangat/40 bg-hangat-lembut/30 hover:border-hangat/60',
-  danger: 'border-bahaya/30 bg-bahaya/5 hover:border-bahaya/50',
-};
-
 type PlatformModel = { task: string; label: string; modelName: string };
+
+function userRoleTone(r: string) {
+  return r === 'admin' ? 'brand' : 'neutral';
+}
+function userStatusTone(s: string) {
+  return s === 'suspended' ? 'danger' : 'success';
+}
 let platformActivePacks = 0;
 const platformModels: PlatformModel[] = [];
 if (auth.superadmin) {
@@ -155,16 +158,12 @@ if (auth.superadmin) {
 
   <div class="mt-8 grid gap-4 min-[768px]:grid-cols-2 min-[1100px]:grid-cols-3">
     {cards.map((card) => (
-      <a
+      <AdminStatCard
+        label={card.label}
+        value={card.value}
         href={card.href}
-        class:list={[
-          'rounded-xl border-2 bg-gradient-to-br from-white to-kertas p-5 shadow-sm transition-all hover:shadow-md',
-          cardClass[card.tone],
-        ]}
-      >
-        <p class="text-3xl font-bold tabular-nums text-tinta">{card.value}</p>
-        <p class="mt-1 text-sm text-tinta-lembut">{card.label}</p>
-      </a>
+        tone={card.tone}
+      />
     ))}
   </div>
 
@@ -206,11 +205,24 @@ if (auth.superadmin) {
         {recentUsers.map((item) => (
           <li>
             <a
-              class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm hover:bg-kertas/60"
+              class="flex flex-col gap-2 px-4 py-3 text-sm hover:bg-kertas/60 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between"
               href={`/admin/pengguna/${String(item.id)}`}
             >
-              <span class="font-medium">{item.name}</span>
-              <span class="text-tinta-lembut break-all">{item.email}</span>
+              <span class="min-w-0">
+                <span class="font-medium text-tinta">{item.name}</span>
+                <span class="mt-0.5 block truncate text-tinta-lembut">{item.email}</span>
+              </span>
+              <span class="flex flex-wrap items-center gap-1.5">
+                <AdminBadge tone={userRoleTone(String(item.role))}>
+                  {String(item.role) === 'admin' ? 'Admin' : 'Pelajar'}
+                </AdminBadge>
+                <AdminBadge tone={userStatusTone(String(item.status))}>
+                  {String(item.status) === 'suspended' ? 'Ditahan' : 'Aktif'}
+                </AdminBadge>
+                {item.deletionRequestedAt && (
+                  <AdminBadge tone="danger">Minta hapus</AdminBadge>
+                )}
+              </span>
             </a>
           </li>
         ))}

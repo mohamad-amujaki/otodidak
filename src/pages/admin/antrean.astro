@@ -3,6 +3,7 @@ import { env } from 'cloudflare:workers';
 import AdminPagination from '../../components/AdminPagination.astro';
 import AdminShell from '../../components/AdminShell.astro';
 import AdminBadge from '../../components/admin/AdminBadge.astro';
+import AdminEmptyState from '../../components/admin/AdminEmptyState.astro';
 import { jobKindLabels, jobStatusLabels } from '../../domain/admin-labels';
 import { formatWhenShort } from '../../domain/format';
 import { isRecord } from '../../domain/guard';
@@ -67,7 +68,7 @@ function jobStatusTone(status: string) {
   </form>
 
   {jobs.length === 0 ? (
-    <p class="mt-8 text-tinta-lembut">Tidak ada job untuk filter ini.</p>
+    <AdminEmptyState message="Tidak ada job untuk filter ini." resetHref="/admin/antrean" />
   ) : (
     <div class="mt-6 overflow-hidden rounded-kartu border border-garis bg-kartu">
       <ul class="divide-y divide-garis text-sm">

@@ -4,6 +4,7 @@ import AdminPagination from '../../../components/AdminPagination.astro';
 import AdminShell from '../../../components/AdminShell.astro';
 import AdminAlert from '../../../components/admin/AdminAlert.astro';
 import AdminBadge from '../../../components/admin/AdminBadge.astro';
+import AdminEmptyState from '../../../components/admin/AdminEmptyState.astro';
 import { isRecord } from '../../../domain/guard';
 import {
   roleLabel,
@@ -67,7 +68,12 @@ function statusTone(s: string) {
   <p class="mt-2 text-sm text-tinta-lembut">
     {total > 0 ? `${total} akun terdaftar` : 'Belum ada pengguna'}
   </p>
-  {message && <AdminAlert message={message} tone="success" />}
+  {message && (
+    <AdminAlert
+      message={message}
+      tone={/gagal|invalid|tidak valid/i.test(message) ? 'danger' : 'success'}
+    />
+  )}
 
   <form method="get" class="mt-6 grid gap-3 min-[900px]:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto] min-[900px]:items-end">
     <label class="block text-sm">
@@ -104,7 +110,12 @@ function statusTone(s: string) {
     <button class="min-h-11 rounded-kontrol bg-jalur px-4 text-sm font-medium text-white" type="submit">Terapkan</button>
   </form>
 
-  {users.length === 0 && <p class="mt-6 text-tinta-lembut">Tidak ada pengguna untuk filter ini.</p>}
+  {users.length === 0 && (
+    <AdminEmptyState
+      message="Tidak ada pengguna untuk filter ini."
+      resetHref="/admin/pengguna"
+    />
+  )}
   {users.length > 0 && (
     <div class="mt-6 overflow-hidden rounded-kartu border border-garis bg-kartu">
       <div class="hidden min-[1100px]:grid min-[1100px]:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_5.5rem_5.5rem_4rem_auto] min-[1100px]:gap-3 min-[1100px]:border-b min-[1100px]:border-garis min-[1100px]:bg-kertas/50 min-[1100px]:px-4 min-[1100px]:py-2 min-[1100px]:text-xs min-[1100px]:font-medium min-[1100px]:text-tinta-lembut">
@@ -117,17 +128,38 @@ function statusTone(s: string) {
       </div>
       <ul class="divide-y divide-garis">
         {users.map((item) => (
-          <li class="px-4 py-3 min-[1100px]:grid min-[1100px]:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_5.5rem_5.5rem_4rem_auto] min-[1100px]:items-center min-[1100px]:gap-3">
-            <div class="min-[1100px]:contents">
+          <li
+            class:list={[
+              'px-4 py-3 min-[1100px]:grid min-[1100px]:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_5.5rem_5.5rem_4rem_auto] min-[1100px]:items-center min-[1100px]:gap-3',
+              item.deletionRequestedAt && 'border-l-4 border-l-bahaya bg-bahaya/5',
+            ]}
+          >
+            <div class="min-[1100px]:hidden">
+              <a
+                class="flex items-center justify-between gap-2"
+                href={`/admin/pengguna/${String(item.id)}`}
+              >
+                <span class="min-w-0">
+                  <span class="block truncate font-medium text-tinta">{item.name}</span>
+                  <span class="block truncate text-xs text-tinta-lembut">{item.email}</span>
+                </span>
+                <span class="shrink-0 text-sm font-semibold tabular-nums text-tinta">{item.balance}</span>
+              </a>
+              <div class="mt-2 flex flex-wrap gap-1">
+                <AdminBadge tone={roleTone(String(item.role))}>{roleLabel(item.role)}</AdminBadge>
+                <AdminBadge tone={statusTone(String(item.status))}>{statusLabel(item.status)}</AdminBadge>
+                {item.deletionRequestedAt && (
+                  <AdminBadge tone="danger">Minta hapus</AdminBadge>
+                )}
+              </div>
+            </div>
+            <div class="hidden min-[1100px]:contents">
               <a class="font-medium text-jalur hover:underline" href={`/admin/pengguna/${String(item.id)}`}>{item.name}</a>
-              <p class="min-w-0 break-all text-sm text-tinta-lembut min-[1100px]:text-tinta">{item.email}</p>
+              <p class="min-w-0 break-all text-sm text-tinta">{item.email}</p>
               <AdminBadge tone={roleTone(String(item.role))}>{roleLabel(item.role)}</AdminBadge>
               <AdminBadge tone={statusTone(String(item.status))}>{statusLabel(item.status)}</AdminBadge>
               <p class="text-sm tabular-nums">{item.balance}</p>
-              <a class="text-sm text-jalur hover:underline min-[1100px]:text-right" href={`/admin/pengguna/${String(item.id)}`}>Buka</a>
-              {item.deletionRequestedAt && (
-                <p class="col-span-full mt-1 text-xs font-medium text-bahaya min-[1100px]:col-span-6">Minta hapus materi</p>
-              )}
+              <a class="text-sm text-jalur hover:underline text-right" href={`/admin/pengguna/${String(item.id)}`}>Buka</a>
             </div>
           </li>
         ))}
