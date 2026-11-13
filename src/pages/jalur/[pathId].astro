@@ -1,6 +1,7 @@
 ---
 import { env } from 'cloudflare:workers';
 import ChapterNav from '../../components/ChapterNav.astro';
+import GenerationWait from '../../components/GenerationWait.astro';
 import Shell from '../../components/Shell.astro';
 import { AppError } from '../../domain/errors';
 import { isRecord, record } from '../../domain/guard';
@@ -392,24 +393,13 @@ function actionFrom(form: FormData): OutlineAction {
   )}
 
   {!isReady ? (
-    <section class="mt-8 overflow-hidden rounded-xl border border-garis bg-kartu p-8 shadow-sm min-[768px]:p-12">
-      <div class="mx-auto flex max-w-md flex-col items-center text-center">
-        <div class="flex size-14 items-center justify-center rounded-kontrol bg-jalur-lembut">
-          <svg class="size-7 animate-spin text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-        </div>
-        <h2 class="mt-4 text-xl font-bold text-tinta">Menyusun jalur belajarmu</h2>
-        <p class="mt-2 text-sm leading-[1.6] text-tinta-lembut">
-          Kami sedang memecah topik ini menjadi bab dan pelajaran yang runut. Halaman ini akan diperbarui otomatis.
-        </p>
-        <div class="mt-6 w-full space-y-3" aria-hidden="true">
-          <div class="skeleton h-4 w-3/4"></div>
-          <div class="skeleton h-4 w-full"></div>
-          <div class="skeleton h-4 w-5/6"></div>
-        </div>
-      </div>
-    </section>
+    <div class="mt-8">
+      <GenerationWait
+        title="Menyusun jalur belajarmu"
+        description="Kami sedang memecah topik ini menjadi bab dan pelajaran yang runut. Halaman ini akan diperbarui otomatis."
+        lines={3}
+      />
+    </div>
   ) : (
     <div class:list={["mt-8", chapterViews.length > 0 && "min-[1100px]:grid min-[1100px]:grid-cols-[260px_minmax(0,1fr)] min-[1100px]:items-start min-[1100px]:gap-8"]}>
       {chapterViews.length > 0 && <ChapterNav pathId={pathId} chapters={navChapters} />}

@@ -31,7 +31,29 @@ if (Astro.request.method === 'POST') {
     }
   }
 }
-const paths = (await library(session.db, session.user.id)).filter(isRecord);
+const pathsRaw = (await library(session.db, session.user.id)).filter(isRecord);
+const sort = Astro.url.searchParams.get('urut') ?? 'terbaru';
+function progressPercent(path: Record<string, unknown>): number {
+  const progress = record(path.progress);
+  const done = Number(progress.done ?? 0);
+  const total = Number(progress.total ?? 0);
+  return total > 0 ? Math.round((done / total) * 100) : 0;
+}
+const paths = [...pathsRaw].sort((left, right) => {
+  if (sort === 'judul')
+    return String(left.title ?? '').localeCompare(
+      String(right.title ?? ''),
+      'id',
+    );
+  if (sort === 'progress')
+    return progressPercent(right) - progressPercent(left);
+  return 0;
+});
+const sortOptions = [
+  { id: 'terbaru', label: 'Terbaru' },
+  { id: 'progress', label: 'Progress' },
+  { id: 'judul', label: 'A–Z' },
+] as const;
 ---
 <Shell title="Pustaka" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
   <!-- Header Section -->
@@ -42,10 +64,7 @@ const paths = (await library(session.db, session.user.id)).filter(isRecord);
         {paths.length === 0 ? 'Koleksi jalur pembelajaran kosong' : `${paths.length} jalur pembelajaran`}
       </p>
     </div>
-    <a 
-      class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110 min-[768px]:w-auto" 
-      href="/dasbor?baru=1"
-    >
+    <a class="btn-jalur w-full min-[768px]:w-auto" href="/dasbor?baru=1">
       <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
       </svg>
@@ -86,6 +105,24 @@ const paths = (await library(session.db, session.user.id)).filter(isRecord);
       </a>
     </div>
   ) : (
+    <>
+    <div class="mb-4 flex flex-wrap items-center gap-2" role="group" aria-label="Urutkan jalur">
+      <span class="text-sm text-tinta-lembut">Urutkan:</span>
+      {sortOptions.map((option) => (
+        <a
+          class:list={[
+            'rounded-kontrol border px-3 py-1.5 text-sm font-medium transition-colors',
+            sort === option.id
+              ? 'border-jalur bg-jalur-lembut text-jalur'
+              : 'border-garis bg-kartu text-tinta hover:border-jalur/40',
+          ]}
+          href={option.id === 'terbaru' ? '/pustaka' : `/pustaka?urut=${option.id}`}
+          aria-current={sort === option.id ? 'true' : undefined}
+        >
+          {option.label}
+        </a>
+      ))}
+    </div>
     <ul class="grid gap-4 min-[768px]:grid-cols-2 min-[1100px]:grid-cols-3">
       {paths.map((path) => {
         const progress = record(path.progress);
@@ -192,5 +229,6 @@ const paths = (await library(session.db, session.user.id)).filter(isRecord);
         );
       })}
     </ul>
+    </>
   )}
 </Shell>

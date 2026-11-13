@@ -1,5 +1,6 @@
 ---
 import { env } from 'cloudflare:workers';
+import GenerationWait from '../../../../components/GenerationWait.astro';
 import Shell from '../../../../components/Shell.astro';
 import { AppError } from '../../../../domain/errors';
 import { quizStatusLabel } from '../../../../domain/format';
@@ -80,7 +81,16 @@ const outcome =
     <h1 class="judul mt-2">{chapter ? chapter.title : 'Kuis'}</h1>
     {message && <p class="mt-3 text-sm text-bahaya">{message}</p>}
     {!quiz && <p class="mt-4">Kuis belum disusun.</p>}
-    {quiz && questions.length === 0 && <p class="mt-4">Menyusun kuis.</p>}
+    {quiz && questions.length === 0 && (
+      <div class="mt-4">
+        <GenerationWait
+          title="Menyusun kuis"
+          description="Soal sedang dibuat. Muat ulang halaman ini jika belum muncul."
+          compact
+          pollSeconds={4}
+        />
+      </div>
+    )}
     {result && (
       <div class="mt-4">
         {outcome && <p class="text-lg">{quizStatusLabel(outcome)}</p>}

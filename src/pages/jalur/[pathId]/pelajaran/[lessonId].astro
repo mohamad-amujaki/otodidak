@@ -1,6 +1,7 @@
 ---
 import { env } from 'cloudflare:workers';
 import ChapterNav from '../../../../components/ChapterNav.astro';
+import GenerationWait from '../../../../components/GenerationWait.astro';
 import Shell from '../../../../components/Shell.astro';
 import { AppError } from '../../../../domain/errors';
 import { domainOf } from '../../../../domain/format';
@@ -99,7 +100,14 @@ const navChapters = outlineChapters.map((chapter) => ({
   <div class:list={["mt-6", navChapters.length > 0 && "min-[1100px]:grid min-[1100px]:grid-cols-[280px_minmax(0,1fr)] min-[1100px]:items-start min-[1100px]:gap-8"]}>
     {navChapters.length > 0 && <ChapterNav pathId={pathId} chapters={navChapters} currentLessonId={lessonId} />}
     <div class="min-w-0">
-      {lesson.status === 'queued' && <p>Menyusun pelajaran.</p>}
+      {lesson.status === 'queued' && (
+        <GenerationWait
+          title="Menyusun pelajaran"
+          description="Isi pelajaran sedang dibuat. Halaman akan diperbarui dalam beberapa detik."
+          compact
+          pollSeconds={4}
+        />
+      )}
       {!html && lesson.status !== 'queued' && (
         <form method="post">
           <input type="hidden" name="csrf" value={Astro.locals.csrf} />
@@ -257,5 +265,4 @@ const navChapters = outlineChapters.map((chapter) => ({
       )}
     </div>
   </div>
-  {lesson.status === 'queued' && <meta http-equiv="refresh" content="4" />}
 </Shell>

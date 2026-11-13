@@ -521,6 +521,13 @@
     }
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton {
+      animation: none;
+      background: var(--color-garis);
+    }
+  }
+
   /* Hover Effects */
   .hover-lift {
     transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);

@@ -1,0 +1,60 @@
+---
+interface Props {
+  title: string;
+  description: string;
+  /** Garis skeleton: path (3), lesson/quiz (5) */
+  lines?: 3 | 5;
+  compact?: boolean;
+  /** Muat ulang otomatis (detik); 0 = tidak refresh */
+  pollSeconds?: number;
+}
+
+const {
+  title,
+  description,
+  lines = 5,
+  compact = false,
+  pollSeconds = 0,
+} = Astro.props;
+const lineWidths =
+  lines === 3
+    ? ['w-3/4', 'w-full', 'w-5/6']
+    : ['w-full', 'w-11/12', 'w-4/5', 'w-full', 'w-2/3'];
+---
+<section
+  class:list={[
+    'overflow-hidden rounded-xl border border-garis bg-kartu shadow-sm',
+    compact ? 'p-5' : 'p-8 min-[768px]:p-12',
+  ]}
+  aria-busy="true"
+  aria-live="polite"
+>
+  <div class="mx-auto flex max-w-md flex-col items-center text-center">
+    <div class="flex size-14 items-center justify-center rounded-kontrol bg-jalur-lembut" aria-hidden="true">
+      <svg
+        class="size-7 animate-spin text-jalur motion-reduce:animate-none"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+        />
+      </svg>
+    </div>
+    <h2 class="mt-4 text-xl font-bold text-tinta">{title}</h2>
+    <p class="mt-2 text-sm leading-[1.6] text-tinta-lembut">{description}</p>
+    <p class="sr-only">Konten sedang dibuat. Halaman dapat diperbarui otomatis.</p>
+    <div class="mt-6 w-full space-y-3" aria-hidden="true">
+      {lineWidths.map((width) => (
+        <div class={`skeleton h-4 ${width}`} />
+      ))}
+    </div>
+  </div>
+</section>
+{pollSeconds > 0 && (
+  <meta http-equiv="refresh" content={String(pollSeconds)} />
+)}
