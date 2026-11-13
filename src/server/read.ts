@@ -200,7 +200,7 @@ export async function pathDetail(db: Database, userId: string, pathId: string) {
     const quizzesForChapter = quizIdsByChapter.get(chapter.id) ?? [];
     const quiz =
       quizzesForChapter
-        .map((quizId) => quizPayloads.get(quizId))
+        .map((quiz) => quizPayloads.get(quiz.id))
         .find((payload) => payload !== undefined) ?? null;
     return {
       id: chapter.id,
@@ -321,10 +321,7 @@ async function quizPayloadFor(
       .orderBy(desc(quizAttempts.createdAt)),
   ]);
   const questionsByQuiz = groupBy(questions, (question) => question.quizId);
-  const latestAttempt = new Map<
-    string,
-    (typeof attempts)[number]
-  >();
+  const latestAttempt = new Map<string, (typeof attempts)[number]>();
   for (const attempt of attempts) {
     if (!latestAttempt.has(attempt.quizId))
       latestAttempt.set(attempt.quizId, attempt);
@@ -417,7 +414,9 @@ async function completedDates(db: Database, userId: string): Promise<string[]> {
     .from(lessons)
     .innerJoin(chapters, eq(lessons.chapterId, chapters.id))
     .innerJoin(paths, eq(chapters.pathId, paths.id))
-    .where(and(eq(paths.userId, userId), sql`${lessons.completedAt} is not null`));
+    .where(
+      and(eq(paths.userId, userId), sql`${lessons.completedAt} is not null`),
+    );
   const dates = new Set<string>();
   for (const lesson of rows) {
     if (lesson.completedAt)

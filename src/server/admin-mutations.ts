@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { debitIfEnough } from '../billing/ledger';
 import type { Database } from '../db/client';
 import {
@@ -21,8 +21,8 @@ import {
   taskSchema,
 } from '../domain/schemas';
 import { nowIso } from '../domain/time';
-import { isSuperadmin } from './admin-access';
 import { eraseLearning } from './account';
+import { isSuperadmin } from './admin-access';
 
 function knownSecret(env: Env, name: string): boolean {
   if (!/^[A-Z0-9_]+$/.test(name)) return false;
@@ -229,7 +229,10 @@ export async function updateCreditPacks(
 ): Promise<void> {
   assertSuperadmin(env, actor);
   const body = packsSchema.parse(raw);
-  const rows = await db.select().from(creditPacks).orderBy(asc(creditPacks.sort));
+  const rows = await db
+    .select()
+    .from(creditPacks)
+    .orderBy(asc(creditPacks.sort));
   const activeById = new Map(rows.map((row) => [row.id, row.active === 1]));
   for (const pack of body.packs) {
     if (pack.credits < 1 || pack.priceIdr < 1)

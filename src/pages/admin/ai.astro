@@ -10,9 +10,9 @@ import {
   aiTasks,
 } from '../../domain/admin-labels';
 import { MAX_PROMPT_CHARS } from '../../domain/defaults';
-import type { TaskName } from '../../domain/schemas';
 import { record } from '../../domain/guard';
 import { SEED_PROMPTS } from '../../domain/prompts';
+import type { TaskName } from '../../domain/schemas';
 import { runAdminAction } from '../../server/admin-actions';
 import {
   getActiveModelForTask,

@@ -9,9 +9,9 @@ import {
   configGroupTitles,
 } from '../../domain/admin-labels';
 import { isRecord, record } from '../../domain/guard';
+import { loadConfig } from '../../server/account';
 import { runAdminAction } from '../../server/admin-actions';
 import { requireAdmin } from '../../server/admin-guard';
-import { loadConfig } from '../../server/account';
 
 const auth = await requireAdmin(Astro.request, { nav: true });
 if ('redirect' in auth) return Astro.redirect(auth.redirect);

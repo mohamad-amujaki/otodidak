@@ -3,13 +3,13 @@ import { env } from 'cloudflare:workers';
 import AdminShell from '../../components/AdminShell.astro';
 import { aiTaskLabels, aiTasks } from '../../domain/admin-labels';
 import { isRecord, record } from '../../domain/guard';
-import { requireAdmin } from '../../server/admin-guard';
 import {
   fetchAdminStats,
   getActiveModelForTask,
   listAdminUsers,
   listAllPacks,
 } from '../../server/admin-data';
+import { requireAdmin } from '../../server/admin-guard';
 
 const bagian = Astro.url.searchParams.get('bagian');
 const legacy: Record<string, string> = {

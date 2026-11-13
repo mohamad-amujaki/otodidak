@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, or, sql } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { z } from 'zod';
 import { debitIfEnough } from '../billing/ledger';
@@ -34,7 +34,6 @@ import {
   adminUserSchema,
   attemptSchema,
   configSchema,
-  creditsQuerySchema,
   devSessionSchema,
   modelSchema,
   packOrderSchema,
@@ -48,18 +47,11 @@ import {
 import { applyStreak } from '../domain/streak';
 import { jakartaDate, nowIso } from '../domain/time';
 import {
-  activePacks,
   balanceOf,
   database,
   ensureUser,
   eraseLearning,
-  ledgerCount,
-  ledgerPage,
   loadConfig,
-  ordersCount,
-  ordersFor,
-  ordersPage,
-  pendingOrdersFor,
 } from './account';
 import { isSuperadmin } from './admin-access';
 import {
@@ -72,21 +64,12 @@ import {
   listAdminOrders,
   listAdminUsers,
   listAllPacks,
-  loadConfig as loadAppConfig,
   publicCreditPacks,
 } from './admin-data';
 import { adminLedgerExportCsv, adminOrdersExportCsv } from './admin-export';
-import {
-  adminJobsTotal,
-  adminLedgerTotal,
-  adminOrdersTotal,
-  adminUsersTotal,
-  jobFiltersWhere,
-  orderFiltersWhere,
-  readAdminQuery,
-  userFiltersWhere,
-} from './admin-list';
+import { readAdminQuery } from './admin-list';
 import { DEV_COOKIE, devIdentityFor, identify, signDevSession } from './auth';
+import { creditsPayload, readCreditsQuery } from './credits-page';
 import { cookieHeader, readCookie, timingSafeEqual } from './crypto';
 import {
   openLesson,
@@ -94,13 +77,8 @@ import {
   startRoadmap,
   suggestChapterLesson,
 } from './generation';
-import {
-  enrichLedgerEntries,
-  ledgerExportCsv,
-  ledgerSummary30d,
-} from './ledger-enrich';
+import { ledgerExportCsv } from './ledger-enrich';
 import { logEvent } from './log';
-import { creditsPayload, readCreditsQuery } from './credits-page';
 import { requestAppOrigin } from './origin';
 import { saveOutline } from './outline-save';
 import { allowWebhookIp } from './rate';
@@ -427,9 +405,7 @@ export function createApp() {
 
   app.get('/api/credits', async (c) => {
     const db = await database(c.env);
-    return c.json(
-      await creditsPayload(db, c.get('user'), c.req.url),
-    );
+    return c.json(await creditsPayload(db, c.get('user'), c.req.url));
   });
 
   app.get('/api/credits/ledger/export', async (c) => {
@@ -759,9 +735,7 @@ export function createApp() {
   app.get('/api/admin/prompts/:task', async (c) => {
     assertSuperadmin(c);
     const task = readTask(c.req.param('task'));
-    return c.json(
-      await getPromptForTask(await database(c.env), task),
-    );
+    return c.json(await getPromptForTask(await database(c.env), task));
   });
 
   app.put('/api/admin/prompts/:task', async (c) => {
@@ -1047,7 +1021,6 @@ async function handleWebhook(
     );
   return Response.json({ ok: true });
 }
-
 
 function readTask(value: string) {
   const parsed = taskSchema.safeParse(value);

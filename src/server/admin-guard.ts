@@ -48,9 +48,7 @@ export async function requireAdmin(
   const user = record(me.user);
   if (user.role !== 'admin') return { redirect: '/dasbor' };
   const email = typeof user.email === 'string' ? user.email : '';
-  const stats = options?.nav
-    ? await fetchAdminStats(session.db)
-    : undefined;
+  const stats = options?.nav ? await fetchAdminStats(session.db) : undefined;
   return gate({
     me,
     user,

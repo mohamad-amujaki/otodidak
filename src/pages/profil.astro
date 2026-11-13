@@ -32,8 +32,7 @@ if (Astro.request.method === 'POST') {
         'Permintaan penghapusan tercatat. Admin yang menyelesaikan penghapusan materi.';
       me = record(await mePayload(session.db, session.user));
     } catch (error) {
-      message =
-        error instanceof AppError ? error.message : 'Permintaan gagal.';
+      message = error instanceof AppError ? error.message : 'Permintaan gagal.';
     }
   } else {
     try {
@@ -50,10 +49,6 @@ if (Astro.request.method === 'POST') {
   }
 }
 const enabled = record(me.user).streakEnabled === true;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object';
-}
 ---
 <Shell title="Profil" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
   <div class="mx-auto max-w-3xl">

@@ -11,10 +11,7 @@ import {
   ordersPage,
   pendingOrdersFor,
 } from './account';
-import {
-  enrichLedgerEntries,
-  ledgerSummary30d,
-} from './ledger-enrich';
+import { enrichLedgerEntries, ledgerSummary30d } from './ledger-enrich';
 
 export type CreditsQuery = z.infer<typeof creditsQuerySchema>;
 
@@ -26,11 +23,7 @@ export function readCreditsQuery(url: string): CreditsQuery {
   return parsed.data;
 }
 
-export async function creditsPayload(
-  db: Database,
-  user: UserRow,
-  url: string,
-) {
+export async function creditsPayload(db: Database, user: UserRow, url: string) {
   const query = readCreditsQuery(url);
   const reason = query.reason || undefined;
   const status = query.status || undefined;
@@ -57,9 +50,7 @@ export async function creditsPayload(
     ledgerCount(db, user.id, reason),
     ordersPage(db, user.id, query.ordersLimit, query.ordersOffset, status),
     ordersCount(db, user.id, status),
-    query.includePending
-      ? pendingOrdersFor(db, user.id)
-      : Promise.resolve([]),
+    query.includePending ? pendingOrdersFor(db, user.id) : Promise.resolve([]),
     ledgerSummary30d(db, user.id),
   ]);
   return {

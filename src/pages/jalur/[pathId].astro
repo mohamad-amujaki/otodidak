@@ -2,13 +2,13 @@
 import { env } from 'cloudflare:workers';
 import ChapterNav from '../../components/ChapterNav.astro';
 import Shell from '../../components/Shell.astro';
+import { AppError } from '../../domain/errors';
 import { isRecord, record } from '../../domain/guard';
 import type { Outline, OutlineAction } from '../../domain/outline';
 import { applyOutlineAction } from '../../domain/outline';
-import { AppError } from '../../domain/errors';
+import { callApi, errorOf } from '../../server/call';
 import { saveOutline } from '../../server/outline-save';
 import { pathDetail } from '../../server/read';
-import { callApi, errorOf } from '../../server/call';
 import { pageMe } from '../../server/ssr';
 
 const { pathId } = Astro.params;
@@ -89,17 +89,14 @@ if (Astro.request.method === 'POST') {
         message = 'Centang konfirmasi untuk menghapus.';
       } else {
         try {
-          await saveOutline(
-            session.db,
-            session.user.id,
-            pathId,
-            next.outline,
-          );
+          await saveOutline(session.db, session.user.id, pathId, next.outline);
           const again = await pathDetail(session.db, session.user.id, pathId);
           if (again) detail = record(again);
         } catch (error) {
           message =
-            error instanceof AppError ? error.message : 'Gagal menyimpan kerangka.';
+            error instanceof AppError
+              ? error.message
+              : 'Gagal menyimpan kerangka.';
         }
       }
     }

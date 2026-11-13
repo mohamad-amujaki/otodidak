@@ -10,8 +10,8 @@ import {
 import { shortOrderId } from '../../domain/credit-ui';
 import { formatIdr, formatWhenShort } from '../../domain/format';
 import { isRecord } from '../../domain/guard';
-import { requireAdmin } from '../../server/admin-guard';
 import { listAdminLedger, listAdminOrders } from '../../server/admin-data';
+import { requireAdmin } from '../../server/admin-guard';
 
 const auth = await requireAdmin(Astro.request, { nav: true });
 if ('redirect' in auth) return Astro.redirect(auth.redirect);

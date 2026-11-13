@@ -27,7 +27,8 @@ const params = new URLSearchParams({
 if (reason) params.set('reason', reason);
 
 const listUrl = new URL('/kredit/riwayat', Astro.url);
-for (const [key, value] of params.entries()) listUrl.searchParams.set(key, value);
+for (const [key, value] of params.entries())
+  listUrl.searchParams.set(key, value);
 const credit = record(
   await creditsPayload(session.db, session.user, listUrl.toString()),
 );

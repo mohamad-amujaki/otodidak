@@ -5,9 +5,9 @@ import OrderRows from '../components/credit/OrderRows.astro';
 import Shell from '../components/Shell.astro';
 import { formatIdr } from '../domain/format';
 import { isRecord, record } from '../domain/guard';
-import { creditsPayload } from '../server/credits-page';
 import { publicCreditPacks } from '../server/admin-data';
 import { callApi, errorOf } from '../server/call';
+import { creditsPayload } from '../server/credits-page';
 import { pageMe } from '../server/ssr';
 
 const SNIPPET_ENTRIES = 6;
@@ -39,7 +39,10 @@ if (Astro.request.method === 'POST') {
 const packs = (await publicCreditPacks(session.db)).filter(isRecord);
 const creditUrl = new URL('/kredit', Astro.url);
 creditUrl.searchParams.set('limit', String(SNIPPET_ENTRIES));
-creditUrl.searchParams.set('ordersLimit', String(SNIPPET_ORDERS + PENDING_SNIPPET));
+creditUrl.searchParams.set(
+  'ordersLimit',
+  String(SNIPPET_ORDERS + PENDING_SNIPPET),
+);
 creditUrl.searchParams.set('includePending', '1');
 const credit = record(
   await creditsPayload(session.db, session.user, creditUrl.toString()),

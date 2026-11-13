@@ -20,16 +20,22 @@ export async function runAdminAction(
   form: FormData,
 ): Promise<string> {
   const session = await pageSession(request, bindings);
-  if (!session || session.user.role !== 'admin')
+  if (session?.user.role !== 'admin')
     return 'Akses ditolak. Masuk sebagai admin.';
   const { db, user } = session;
   const action = String(form.get('aksi') ?? '');
   try {
     if (action === 'pengguna') {
-      await patchAdminUser(db, bindings, user, String(form.get('userId') ?? ''), {
-        role: String(form.get('role') ?? ''),
-        status: String(form.get('status') ?? ''),
-      });
+      await patchAdminUser(
+        db,
+        bindings,
+        user,
+        String(form.get('userId') ?? ''),
+        {
+          role: String(form.get('role') ?? ''),
+          status: String(form.get('status') ?? ''),
+        },
+      );
       return 'Pengguna diperbarui.';
     }
     if (action === 'hapus') {
@@ -37,10 +43,16 @@ export async function runAdminAction(
       return 'Materi belajar dihapus. Buku kredit tetap ada.';
     }
     if (action === 'sesuaikan') {
-      await adminAdjustLedger(db, bindings, user, String(form.get('userId') ?? ''), {
-        amount: Number(form.get('amount')),
-        note: String(form.get('note') ?? ''),
-      });
+      await adminAdjustLedger(
+        db,
+        bindings,
+        user,
+        String(form.get('userId') ?? ''),
+        {
+          amount: Number(form.get('amount')),
+          note: String(form.get('note') ?? ''),
+        },
+      );
       return 'Buku kredit diperbarui.';
     }
     if (action === 'konfigurasi') {
@@ -74,27 +86,41 @@ export async function runAdminAction(
     }
     if (action === 'reset-prompt') {
       const task = String(form.get('task') ?? '');
-      if (!seededPromptTasks.includes(task as (typeof seededPromptTasks)[number]))
+      if (
+        !seededPromptTasks.includes(task as (typeof seededPromptTasks)[number])
+      )
         return 'Tugas tidak dikenal.';
       const body = SEED_PROMPTS[task as (typeof seededPromptTasks)[number]];
       await updatePromptTemplate(db, bindings, user, task, { body });
       return 'Prompt dikembalikan ke bawaan.';
     }
     if (action === 'prompt') {
-      await updatePromptTemplate(db, bindings, user, String(form.get('task') ?? ''), {
-        body: String(form.get('body') ?? ''),
-      });
+      await updatePromptTemplate(
+        db,
+        bindings,
+        user,
+        String(form.get('task') ?? ''),
+        {
+          body: String(form.get('body') ?? ''),
+        },
+      );
       return 'Prompt diperbarui.';
     }
     if (action === 'model') {
-      await updateModelForTask(db, bindings, user, String(form.get('task') ?? ''), {
-        modelName: String(form.get('modelName') ?? ''),
-        maxOutputTokens: Number(form.get('maxOutputTokens')),
-        timeoutMs: Number(form.get('timeoutMs')),
-        baseUrl: String(form.get('baseUrl') ?? ''),
-        secretName: String(form.get('secretName') ?? ''),
-        authKind: String(form.get('authKind') ?? 'bearer'),
-      });
+      await updateModelForTask(
+        db,
+        bindings,
+        user,
+        String(form.get('task') ?? ''),
+        {
+          modelName: String(form.get('modelName') ?? ''),
+          maxOutputTokens: Number(form.get('maxOutputTokens')),
+          timeoutMs: Number(form.get('timeoutMs')),
+          baseUrl: String(form.get('baseUrl') ?? ''),
+          secretName: String(form.get('secretName') ?? ''),
+          authKind: String(form.get('authKind') ?? 'bearer'),
+        },
+      );
       return 'Model diperbarui.';
     }
     if (action === 'paket') {

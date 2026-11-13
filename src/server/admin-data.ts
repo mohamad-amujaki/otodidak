@@ -13,13 +13,7 @@ import {
 } from '../db/schema';
 import { AppError } from '../domain/errors';
 import type { TaskName } from '../domain/schemas';
-import { nowIso } from '../domain/time';
-import {
-  activePacks,
-  ledgerPage,
-  loadConfig,
-  ordersFor,
-} from './account';
+import { activePacks, ledgerPage, loadConfig, ordersFor } from './account';
 import {
   adminJobsTotal,
   adminLedgerTotal,
@@ -32,9 +26,7 @@ import {
 } from './admin-list';
 
 export async function fetchAdminStats(db: Database) {
-  const weekAgo = new Date(
-    Date.now() - 7 * 24 * 60 * 60 * 1000,
-  ).toISOString();
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const row = await db.get<{
     users: number | null;
     newUsers: number | null;

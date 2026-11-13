@@ -1,13 +1,13 @@
 ---
 import { env } from 'cloudflare:workers';
 import Shell from '../components/Shell.astro';
+import { AppError } from '../domain/errors';
 import { minuteLabel } from '../domain/format';
 import { isRecord, record } from '../domain/guard';
-import { AppError } from '../domain/errors';
+import { topicSchema } from '../domain/schemas';
 import { startRoadmap } from '../server/generation';
 import { library } from '../server/read';
 import { pageMe } from '../server/ssr';
-import { topicSchema } from '../domain/schemas';
 
 const page = await pageMe(Astro.request, env);
 if ('redirect' in page) return Astro.redirect(page.redirect);

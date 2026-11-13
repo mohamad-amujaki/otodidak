@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { users } from '../db/schema';
 import { nowIso } from '../domain/time';
-import { DEV_COOKIE, signDevSession, type Identity } from './auth';
+import { DEV_COOKIE, type Identity, signDevSession } from './auth';
 import { cookieHeader } from './crypto';
 import { isSecure } from './security';
 

@@ -3,6 +3,7 @@ import { env } from 'cloudflare:workers';
 import AdminShell from '../../../components/AdminShell.astro';
 import AdminBreadcrumb from '../../../components/admin/AdminBreadcrumb.astro';
 import { ledgerReasonLabels } from '../../../domain/admin-labels';
+import { AppError } from '../../../domain/errors';
 import { formatWhen } from '../../../domain/format';
 import { isRecord, record } from '../../../domain/guard';
 import {
@@ -10,9 +11,8 @@ import {
   runAdminAction,
   statusLabel,
 } from '../../../server/admin-actions';
-import { requireAdmin } from '../../../server/admin-guard';
 import { adminUserDetail } from '../../../server/admin-data';
-import { AppError } from '../../../domain/errors';
+import { requireAdmin } from '../../../server/admin-guard';
 
 const auth = await requireAdmin(Astro.request, { nav: true });
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
@@ -29,7 +29,7 @@ if (Astro.request.method === 'POST') {
     message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
 }
 
-let detail;
+let detail: Record<string, unknown>;
 try {
   detail = record(await adminUserDetail(auth.session.db, userId));
 } catch (error) {

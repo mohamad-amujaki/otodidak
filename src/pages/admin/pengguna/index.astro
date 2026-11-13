@@ -10,8 +10,8 @@ import {
   runAdminAction,
   statusLabel,
 } from '../../../server/admin-actions';
-import { requireAdmin } from '../../../server/admin-guard';
 import { listAdminUsers } from '../../../server/admin-data';
+import { requireAdmin } from '../../../server/admin-guard';
 
 const auth = await requireAdmin(Astro.request, { nav: true });
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
@@ -41,7 +41,8 @@ if (status) params.set('status', status);
 if (deletion) params.set('deletion', '1');
 
 const listUrl = new URL('/admin/pengguna', Astro.url);
-for (const [key, value] of params.entries()) listUrl.searchParams.set(key, value);
+for (const [key, value] of params.entries())
+  listUrl.searchParams.set(key, value);
 const usersData = await listAdminUsers(auth.session.db, listUrl.toString());
 const users = Array.isArray(usersData.users)
   ? usersData.users.filter(isRecord)

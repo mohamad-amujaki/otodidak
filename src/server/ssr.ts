@@ -1,7 +1,7 @@
 import type { Database } from '../db/client';
 import type { UserRow } from '../db/schema';
 import { database, ensureUser } from './account';
-import { identify, type Identity } from './auth';
+import { type Identity, identify } from './auth';
 import { mePayload } from './read';
 
 export type PageSession = {

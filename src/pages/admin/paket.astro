@@ -8,8 +8,8 @@ import CreditPackPreview from '../../components/admin/CreditPackPreview.astro';
 import { formatIdr } from '../../domain/format';
 import { isRecord } from '../../domain/guard';
 import { runAdminAction } from '../../server/admin-actions';
-import { requireSuperadminPage } from '../../server/admin-guard';
 import { listAllPacks } from '../../server/admin-data';
+import { requireSuperadminPage } from '../../server/admin-guard';
 
 const auth = await requireSuperadminPage(Astro.request, { nav: true });
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
