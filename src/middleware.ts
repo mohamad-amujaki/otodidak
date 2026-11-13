@@ -16,13 +16,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
     env.PUBLIC_CLERK_PUBLISHABLE_KEY,
     env.CLERK_PUBLISHABLE_KEY,
   );
+  const clerkSecret = env.CLERK_SECRET_KEY ?? '';
   const useClerk =
-    env.CLERK_SECRET_KEY.startsWith('sk_') &&
-    Boolean(clerkHost(publishableKey));
+    clerkSecret.startsWith('sk_') && Boolean(clerkHost(publishableKey));
   const response = (
     useClerk
       ? await clerkMiddleware({
-          secretKey: env.CLERK_SECRET_KEY,
+          secretKey: clerkSecret,
           publishableKey,
         })(context, next)
       : await next()
