@@ -256,13 +256,80 @@ function actionFrom(form: FormData): OutlineAction {
               {chapter.quiz ? (
                 <a class="inline-flex min-h-11 items-center px-2" href={`/jalur/${pathId}/kuis/${String(chapter.id)}`}>Kuis</a>
               ) : (
-                <form method="post">
-                  <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-                  <input type="hidden" name="aksi" value="kuis" />
-                  <input type="hidden" name="chapterId" value={String(chapter.id)} />
-                  <button class="min-h-11 rounded-kontrol bg-jalur px-3 text-white" type="submit" disabled={Boolean(activeJob)}>Susun kuis</button>
-                  <p class="text-sm text-tinta-lembut">Memakai {quizCost} kredit</p>
-                </form>
+                <>
+                  <button 
+                    type="button"
+                    onclick={`document.getElementById('quiz-modal-${String(chapter.id)}').classList.remove('hidden')`}
+                    class="flex items-center gap-2 rounded-lg border-2 border-jalur bg-jalur-lembut px-4 py-2 font-medium text-jalur transition-all hover:bg-jalur hover:text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                    disabled={Boolean(activeJob)}
+                  >
+                    <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    Buat Kuis
+                  </button>
+
+                  <!-- Quiz Modal -->
+                  <div 
+                    id={`quiz-modal-${String(chapter.id)}`}
+                    class="fixed inset-0 z-50 hidden items-center justify-center bg-tinta/50 backdrop-blur-sm"
+                    onclick={`if (event.target === this) this.classList.add('hidden')`}
+                  >
+                    <div 
+                      class="mx-4 w-full max-w-md animate-fadeIn rounded-2xl border-2 border-garis bg-white p-6 shadow-2xl"
+                      onclick="event.stopPropagation()"
+                    >
+                      <!-- Header -->
+                      <div class="mb-4 flex items-start justify-between">
+                        <div>
+                          <h3 class="text-xl font-bold text-tinta">Kuis</h3>
+                          <p class="text-sm text-tinta-lembut">Kuis pelajaran</p>
+                        </div>
+                        <button 
+                          type="button"
+                          onclick={`document.getElementById('quiz-modal-${String(chapter.id)}').classList.add('hidden')`}
+                          class="flex size-8 items-center justify-center rounded-lg text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta"
+                        >
+                          <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      <!-- Content -->
+                      <div class="mb-6 rounded-xl bg-kertas p-4 text-center">
+                        <div class="mx-auto mb-3 flex size-16 items-center justify-center rounded-full bg-jalur-lembut">
+                          <svg class="size-8 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                        
+                        <h4 class="mb-2 text-lg font-bold text-tinta">Siap kapan pun kamu mau</h4>
+                        <p class="text-sm text-tinta-lembut">
+                          Beberapa pertanyaan singkat untuk memeriksa pemahamanmu. Ini tidak memengaruhi kemajuanmu.
+                        </p>
+                      </div>
+
+                      <!-- Action -->
+                      <form method="post">
+                        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                        <input type="hidden" name="aksi" value="kuis" />
+                        <input type="hidden" name="chapterId" value={String(chapter.id)} />
+                        <button 
+                          class="w-full min-h-11 rounded-xl bg-tinta px-6 font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:brightness-110"
+                          type="submit"
+                        >
+                          Buat kuis
+                        </button>
+                      </form>
+
+                      <!-- Info -->
+                      <p class="mt-3 text-center text-xs text-tinta-lembut">
+                        Kuis akan dibuat menggunakan {quizCost} kredit
+                      </p>
+                    </div>
+                  </div>
+                </>
               )}
               <form method="post" class="flex max-w-full flex-wrap items-center gap-2">
                 <input type="hidden" name="csrf" value={Astro.locals.csrf} />

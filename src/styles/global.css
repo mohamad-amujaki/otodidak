@@ -344,6 +344,88 @@
     box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
   }
 
+  /* Callout Boxes */
+  .baca .callout {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    border-left: 4px solid var(--color-jalur);
+    border-radius: var(--radius-kontrol);
+    background: linear-gradient(to bottom right, var(--color-jalur-lembut), var(--color-kertas));
+  }
+
+  .baca .callout::before {
+    content: "INTI PELAJARAN";
+    display: block;
+    margin-bottom: 0.75rem;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--color-jalur);
+  }
+
+  .baca .callout p {
+    margin-top: 0;
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: var(--color-tinta);
+  }
+
+  .baca .callout-warning {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    border-left: 4px solid var(--color-hangat);
+    border-radius: var(--radius-kontrol);
+    background: linear-gradient(to bottom right, var(--color-hangat-lembut), var(--color-kertas));
+  }
+
+  .baca .callout-warning::before {
+    content: "PERHATIAN";
+    display: block;
+    margin-bottom: 0.75rem;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--color-hangat);
+  }
+
+  .baca .callout-warning p {
+    margin-top: 0;
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: var(--color-tinta);
+  }
+
+  .baca .callout-info {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    border-left: 4px solid var(--color-fokus);
+    border-radius: var(--radius-kontrol);
+    background: linear-gradient(to bottom right, #e3f2fd, var(--color-kertas));
+  }
+
+  .baca .callout-info::before {
+    content: "INFO";
+    display: block;
+    margin-bottom: 0.75rem;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--color-fokus);
+  }
+
+  .baca .callout-info p {
+    margin-top: 0;
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: var(--color-tinta);
+  }
+
   .tanpa-sumber {
     display: inline-block;
     margin-left: 0.35rem;

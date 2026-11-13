@@ -178,12 +178,34 @@ const navChapters = outlineChapters.map((chapter) => ({
               </button>
             </form>
           )}
+
+          <!-- Keyboard Shortcuts Hint -->
+          <div class="mt-8 rounded-lg border border-garis bg-kertas p-4">
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-tinta-lembut">Pintasan Keyboard</p>
+            <div class="grid gap-2 text-sm min-[768px]:grid-cols-2">
+              <div class="flex items-center gap-2">
+                <kbd class="rounded border border-garis bg-white px-2 py-1 text-xs font-semibold">←</kbd>
+                <span class="text-tinta-lembut">Kembali</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <kbd class="rounded border border-garis bg-white px-2 py-1 text-xs font-semibold">Esc</kbd>
+                <span class="text-tinta-lembut">Ke jalur</span>
+              </div>
+              {!lesson.completedAt && (
+                <div class="flex items-center gap-2">
+                  <kbd class="rounded border border-garis bg-white px-2 py-1 text-xs font-semibold">Ctrl+Enter</kbd>
+                  <span class="text-tinta-lembut">Tandai selesai</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
       
-      {/* Reading Progress Script */}
-      {html && !lesson.completedAt && (
+      {/* Reading Progress & Keyboard Shortcuts Script */}
+      {html && (
         <script>
+          // Reading progress
           const progressBar = document.getElementById('reading-progress');
           const content = document.getElementById('lesson-content');
           
@@ -200,6 +222,32 @@ const navChapters = outlineChapters.map((chapter) => ({
             window.addEventListener('scroll', updateProgress);
             updateProgress();
           }
+
+          // Keyboard shortcuts
+          document.addEventListener('keydown', (e) => {
+            // Don't trigger shortcuts when typing in inputs
+            if (e.target.matches('input, textarea')) return;
+            
+            // Ctrl/Cmd + Enter = Mark complete (if not already completed)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+              e.preventDefault();
+              const completeForm = document.getElementById('complete-form');
+              if (completeForm) completeForm.submit();
+            }
+            
+            // Left arrow = Previous lesson/page
+            if (e.key === 'ArrowLeft') {
+              e.preventDefault();
+              window.history.back();
+            }
+            
+            // Escape = Go back to path
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              const backLink = document.querySelector('a[href^="/jalur/"]');
+              if (backLink) backLink.click();
+            }
+          });
         </script>
       )}
     </div>
