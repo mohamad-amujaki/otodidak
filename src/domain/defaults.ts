@@ -1,3 +1,6 @@
+/** Berapa percobaan kuis terakhir yang dikirim ke UI. */
+export const MAX_QUIZ_ATTEMPT_HISTORY = 5;
+
 export const SEED_CONFIG = {
   id: 'app',
   maxChapters: 8,
@@ -9,6 +12,7 @@ export const SEED_CONFIG = {
   costQuiz: 1,
   signupCredits: 24,
   lessonMinuteLabel: 15,
+  adminDailyCreditCap: 1000,
 } as const;
 
 export const SEED_PACKS = [
@@ -64,7 +68,7 @@ export const DEFAULT_MODEL_NAME = 'deepseek-v4.1-flash-1017';
 export const MAX_LESSON_CHARS = 100_000;
 export const MAX_PROMPT_CHARS = 8_000;
 export const QUIZ_SNIPPET_CHARS = 4_000;
-export const MAX_WEB_SOURCES = 4;
+export const MAX_LESSON_SOURCES = 5;
 export const MAX_YOUTUBE_SOURCES = 2;
 export const JOB_LOCK_TTL_SECONDS = 15 * 60;
 export const JOB_RATE_WINDOW_MS = 10 * 60 * 1000;

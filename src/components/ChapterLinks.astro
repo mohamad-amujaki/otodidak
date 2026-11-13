@@ -1,7 +1,10 @@
 ---
+import { alphaLabel } from '../domain/format';
+
 interface LessonLink {
   id: string;
   title: string;
+  completedAt?: string | null;
 }
 interface ChapterLink {
   id: string;
@@ -16,29 +19,31 @@ interface Props {
 }
 const { pathId, chapters, currentLessonId, onPath = false } = Astro.props;
 ---
-<div class="space-y-2">
+<div class="space-y-1 rounded-kartu bg-kartu/60 p-2 ring-1 ring-black/5">
   {chapters.map((chapter, chapterIndex) => {
     const hasCurrentLesson = chapter.lessons.some((l) => l.id === currentLessonId);
+    const chapterDone = chapter.lessons.filter((l) => l.completedAt).length;
 
     return (
       <details
-        class="chapter-group overflow-hidden rounded-kontrol border border-garis bg-kartu shadow-sm"
+        class="chapter-group overflow-hidden rounded-kontrol"
         open={hasCurrentLesson || chapterIndex === 0}
       >
-        <summary class="flex cursor-pointer list-none items-center justify-between gap-2 p-3 transition-colors hover:bg-kertas">
-          <div class="flex min-w-0 items-center gap-3">
-            <div class="flex size-8 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-sm font-bold text-jalur">
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-2 rounded-kontrol p-2.5 transition-colors hover:bg-kertas/70">
+          <div class="flex min-w-0 items-center gap-2.5">
+            <div class="flex size-7 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-xs font-bold tabular-nums text-jalur">
               {chapterIndex + 1}
             </div>
             <div class="min-w-0 flex-1">
-              <p class="font-semibold text-tinta">{chapter.title}</p>
-              <p class="text-xs text-tinta-lembut">
-                {chapter.lessons.length} pelajaran
+              <p class="text-sm font-semibold leading-snug text-tinta">{chapter.title}</p>
+              <p class="text-[11px] tabular-nums text-tinta-lembut">
+                {chapterDone}/{chapter.lessons.length} pelajaran
+                {chapterDone === chapter.lessons.length && chapterDone > 0 && ' · selesai'}
               </p>
             </div>
           </div>
           <svg
-            class="chapter-chevron size-5 shrink-0 text-tinta-lembut"
+            class="chapter-chevron size-4 shrink-0 text-tinta-lembut"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -48,9 +53,10 @@ const { pathId, chapters, currentLessonId, onPath = false } = Astro.props;
           </svg>
         </summary>
 
-        <ul class="border-t border-garis bg-kertas/50 p-2">
+        <ul class="space-y-0.5 px-1 pb-2">
           {chapter.lessons.map((lesson, lessonIndex) => {
             const isActive = lesson.id === currentLessonId;
+            const isDone = Boolean(lesson.completedAt);
             const href = onPath
               ? `#pelajaran-${lesson.id}`
               : `/jalur/${pathId}/pelajaran/${lesson.id}`;
@@ -59,34 +65,47 @@ const { pathId, chapters, currentLessonId, onPath = false } = Astro.props;
               <li>
                 <a
                   class:list={[
-                    'group flex min-h-11 items-center gap-3 rounded-kontrol p-2 transition-colors',
+                    'relative flex min-h-10 items-center gap-2.5 rounded-kontrol py-1.5 pl-2.5 pr-2 transition-colors',
                     isActive
-                      ? 'bg-jalur text-white'
-                      : 'text-tinta hover:bg-kartu hover:shadow-sm',
+                      ? 'bg-jalur-lembut font-semibold text-jalur'
+                      : 'text-tinta-lembut hover:bg-kertas/70 hover:text-tinta',
                   ]}
                   href={href}
                   aria-current={isActive ? 'page' : undefined}
                 >
+                  {isActive && (
+                    <span
+                      class="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-jalur"
+                      aria-hidden="true"
+                    />
+                  )}
                   <span
                     class:list={[
-                      'flex size-7 shrink-0 items-center justify-center rounded-kontrol text-xs font-medium',
-                      isActive ? 'bg-white/20' : 'bg-garis',
+                      'flex size-6 shrink-0 items-center justify-center rounded-kontrol text-[11px] font-medium',
+                      isActive ? 'bg-jalur/10 text-jalur' : 'bg-kertas text-tinta-lembut',
                     ]}
                   >
-                    {lessonIndex + 1}
+                    {alphaLabel(lessonIndex)}
                   </span>
-                  <span
-                    class:list={[
-                      'min-w-0 flex-1 text-sm font-medium leading-snug',
-                      isActive ? 'text-white' : 'text-tinta',
-                    ]}
-                  >
+                  <span class="min-w-0 flex-1 text-[13px] leading-snug">
                     {lesson.title}
                   </span>
-                  {isActive && (
-                    <svg class="size-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
+                  {isDone && (
+                    <span class="shrink-0" title="Selesai">
+                      <svg
+                        class:list={[
+                          'size-3.5',
+                          isActive ? 'text-jalur' : 'text-jalur/70',
+                        ]}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span class="sr-only">Selesai</span>
+                    </span>
                   )}
                 </a>
               </li>

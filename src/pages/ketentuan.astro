@@ -11,7 +11,10 @@ const sections = [
   { id: 'isi', title: 'Isi', icon: 'book' },
 ];
 ---
-<Shell title="Ketentuan">
+<Shell
+  title="Ketentuan"
+  description="Ketentuan penggunaan Otodidak: aturan akun, pembelian kredit, dan penggunaan materi pembelajaran."
+>
   <div class="mx-auto max-w-6xl">
     <div class="grid gap-8 min-[1024px]:grid-cols-[240px_1fr]">
       <LegalToc sections={sections} variant="aside" />
@@ -38,7 +41,7 @@ const sections = [
         <!-- Intro -->
         <div class="prose mb-8 rounded-kartu border border-jalur/20 bg-jalur-lembut/30 p-6">
           <p class="text-lg leading-relaxed text-tinta">
-            Otodidak menyusun jalur belajar dari topik yang kamu tulis. Isi pelajaran dibuat saat dibuka, lalu ditampilkan bersama sumber yang berhasil ditemukan. Ketentuan berikut menjelaskan cara kerja layanan ini.
+            Otodidak menyusun jalur belajar dari topik yang kamu tulis. Isi pelajaran dibuat saat dibuka. Bila tersedia, kami menautkan video YouTube pendukung; materi tanpa rujukan ditampilkan apa adanya. Ketentuan berikut menjelaskan cara kerja layanan ini.
           </p>
         </div>
 
@@ -67,7 +70,7 @@ const sections = [
                   <div class="text-sm leading-relaxed text-tinta-lembut">
                     <p class="font-medium text-tinta">Pengembalian Kredit:</p>
                     <p class="mt-1">
-                      Jika penyusunan gagal secara permanen, kredit untuk pekerjaan itu dikembalikan satu kali. Jika model berhasil tetapi pencarian sumber gagal, pelajaran tetap disimpan, klaim ditandai tanpa sumber, dan kredit tidak dikembalikan.
+                      Jika penyusunan gagal secara permanen, kredit untuk pekerjaan itu dikembalikan satu kali. Jika model berhasil, pelajaran tetap disimpan meskipun rujukan video tidak ditemukan.
                     </p>
                   </div>
                 </div>

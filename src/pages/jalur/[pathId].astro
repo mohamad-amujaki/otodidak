@@ -1,9 +1,16 @@
 ---
 import { env } from 'cloudflare:workers';
 import ChapterNav from '../../components/ChapterNav.astro';
+import CreditNotice from '../../components/credit/CreditNotice.astro';
 import GenerationWait from '../../components/GenerationWait.astro';
 import Shell from '../../components/Shell.astro';
+import {
+  creditShortNote,
+  creditTopUpFor,
+  hasEnoughCredits,
+} from '../../domain/credit-ui';
 import { AppError } from '../../domain/errors';
+import { alphaLabel } from '../../domain/format';
 import { isRecord, record } from '../../domain/guard';
 import type { Outline, OutlineAction } from '../../domain/outline';
 import { applyOutlineAction } from '../../domain/outline';
@@ -21,6 +28,30 @@ const { session, me: meRaw } = page;
 const me = record(meRaw);
 const user = record(me.user);
 const config = record(me.config);
+const balance = typeof me.balance === 'number' ? me.balance : 0;
+const lessonCost =
+  typeof config.costLesson === 'number' ? config.costLesson : 3;
+const quizCost = typeof config.costQuiz === 'number' ? config.costQuiz : 1;
+const lessonAffordable = hasEnoughCredits(balance, lessonCost);
+const quizAffordable = hasEnoughCredits(balance, quizCost);
+const resumeAction = String(Astro.url.searchParams.get('lanjut') ?? '');
+const topUpFor = (action: string) => {
+  const target = new URL(Astro.url);
+  target.searchParams.set('lanjut', action);
+  return creditTopUpFor(`${target.pathname}${target.search}`);
+};
+const quizTopUpHref = topUpFor('kuis');
+const lessonTopUpHref = topUpFor('pelajaran');
+const resumeDismissUrl = new URL(Astro.url);
+resumeDismissUrl.searchParams.delete('lanjut');
+const resumeDismissHref = `${resumeDismissUrl.pathname}${resumeDismissUrl.search}`;
+const lowCredit = !lessonAffordable || !quizAffordable;
+const resumeReady = resumeAction !== '' && (quizAffordable || lessonAffordable);
+let creditShortfall: {
+  balance: number;
+  cost: number;
+  action: 'kuis' | 'pelajaran';
+} | null = null;
 let message = '';
 let messageIsInfo = false;
 let reopenReview = Astro.url.searchParams.get('tinjau') === '1';
@@ -44,10 +75,13 @@ if (Astro.request.method === 'POST') {
         const again = await pathDetail(session.db, session.user.id, pathId);
         if (again) detail = record(again);
       } catch (error) {
-        message =
-          error instanceof AppError
-            ? error.message
-            : 'Gagal menambahkan pelajaran.';
+        if (error instanceof AppError && error.code === 'insufficient_credits')
+          creditShortfall = { balance, cost: lessonCost, action: 'pelajaran' };
+        else
+          message =
+            error instanceof AppError
+              ? error.message
+              : 'Gagal menambahkan pelajaran.';
       }
     } else if (action === 'kuis') {
       try {
@@ -60,8 +94,11 @@ if (Astro.request.method === 'POST') {
         message = 'Menyusun kuis. Muat ulang halaman ini beberapa saat lagi.';
         messageIsInfo = true;
       } catch (error) {
-        message =
-          error instanceof AppError ? error.message : 'Gagal memulai kuis.';
+        if (error instanceof AppError && error.code === 'insufficient_credits')
+          creditShortfall = { balance, cost: quizCost, action: 'kuis' };
+        else
+          message =
+            error instanceof AppError ? error.message : 'Gagal memulai kuis.';
       }
     } else if (action === 'aktif') {
       try {
@@ -115,13 +152,12 @@ const navChapters = chapters.map((chapter) => ({
   ).map((lesson) => ({
     id: String(lesson.id),
     title: String(lesson.title ?? 'Pelajaran'),
+    completedAt:
+      typeof lesson.completedAt === 'string' ? lesson.completedAt : null,
   })),
 }));
 const minutes =
   typeof config.lessonMinuteLabel === 'number' ? config.lessonMinuteLabel : 15;
-const quizCost = typeof config.costQuiz === 'number' ? config.costQuiz : 1;
-const outlineLessonCost =
-  typeof config.costQuiz === 'number' ? config.costQuiz : 1;
 const maxLessonsPerChapter =
   typeof config.maxLessonsPerChapter === 'number'
     ? config.maxLessonsPerChapter
@@ -278,7 +314,7 @@ function actionFrom(form: FormData): OutlineAction {
 }
 ---
 
-<Shell title={String(detail.title ?? 'Jalur')} balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
+<Shell title={String(detail.title ?? 'Jalur')} balance={typeof me.balance === 'number' ? me.balance : 0} lowCredit={lowCredit} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
   <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-sm text-tinta-lembut">
     <a class="inline-flex min-h-8 items-center transition-colors hover:text-jalur" href="/pustaka">Pustaka</a>
     <svg class="size-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -381,6 +417,30 @@ function actionFrom(form: FormData): OutlineAction {
     </div>
   </header>
 
+  {creditShortfall && (
+    <div class="mt-5">
+      <CreditNotice
+        balance={creditShortfall.balance}
+        cost={creditShortfall.cost}
+        topUpHref={creditShortfall.action === 'kuis' ? quizTopUpHref : lessonTopUpHref}
+      />
+    </div>
+  )}
+
+  {resumeReady && !creditShortfall && (
+    <div class="mt-5 rounded-kontrol border border-jalur/30 bg-jalur-lembut p-4">
+      <p class="text-sm font-semibold text-jalur">
+        Kredit kamu sekarang {balance}.
+      </p>
+      <p class="mt-1 text-sm text-tinta-lembut">
+        Pilih bab yang ingin kamu susun, lalu klik tombolnya lagi.
+      </p>
+      <a class="mt-3 inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta" href={resumeDismissHref}>
+        Tutup
+      </a>
+    </div>
+  )}
+
   {message && (
     <div class:list={["mt-5 rounded-kontrol border p-4", messageIsInfo ? 'border-jalur/30 bg-jalur-lembut' : 'border-bahaya/30 bg-bahaya/10']}>
       <div class="flex gap-3">
@@ -398,6 +458,7 @@ function actionFrom(form: FormData): OutlineAction {
         title="Menyusun jalur belajarmu"
         description="Kami sedang memecah topik ini menjadi bab dan pelajaran yang runut. Halaman ini akan diperbarui otomatis."
         lines={3}
+        jobId={activeJob ? String(activeJob.id) : undefined}
       />
     </div>
   ) : (
@@ -408,6 +469,7 @@ function actionFrom(form: FormData): OutlineAction {
           chapters={navChapters}
           onPath={true}
           currentLessonId={nextLesson?.id}
+          progress={{ done: doneFromProgress, total }}
         />
       )}
       <div class:list={["min-w-0 space-y-6", chapterViews.length > 0 && "mt-6 min-[1100px]:mt-0"]}>
@@ -504,7 +566,7 @@ function actionFrom(form: FormData): OutlineAction {
                                   <path d="M8 5v14l11-7z" />
                                 </svg>
                               ) : (
-                                lessonIndex + 1
+                                alphaLabel(lessonIndex)
                               )}
                             </span>
                             <span class="min-w-0 flex-1">
@@ -548,7 +610,7 @@ function actionFrom(form: FormData): OutlineAction {
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                         </svg>
                       </a>
-                    ) : (
+                    ) : quizAffordable ? (
                       <form method="post" onsubmit={`return confirm('Buat kuis bab ini menggunakan ${quizCost} kredit?')`}>
                         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                         <input type="hidden" name="aksi" value="kuis" />
@@ -560,6 +622,19 @@ function actionFrom(form: FormData): OutlineAction {
                           Buat kuis · {quizCost} kredit
                         </button>
                       </form>
+                    ) : (
+                      <a class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-hangat/40 bg-hangat-lembut px-3 text-sm font-medium text-hangat transition-colors hover:border-hangat/60" href={quizTopUpHref}>
+                        Kredit tidak cukup
+                      </a>
+                    )}
+                    {!chapter.quiz && !quizAffordable && (
+                      <p class="w-full text-xs tabular-nums text-tinta-lembut">
+                        <span>{creditShortNote(balance, quizCost)}</span>
+                        {' · '}
+                        <a class="font-semibold text-jalur hover:underline" href={quizTopUpHref}>
+                          Isi kredit
+                        </a>
+                      </p>
                     )}
                   </footer>
                 </article>
@@ -703,7 +778,7 @@ function actionFrom(form: FormData): OutlineAction {
                   {chapter.lessons.map((lesson, lessonIndex) => (
                     <div class="rounded-kontrol border border-garis bg-kartu">
                       <div class="flex flex-wrap items-center gap-1 p-1.5 min-[640px]:flex-nowrap">
-                        <span class="order-1 flex size-7 shrink-0 items-center justify-center rounded-md bg-kertas text-xs font-medium text-tinta-lembut">{lessonIndex + 1}</span>
+                        <span class="order-1 flex size-7 shrink-0 items-center justify-center rounded-md bg-kertas text-xs font-medium text-tinta-lembut">{alphaLabel(lessonIndex)}</span>
                         <details class="group order-3 w-full min-w-0 min-[640px]:order-2 min-[640px]:w-auto min-[640px]:flex-1">
                           <summary class="flex min-h-9 cursor-pointer items-center gap-2 rounded-kontrol px-2 transition-colors hover:bg-kertas">
                             <span class="line-clamp-2 min-w-0 flex-1 text-sm font-medium leading-snug text-tinta">{lesson.title}</span>
@@ -780,18 +855,28 @@ function actionFrom(form: FormData): OutlineAction {
                       Tambah pelajaran
                     </button>
                   </form>
-                  <form method="post" onsubmit={`return confirm('Buat pelajaran dengan AI menggunakan ${outlineLessonCost} kredit?')`}>
+                  <form method="post" onsubmit={`return confirm('Buat pelajaran dengan AI menggunakan ${lessonCost} kredit?')`}>
                     <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                     <input type="hidden" name="tinjau" value="1" />
                     <input type="hidden" name="aksi" value="tambah-ai" />
                     <input type="hidden" name="chapterId" value={chapter.id} />
-                    <button class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta transition-colors hover:border-jalur/30 hover:bg-jalur-lembut/40 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={chapter.lessons.length >= maxLessonsPerChapter || Boolean(activeJob)}>
+                    <button class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta transition-colors hover:border-jalur/30 hover:bg-jalur-lembut/40 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={chapter.lessons.length >= maxLessonsPerChapter || Boolean(activeJob) || !lessonAffordable}>
                       <svg class="size-4 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                       </svg>
-                      Buat pelajaran dengan AI · {outlineLessonCost} kredit
+                      {lessonAffordable
+                        ? `Buat pelajaran dengan AI · ${lessonCost} kredit`
+                        : 'Kredit tidak cukup'}
                     </button>
                   </form>
+                  {!lessonAffordable && (
+                    <p class="flex items-center text-xs tabular-nums text-tinta-lembut">
+                      <span>{creditShortNote(balance, lessonCost)}</span>
+                      <a class="ml-2 font-semibold text-jalur hover:underline" href={lessonTopUpHref}>
+                        Isi kredit
+                      </a>
+                    </p>
+                  )}
                 </div>
               </div>
             ))}

@@ -1,7 +1,11 @@
 import { desc, eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { creditLedger, creditOrders, users } from '../db/schema';
-import { ledgerReasonLabels, orderStatusLabels } from '../domain/admin-labels';
+import {
+  adminAdjustCategoryLabels,
+  ledgerReasonLabels,
+  orderStatusLabels,
+} from '../domain/admin-labels';
 import type { AdminListQuery } from './admin-list';
 import { orderFiltersWhere } from './admin-list';
 
@@ -16,7 +20,7 @@ export async function adminLedgerExportCsv(
   db: Database,
   query: AdminListQuery,
 ): Promise<string> {
-  const lines = ['tanggal,email,nama,alasan,jumlah,catatan'];
+  const lines = ['tanggal,email,nama,alasan,kategori,jumlah,catatan'];
   const filters = query.userId
     ? eq(creditLedger.userId, query.userId)
     : undefined;
@@ -28,6 +32,7 @@ export async function adminLedgerExportCsv(
         amount: creditLedger.amount,
         reason: creditLedger.reason,
         note: creditLedger.note,
+        category: creditLedger.category,
         createdAt: creditLedger.createdAt,
         userEmail: users.email,
         userName: users.name,
@@ -41,9 +46,12 @@ export async function adminLedgerExportCsv(
     if (batch.length === 0) break;
     for (const row of batch) {
       const label = ledgerReasonLabels[row.reason] ?? row.reason;
+      const category = row.category
+        ? (adminAdjustCategoryLabels[row.category] ?? row.category)
+        : '';
       const note = row.note ?? '';
       lines.push(
-        `${csvCell(row.createdAt)},${csvCell(row.userEmail)},${csvCell(row.userName)},${csvCell(label)},${row.amount},${csvCell(note)}`,
+        `${csvCell(row.createdAt)},${csvCell(row.userEmail)},${csvCell(row.userName)},${csvCell(label)},${csvCell(category)},${row.amount},${csvCell(note)}`,
       );
     }
     rows += batch.length;

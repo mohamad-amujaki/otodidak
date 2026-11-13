@@ -2,6 +2,7 @@
 import { env } from 'cloudflare:workers';
 import QRCode from 'qrcode';
 import Shell from '../../../../components/Shell.astro';
+import { safeReturnPath } from '../../../../domain/credit-ui';
 import { AppError } from '../../../../domain/errors';
 import { formatIdr } from '../../../../domain/format';
 import { record } from '../../../../domain/guard';
@@ -16,6 +17,8 @@ if ('redirect' in page) return Astro.redirect(page.redirect);
 const { session, me: meRaw } = page;
 const me = record(meRaw);
 const user = record(me.user);
+const kembali = safeReturnPath(Astro.url.searchParams.get('kembali'));
+const kembaliQuery = kembali ? `?kembali=${encodeURIComponent(kembali)}` : '';
 
 let orderRaw: Record<string, unknown>;
 try {
@@ -33,11 +36,13 @@ try {
 const order = record(orderRaw);
 const status = String(order.status ?? '');
 
-if (status !== 'pending') return Astro.redirect(`/kredit/pesanan/${orderId}`);
+if (status !== 'pending')
+  return Astro.redirect(`/kredit/pesanan/${orderId}${kembaliQuery}`);
 
 const paymentCode =
   typeof order.paymentCode === 'string' ? order.paymentCode : null;
-if (!paymentCode) return Astro.redirect(`/kredit/pesanan/${orderId}`);
+if (!paymentCode)
+  return Astro.redirect(`/kredit/pesanan/${orderId}${kembaliQuery}`);
 
 const qrDataUrl = await QRCode.toDataURL(paymentCode, {
   margin: 2,
@@ -46,10 +51,10 @@ const qrDataUrl = await QRCode.toDataURL(paymentCode, {
 });
 const mock = env.SUMOPOD_API_KEY === 'mock';
 ---
-<Shell title="Bayar QRIS" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
+<Shell title="Bayar QRIS" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
   <div class="mx-auto max-w-md">
     <p>
-      <a class="text-sm text-tinta-lembut hover:text-jalur" href={`/kredit/pesanan/${orderId}`}>← Kembali ke pesanan</a>
+      <a class="text-sm text-tinta-lembut hover:text-jalur" href={`/kredit/pesanan/${orderId}${kembaliQuery}`}>← Kembali ke pesanan</a>
     </p>
     <h1 class="judul mt-2">Scan QRIS</h1>
     <p class="mt-2 text-sm text-tinta-lembut">

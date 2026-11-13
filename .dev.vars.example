@@ -11,5 +11,4 @@ SUMOPOD_API_BASE=https://api-pay-sandbox.sumopod.com/api/v1
 APP_ORIGIN=http://localhost:4321
 # Kunci Bearer untuk penyedia AI (default base https://ai.sumopod.com/v1, model deepseek-v4.1-flash-1017).
 OPENAI_API_KEY=mock
-BRAVE_SEARCH_API_KEY=mock
 YOUTUBE_API_KEY=mock

@@ -21,7 +21,13 @@ import {
 import { AppError } from '../domain/errors';
 import type { TaskName } from '../domain/schemas';
 import { jakartaDate } from '../domain/time';
-import { activePacks, ledgerPage, loadConfig, ordersFor } from './account';
+import {
+  activePacks,
+  ledgerCount,
+  ledgerPage,
+  loadConfig,
+  ordersFor,
+} from './account';
 import {
   adminJobsTotal,
   adminLedgerTotal,
@@ -126,7 +132,38 @@ export async function listAdminUsers(db: Database, url: string) {
   return { users: list, total };
 }
 
-export async function adminUserDetail(db: Database, userId: string) {
+async function ledgerActors(
+  db: Database,
+  rows: { refType: string | null; refId: string | null }[],
+): Promise<Map<string, { name: string; email: string }>> {
+  const ids = [
+    ...new Set(
+      rows
+        .filter((row) => row.refType === 'admin' && row.refId)
+        .map((row) => String(row.refId)),
+    ),
+  ];
+  if (ids.length === 0) return new Map();
+  const actors = await db
+    .select({ id: users.id, name: users.name, email: users.email })
+    .from(users)
+    .where(inArray(users.id, ids));
+  return new Map(
+    actors.map((actor) => [actor.id, { name: actor.name, email: actor.email }]),
+  );
+}
+
+export type AdminUserDetailOptions = {
+  ledgerReason?: string;
+  ledgerLimit?: number;
+  ledgerOffset?: number;
+};
+
+export async function adminUserDetail(
+  db: Database,
+  userId: string,
+  options: AdminUserDetailOptions = {},
+) {
   const rows = await db
     .select()
     .from(users)
@@ -137,7 +174,33 @@ export async function adminUserDetail(db: Database, userId: string) {
   const pathCount = await db.get<{ n: number | null }>(sql`
       select count(*) as n from path where user_id = ${userId}
     `);
-  const entries = await ledgerPage(db, userId, 15, 0);
+  const ledgerLimit = options.ledgerLimit ?? 15;
+  const ledgerOffset = options.ledgerOffset ?? 0;
+  const entries = await ledgerPage(
+    db,
+    userId,
+    ledgerLimit,
+    ledgerOffset,
+    options.ledgerReason,
+  );
+  const ledgerTotal = await ledgerCount(db, userId, options.ledgerReason);
+  const balance = await balanceOf(db, user.id);
+  const actors = await ledgerActors(db, entries);
+  let running = balance;
+  const ledger = entries.map((entry) => {
+    const balanceAfter = running;
+    running -= entry.amount;
+    const actor =
+      entry.refType === 'admin' && entry.refId
+        ? actors.get(String(entry.refId))
+        : undefined;
+    return {
+      ...entry,
+      balanceAfter,
+      actorName: actor?.name ?? null,
+      actorEmail: actor?.email ?? null,
+    };
+  });
   const orders = await ordersFor(db, userId);
   const job = await db
     .select()
@@ -159,13 +222,14 @@ export async function adminUserDetail(db: Database, userId: string) {
       email: user.email,
       role: user.role,
       status: user.status,
-      balance: await balanceOf(db, user.id),
+      balance,
       deletionRequestedAt: user.deletionRequestedAt,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     },
     pathCount: Number(pathCount?.n ?? 0),
-    ledger: entries,
+    ledger,
+    ledgerTotal,
     orders,
     activeJob: job[0] ?? null,
   };
@@ -214,6 +278,8 @@ export async function listAdminLedger(db: Database, url: string) {
         reason: creditLedger.reason,
         note: creditLedger.note,
         createdAt: creditLedger.createdAt,
+        refType: creditLedger.refType,
+        refId: creditLedger.refId,
         userEmail: users.email,
         userName: users.name,
       })
@@ -225,7 +291,21 @@ export async function listAdminLedger(db: Database, url: string) {
       .offset(query.offset),
     adminLedgerTotal(db, query),
   ]);
-  return { entries, total };
+  const actors = await ledgerActors(db, entries);
+  return {
+    entries: entries.map((entry) => {
+      const actor =
+        entry.refType === 'admin' && entry.refId
+          ? actors.get(String(entry.refId))
+          : undefined;
+      return {
+        ...entry,
+        actorName: actor?.name ?? null,
+        actorEmail: actor?.email ?? null,
+      };
+    }),
+    total,
+  };
 }
 
 export async function listAdminOrders(db: Database, url: string) {

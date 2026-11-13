@@ -1,0 +1,44 @@
+---
+import {
+  creditAlertTitle,
+  creditReassurance,
+  creditShortNote,
+  creditTopUpHref,
+} from '../../domain/credit-ui';
+
+interface Props {
+  balance: number;
+  cost: number;
+  topUpHref?: string;
+}
+
+const { balance, cost, topUpHref = creditTopUpHref } = Astro.props;
+---
+
+<div
+  class="rounded-kontrol border border-hangat/30 bg-hangat-lembut p-4"
+  role="status"
+  aria-live="polite"
+>
+  <div class="flex gap-3">
+    <svg class="mt-0.5 size-5 shrink-0 text-hangat" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+    </svg>
+    <div class="min-w-0 flex-1">
+      <p class="text-sm font-semibold text-tinta">{creditAlertTitle}</p>
+      <p class="mt-1 text-sm tabular-nums text-tinta-lembut">
+        {creditShortNote(balance, cost)}
+      </p>
+      <p class="mt-1 text-sm text-tinta-lembut">{creditReassurance}</p>
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        <a class="btn-jalur min-h-9 px-4 text-sm" href={topUpHref}>Isi kredit</a>
+        <a
+          class="inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta transition-colors hover:border-jalur/40"
+          href="/kredit"
+        >
+          Lihat saldo
+        </a>
+      </div>
+    </div>
+  </div>
+</div>

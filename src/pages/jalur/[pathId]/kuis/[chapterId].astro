@@ -1,9 +1,19 @@
 ---
 import { env } from 'cloudflare:workers';
+import CreditNotice from '../../../../components/credit/CreditNotice.astro';
 import GenerationWait from '../../../../components/GenerationWait.astro';
 import Shell from '../../../../components/Shell.astro';
+import {
+  creditShortNote,
+  creditTopUpFor,
+  hasEnoughCredits,
+} from '../../../../domain/credit-ui';
 import { AppError } from '../../../../domain/errors';
-import { quizStatusLabel } from '../../../../domain/format';
+import {
+  alphaLabel,
+  formatWhen,
+  quizStatusLabel,
+} from '../../../../domain/format';
 import { isRecord, record } from '../../../../domain/guard';
 import { startQuiz } from '../../../../server/generation';
 import { submitQuizAttempt } from '../../../../server/quiz-actions';
@@ -18,7 +28,24 @@ const { session, me: meRaw } = page;
 const me = record(meRaw);
 const user = record(me.user);
 const config = record(me.config);
+const activeJob = isRecord(me.activeJob) ? me.activeJob : null;
+const balance = typeof me.balance === 'number' ? me.balance : 0;
+const cost = typeof config.costQuiz === 'number' ? config.costQuiz : 1;
+const quizAffordable = hasEnoughCredits(balance, cost);
+const lowCredit = !quizAffordable;
+const resumeAction = Astro.url.searchParams.get('lanjut') === 'kuis';
+const topUpUrl = new URL(Astro.url);
+topUpUrl.searchParams.set('lanjut', 'kuis');
+const quizTopUpHref = creditTopUpFor(`${topUpUrl.pathname}${topUpUrl.search}`);
+const resumeDismissUrl = new URL(Astro.url);
+resumeDismissUrl.searchParams.delete('lanjut');
+const resumeDismissHref = `${resumeDismissUrl.pathname}${resumeDismissUrl.search}`;
+const resumeReady = resumeAction && quizAffordable;
+const redoMode = Astro.url.searchParams.get('ulang') === '1';
+const indexOf = (value: unknown) => (typeof value === 'number' ? value : -1);
+let creditShortfall: { balance: number; cost: number } | null = null;
 let message = '';
+let messageIsInfo = false;
 let result: Record<string, unknown> | null = null;
 const pathRaw = await pathDetail(session.db, session.user.id, pathId);
 if (!pathRaw) return Astro.redirect('/pustaka');
@@ -30,151 +57,517 @@ const chapter = chapters.find((item) => item.id === chapterId) ?? null;
 const quiz = chapter && isRecord(chapter.quiz) ? chapter.quiz : null;
 const questions =
   quiz && Array.isArray(quiz.questions) ? quiz.questions.filter(isRecord) : [];
+const attempt = quiz && isRecord(quiz.attempt) ? quiz.attempt : null;
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
-  else if (String(form.get('aksi') ?? '') === 'ulang' && quiz) {
+  else if (String(form.get('aksi') ?? '') === 'ulang') {
     try {
       await startQuiz(env, Astro.request, session.user, chapterId);
-      message = 'Menyusun kuis.';
+      message = 'Kuis sedang disusun. Halaman ini akan diperbarui otomatis.';
+      messageIsInfo = true;
     } catch (error) {
-      message =
-        error instanceof AppError ? error.message : 'Gagal memulai kuis.';
+      if (error instanceof AppError && error.code === 'insufficient_credits')
+        creditShortfall = { balance, cost };
+      else
+        message =
+          error instanceof AppError ? error.message : 'Gagal memulai kuis.';
     }
   } else if (quiz) {
     const answers = questions.map((_, index) =>
       Number(form.get(`jawaban-${index}`)),
     );
     try {
-      const submitted = await submitQuizAttempt(
+      result = await submitQuizAttempt(
         session.db,
         session.user,
         String(quiz.id),
         answers,
       );
-      result = submitted;
     } catch (error) {
       message =
         error instanceof AppError ? error.message : 'Gagal mengirim jawaban.';
     }
   }
 }
-const cost = typeof config.costQuiz === 'number' ? config.costQuiz : 1;
+
 const pass =
   typeof config.passThreshold === 'number' ? config.passThreshold : 80;
-const explanations =
-  result && Array.isArray(result.review)
-    ? result.review.filter(
-        (item) => isRecord(item) && typeof item.explanation === 'string',
-      )
-    : [];
-const outcome =
-  result?.quizStatus === 'understood' || result?.quizStatus === 'retry'
-    ? result.quizStatus
-    : null;
+const pathTitle = String(detail.title ?? 'jalur');
+const resultReview =
+  result && Array.isArray(result.review) ? result.review.filter(isRecord) : [];
+const reviewItems =
+  resultReview.length > 0
+    ? resultReview
+    : attempt
+      ? questions.filter((question) => typeof question.selected === 'number')
+      : [];
+const scorePercent =
+  typeof result?.scorePercent === 'number'
+    ? Number(result.scorePercent)
+    : typeof attempt?.scorePercent === 'number'
+      ? Number(attempt.scorePercent)
+      : null;
+const passed = scorePercent !== null && scorePercent >= pass;
+const correctCount = reviewItems.filter(
+  (item) => indexOf(item.selected) === indexOf(item.correctIndex),
+).length;
+const statusText =
+  typeof result?.quizStatus === 'string'
+    ? quizStatusLabel(result.quizStatus as 'understood' | 'retry')
+    : String(chapter?.quizStatusLabel ?? '');
+const showReview = reviewItems.length > 0 && (!redoMode || result !== null);
+const attemptAt =
+  typeof attempt?.createdAt === 'string' ? attempt.createdAt : '';
+const attempts =
+  quiz && Array.isArray(quiz.attempts) ? quiz.attempts.filter(isRecord) : [];
+const bestScore = attempts.reduce(
+  (best, item) =>
+    Math.max(
+      best,
+      typeof item.scorePercent === 'number' ? item.scorePercent : 0,
+    ),
+  0,
+);
+const chapterTitle = String(chapter?.title ?? 'Kuis bab');
+const chapterNumber = chapters.findIndex((item) => item.id === chapterId) + 1;
+const lessonCount =
+  chapter && Array.isArray(chapter.lessons) ? chapter.lessons.length : 0;
 ---
-<Shell title="Kuis" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
-  <div class="max-w-[65ch]">
-    <p><a class="inline-flex min-h-11 items-center text-sm text-tinta-lembut" href={`/jalur/${pathId}`}>Kembali ke jalur</a></p>
-    <h1 class="judul mt-2">{chapter ? chapter.title : 'Kuis'}</h1>
-    {message && <p class="mt-3 text-sm text-bahaya">{message}</p>}
-    {!quiz && <p class="mt-4">Kuis belum disusun.</p>}
-    {quiz && questions.length === 0 && (
+
+<Shell title={chapter ? `Kuis: ${chapterTitle}` : 'Kuis'} balance={typeof me.balance === 'number' ? me.balance : 0} lowCredit={lowCredit} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
+  <div class="mx-auto w-full max-w-[44rem]">
+    <a
+      class="inline-flex min-h-11 items-center gap-1.5 text-sm text-tinta-lembut transition-colors hover:text-jalur"
+      href={`/jalur/${pathId}`}
+    >
+      <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+      </svg>
+      {pathTitle}
+    </a>
+
+    <p class="eyebrow mt-4">Kuis{chapterNumber > 0 ? ` · Bab ${chapterNumber}` : ''}</p>
+    <h1 class="judul mt-1.5">{chapterTitle}</h1>
+    <div class="mt-3 flex flex-wrap items-center gap-2">
+      {questions.length > 0 && (
+        <span class="rounded-full border border-garis bg-kartu px-2.5 py-1 text-[11px] font-medium text-tinta-lembut">
+          {questions.length} soal pilihan ganda
+        </span>
+      )}
+      <span class="rounded-full border border-garis bg-kartu px-2.5 py-1 text-[11px] font-medium text-tinta-lembut">
+        Nilai lulus {pass}
+      </span>
+      {scorePercent !== null && (
+        <span class:list={[
+          'rounded-full border px-2.5 py-1 text-[11px] font-semibold tabular-nums',
+          passed
+            ? 'border-jalur/30 bg-jalur-lembut text-jalur'
+            : 'border-hangat/30 bg-hangat-lembut text-hangat',
+        ]}>
+          Terakhir {scorePercent}{attemptAt ? ` · ${formatWhen(attemptAt)}` : ''}
+        </span>
+      )}
+    </div>
+
+    {creditShortfall && (
       <div class="mt-4">
-        <GenerationWait
-          title="Menyusun kuis"
-          description="Soal sedang dibuat. Muat ulang halaman ini jika belum muncul."
-          compact
-          pollSeconds={4}
+        <CreditNotice
+          balance={creditShortfall.balance}
+          cost={creditShortfall.cost}
+          topUpHref={quizTopUpHref}
         />
       </div>
     )}
-    {result && (
-      <div class="mt-4">
-        {outcome && <p class="text-lg">{quizStatusLabel(outcome)}</p>}
-        <p class="text-sm leading-[1.4] text-tinta-lembut">Pelajaran berikutnya tetap terbuka.</p>
-        <p class="mt-1 tabular-nums">{String(result.scorePercent)} dari 100. Batas paham {pass}.</p>
+    {message && (
+      <p class:list={[
+        'mt-3 rounded-kontrol border px-4 py-3 text-sm',
+        messageIsInfo
+          ? 'border-jalur/30 bg-jalur-lembut text-jalur'
+          : 'border-bahaya/30 bg-bahaya/10 text-bahaya',
+      ]}>
+        {message}
+      </p>
+    )}
+    {resumeReady && quiz && !creditShortfall && (
+      <div class="mt-4 rounded-kontrol border border-jalur/30 bg-jalur-lembut p-4">
+        <p class="text-sm font-semibold text-jalur">Kredit kamu sekarang {balance}.</p>
+        <p class="mt-1 text-sm text-tinta-lembut">
+          Pakai tombol “Susun kuis baru” di bawah untuk menyusun ulang.
+        </p>
+        <a class="mt-3 inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta" href={resumeDismissHref}>
+          Tutup
+        </a>
       </div>
     )}
-    {quiz && questions.length > 0 && (
+
+    {!quiz && (
+      <section class="mt-6 rounded-kartu border border-garis bg-kartu p-6 text-center">
+        <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-tinta-lembut">
+          Kuis belum disusun
+        </p>
+        <h2 class="mt-2 text-lg font-bold text-tinta">Uji pemahaman bab ini</h2>
+        <p class="mx-auto mt-2 max-w-sm text-sm text-tinta-lembut">
+          Soal dibuat dari {lessonCount > 0 ? `${lessonCount} pelajaran` : 'materi'} di bab ini, lalu bisa diulang tanpa kredit tambahan. Menyusun kuis memakai {cost} kredit.
+        </p>
+        <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
+          {quizAffordable ? (
+            <form method="post">
+              <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+              <input type="hidden" name="aksi" value="ulang" />
+              <button class="btn-jalur min-h-11 px-5 text-sm" type="submit">
+                Susun kuis
+              </button>
+            </form>
+          ) : (
+            <a class="btn-jalur min-h-11 px-5 text-sm" href={quizTopUpHref}>Isi kredit</a>
+          )}
+          <a class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40" href={`/jalur/${pathId}`}>
+            Kembali ke bab
+          </a>
+        </div>
+        {!quizAffordable && (
+          <p class="mt-3 text-xs tabular-nums text-tinta-lembut">
+            {creditShortNote(balance, cost)}
+          </p>
+        )}
+      </section>
+    )}
+
+    {quiz && questions.length === 0 && (
+      <div class="mt-6 space-y-3">
+        <GenerationWait
+          title="Menyusun kuis"
+          description="Soal sedang dibuat dari materi bab ini."
+          compact
+          jobId={activeJob ? String(activeJob.id) : undefined}
+        />
+        <div class="space-y-3 rounded-kartu border border-garis bg-kartu p-4">
+          <div class="h-3 w-3/4 animate-pulse rounded-full bg-garis/70" />
+          <div class="h-9 w-full animate-pulse rounded-kontrol bg-garis/40" />
+          <div class="h-9 w-full animate-pulse rounded-kontrol bg-garis/40" />
+          <div class="h-9 w-1/2 animate-pulse rounded-kontrol bg-garis/40" />
+        </div>
+      </div>
+    )}
+
+    {showReview && (
+      <section
+        class="mt-6 rounded-kartu border border-garis bg-kartu p-5"
+        role="status"
+        aria-live="polite"
+      >
+        <div class="flex flex-wrap items-center gap-4">
+          <p
+            class="text-4xl font-bold tabular-nums text-tinta"
+            data-count-up={scorePercent ?? 0}
+          >
+            {scorePercent ?? 0}
+          </p>
+          <div class="min-w-0">
+            <span class:list={[
+              'inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold',
+              passed
+                ? 'border-jalur/30 bg-jalur-lembut text-jalur'
+                : 'border-hangat/30 bg-hangat-lembut text-hangat',
+            ]}>
+              {statusText || (passed ? 'Paham' : 'Perlu ulang')}
+            </span>
+            <p class="mt-1.5 text-sm tabular-nums text-tinta-lembut">
+              {correctCount} dari {reviewItems.length} soal benar · nilai lulus {pass}
+            </p>
+          </div>
+        </div>
+        <div
+          class="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-garis"
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow={scorePercent ?? 0}
+          aria-label="Skor kuis"
+        >
+          <div
+            class:list={['h-full', passed ? 'bg-jalur' : 'bg-hangat']}
+            style={`width: ${Math.max(2, scorePercent ?? 0)}%`}
+          />
+        </div>
+        <p class="mt-3 text-sm text-tinta-lembut">
+          Pelajaran berikutnya tetap terbuka. Kuis ini hanya untuk memeriksa pemahaman, bukan syarat lanjut.
+        </p>
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+          <a class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40" href={`/jalur/${pathId}/kuis/${chapterId}?ulang=1`}>
+            Kerjakan ulang
+          </a>
+          <a class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40" href={`/jalur/${pathId}`}>
+            Kembali ke bab
+          </a>
+        </div>
+      </section>
+    )}
+
+    {showReview && (
+      <section class="mt-6 space-y-4">
+        <h2 class="text-sm font-semibold uppercase tracking-[0.08em] text-tinta-lembut">
+          Pembahasan
+        </h2>
+        {reviewItems.map((item, index) => {
+          const choices = Array.isArray(item.choices)
+            ? item.choices.map((choice) => String(choice))
+            : [];
+          const selectedIndex = indexOf(item.selected);
+          const correctIndex = indexOf(item.correctIndex);
+          const isRight = selectedIndex === correctIndex;
+          return (
+            <article class="rounded-kartu border border-garis bg-kartu p-4">
+              <div class="flex items-start gap-2">
+                <span
+                  class:list={[
+                    'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white',
+                    isRight ? 'bg-jalur' : 'bg-bahaya',
+                  ]}
+                  aria-hidden="true"
+                >
+                  {isRight ? '✓' : '✗'}
+                </span>
+                <h3 class="text-sm font-semibold leading-snug text-tinta">
+                  {index + 1}. {String(item.stem ?? '')}
+                </h3>
+              </div>
+              <ul class="mt-3 space-y-2">
+                {choices.map((choice, choiceIndex) => {
+                  const isCorrectChoice = choiceIndex === correctIndex;
+                  const isChosen = choiceIndex === selectedIndex;
+                  return (
+                    <li
+                      class:list={[
+                        'flex items-start gap-2 rounded-kontrol border px-3 py-2 text-sm',
+                        isCorrectChoice
+                          ? 'border-jalur/40 bg-jalur-lembut'
+                          : isChosen
+                            ? 'border-bahaya/40 bg-bahaya/5'
+                            : 'border-garis bg-kartu',
+                      ]}
+                    >
+                      <span class="font-semibold tabular-nums text-tinta-lembut">
+                        {alphaLabel(choiceIndex)}
+                      </span>
+                      <span class="min-w-0 flex-1 text-tinta">{choice}</span>
+                      {isChosen && (
+                        <span
+                          class:list={[
+                            'shrink-0 text-[11px] font-semibold',
+                            isCorrectChoice ? 'text-jalur' : 'text-bahaya',
+                          ]}
+                        >
+                          jawabanmu
+                        </span>
+                      )}
+                      {isCorrectChoice && !isChosen && (
+                        <span class="shrink-0 text-[11px] font-semibold text-jalur">
+                          jawaban benar
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              {typeof item.explanation === 'string' && item.explanation && (
+                <p class="mt-3 rounded-kontrol bg-kertas px-3 py-2 text-sm leading-[1.5] text-tinta-lembut">
+                  {item.explanation}
+                </p>
+              )}
+            </article>
+          );
+        })}
+      </section>
+    )}
+
+    {showReview && attempts.length > 1 && (
+      <section class="mt-6 rounded-kartu border border-garis bg-kartu p-4">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 class="text-sm font-semibold uppercase tracking-[0.08em] text-tinta-lembut">
+            Riwayat percobaan
+          </h2>
+          <p class="text-xs text-tinta-lembut">
+            Terbaik{' '}
+            <span class="font-semibold tabular-nums text-jalur">{bestScore}</span>
+          </p>
+        </div>
+        <ul class="mt-3 space-y-2 text-sm">
+          {attempts.map((item) => {
+            const score =
+              typeof item.scorePercent === 'number' ? item.scorePercent : 0;
+            const isLatest = attempt && String(item.id) === String(attempt.id);
+            return (
+              <li class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-kontrol border border-garis bg-kartu px-3 py-2">
+                <span class="w-8 font-semibold tabular-nums text-tinta">{score}</span>
+                <span class="min-w-0 flex-1 tabular-nums text-xs text-tinta-lembut">
+                  {formatWhen(String(item.createdAt ?? ''))}
+                </span>
+                {isLatest && (
+                  <span class="text-[11px] font-medium text-tinta-lembut">terakhir</span>
+                )}
+                <span
+                  class:list={[
+                    'rounded-full border px-2 py-0.5 text-[11px] font-semibold',
+                    score >= pass
+                      ? 'border-jalur/30 bg-jalur-lembut text-jalur'
+                      : 'border-hangat/30 bg-hangat-lembut text-hangat',
+                  ]}
+                >
+                  {score >= pass ? 'paham' : 'perlu ulang'}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+    )}
+
+    {showReview && <script src="/scripts/count-up.js" defer></script>}
+
+    {quiz && questions.length > 0 && !showReview && (
       <form class="mt-6 space-y-5" method="post" data-kuis>
         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        {redoMode && (
+          <p class="rounded-kontrol border border-garis bg-kertas px-3 py-2 text-sm text-tinta-lembut">
+            Kerjakan ulang kuis yang sama. Mengirim jawaban tidak memakai kredit dan tidak mengunci pelajaran berikutnya.
+          </p>
+        )}
+        {questions.length > 1 && (
+          <div
+            class="flex items-center justify-between gap-3"
+            data-quiz-stepper
+            hidden
+          >
+            <p
+              class="text-sm font-medium tabular-nums text-tinta"
+              aria-live="polite"
+              data-quiz-counter
+            >
+              Soal 1 dari {questions.length}
+            </p>
+            <div class="flex items-center gap-1.5" aria-hidden="true">
+              {questions.map((_, dotIndex) => (
+                <span
+                  class:list={[
+                    'size-1.5 rounded-full transition-transform',
+                    dotIndex === 0 ? 'bg-jalur' : 'bg-garis',
+                  ]}
+                  data-quiz-dot
+                />
+              ))}
+            </div>
+          </div>
+        )}
         {questions.map((question, index) => {
           const choices = Array.isArray(question.choices) ? question.choices : [];
+          const selectedIndex = indexOf(question.selected);
           return (
-            <fieldset class="grid gap-2">
-              <legend class="text-base" tabindex="-1">{index + 1}. {question.stem}</legend>
-              {choices.map((choice, choiceIndex) => (
-                <label class="w-full cursor-pointer rounded-kontrol border border-garis bg-kartu px-3 has-checked:border-jalur has-checked:bg-jalur-lembut">
-                  <input type="radio" name={`jawaban-${index}`} value={choiceIndex} required />
-                  <span>{choice}</span>
-                </label>
-              ))}
+            <fieldset class="rounded-kartu border border-garis bg-kartu p-4">
+              <legend class="text-base font-semibold leading-snug text-tinta" tabindex="-1">
+                {index + 1}. {String(question.stem ?? '')}
+              </legend>
+              <div class="mt-3 grid gap-2">
+                {choices.map((choice, choiceIndex) => (
+                  <label class="flex w-full cursor-pointer items-start gap-2 rounded-kontrol border border-garis bg-kartu px-3 py-2 text-sm transition-colors hover:border-jalur/40 focus-within:ring-2 focus-within:ring-jalur/30 has-checked:border-jalur has-checked:bg-jalur-lembut">
+                    <input
+                      class="mt-0.5"
+                      type="radio"
+                      name={`jawaban-${index}`}
+                      value={choiceIndex}
+                      checked={selectedIndex === choiceIndex}
+                      required
+                    />
+                    <span class="font-semibold tabular-nums text-tinta-lembut">
+                      {alphaLabel(choiceIndex)}
+                    </span>
+                    <span class="min-w-0 flex-1 text-tinta">{String(choice)}</span>
+                  </label>
+                ))}
+              </div>
             </fieldset>
           );
         })}
-        {questions.length > 1 && !result && (
-          <button class="w-full rounded-kontrol border border-garis bg-kartu min-[768px]:w-auto" type="button" data-lanjut hidden>Berikutnya</button>
-        )}
-        <button class="w-full rounded-kontrol bg-jalur px-4 text-white min-[768px]:w-auto" type="submit" data-kirim>Kirim jawaban</button>
-        <p class="text-sm leading-[1.4] text-tinta-lembut">Mengulang jawaban yang sama tidak memakai kredit.</p>
+        <div
+          class="sticky bottom-0 z-20 rounded-kontrol border-t border-garis bg-kertas/95 py-3 backdrop-blur-sm min-[1024px]:static min-[1024px]:border-0 min-[1024px]:bg-transparent min-[1024px]:py-0"
+          data-quiz-actions
+        >
+          <div class="flex flex-wrap items-center gap-2">
+            {questions.length > 1 && (
+              <button
+                class="min-h-11 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40"
+                type="button"
+                data-sebelumnya
+                hidden
+              >
+                ← Sebelumnya
+              </button>
+            )}
+            {questions.length > 1 && (
+              <button
+                class="min-h-11 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40"
+                type="button"
+                data-lanjut
+                hidden
+              >
+                Berikutnya →
+              </button>
+            )}
+            <button
+              class="min-h-11 rounded-kontrol bg-jalur px-5 text-sm font-semibold text-white transition-[filter] hover:brightness-110"
+              type="submit"
+              data-kirim
+            >
+              Kirim jawaban
+            </button>
+          </div>
+        </div>
+        <p class="text-sm leading-[1.4] text-tinta-lembut">
+          Mengulang jawaban yang sama tidak memakai kredit.
+        </p>
       </form>
     )}
-    {quiz && questions.length > 1 && !result && (
-      <script is:inline>
-        (function () {
-          var form = document.querySelector("[data-kuis]");
-          if (!form) return;
-          var sets = Array.prototype.filter.call(form.querySelectorAll("fieldset"), function (node) {
-            return node instanceof HTMLFieldSetElement;
-          });
-          if (sets.length < 2) return;
-          var next = form.querySelector("[data-lanjut]");
-          var send = form.querySelector("[data-kirim]");
-          var index = 0;
-          function paint() {
-            sets.forEach(function (set, item) {
-              set.hidden = item !== index;
-            });
-            if (next) next.hidden = index >= sets.length - 1;
-            if (send) send.hidden = index < sets.length - 1;
-          }
-          if (next) {
-            next.addEventListener("click", function () {
-              var picked = sets[index].querySelector("input:checked");
-              if (!picked) {
-                var first = sets[index].querySelector("input");
-                if (first) first.focus();
-                return;
-              }
-              index += 1;
-              paint();
-              var legend = sets[index] && sets[index].querySelector("legend");
-              if (legend) legend.focus();
-            });
-          }
-          paint();
-        })();
-      </script>
+
+    {quiz && questions.length > 1 && !showReview && !result && (
+      <script src="/scripts/quiz-steps.js" defer></script>
     )}
-    {explanations.length > 0 && (
-      <section class="mt-6 space-y-3">
-        <h2 class="text-xl">Yang perlu dicek</h2>
-        {explanations.map((item) => (
-          <p>{item.explanation}</p>
-        ))}
-      </section>
-    )}
+
     {quiz && (
-      <form class="mt-6" method="post">
+      <form
+        class="mt-8 rounded-kartu border border-garis bg-kartu p-4"
+        method="post"
+        onsubmit={`return confirm('Susun kuis baru untuk bab ini menggunakan ${cost} kredit?')`}
+      >
         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
         <input type="hidden" name="aksi" value="ulang" />
-        <button class="w-full rounded-kontrol border border-garis bg-kartu min-[768px]:w-auto" type="submit">Susun kuis baru</button>
-        <p class="mt-2 text-sm leading-[1.4] text-tinta-lembut">Memakai {cost} kredit</p>
+        <p class="text-sm font-medium text-tinta">Susun kuis baru</p>
+        <p class="mt-1 text-sm text-tinta-lembut">
+          Membuat set soal baru dari materi bab ini. Percobaan lama tetap tersimpan.
+        </p>
+        <button
+          class="mt-3 min-h-11 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40 disabled:cursor-not-allowed disabled:opacity-50"
+          type="submit"
+          disabled={!quizAffordable || Boolean(activeJob)}
+        >
+          {!quizAffordable
+            ? 'Kredit tidak cukup'
+            : activeJob
+              ? 'Sedang menyusun…'
+              : `Susun kuis baru · ${cost} kredit`}
+        </button>
+        {!quizAffordable && (
+          <p class="mt-2 text-sm tabular-nums text-tinta-lembut">
+            {creditShortNote(balance, cost)}
+            {' · '}
+            <a class="font-semibold text-jalur hover:underline" href={quizTopUpHref}>
+              Isi kredit
+            </a>
+          </p>
+        )}
       </form>
     )}
   </div>
-  {quiz && questions.length === 0 && <meta http-equiv="refresh" content="4" />}
 </Shell>

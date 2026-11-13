@@ -18,7 +18,6 @@ export default defineConfig({
             'whsec_b3RvZGlkYWstdGVzdC13ZWJob29rLXNlY3JldC1rZXk=',
           SUMOPOD_API_BASE: 'https://api-pay-sandbox.sumopod.com/api/v1',
           OPENAI_API_KEY: 'mock',
-          BRAVE_SEARCH_API_KEY: 'mock',
           YOUTUBE_API_KEY: 'mock',
         },
       },

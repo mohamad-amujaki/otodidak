@@ -4,6 +4,7 @@ import ChapterLinks from './ChapterLinks.astro';
 interface LessonLink {
   id: string;
   title: string;
+  completedAt?: string | null;
 }
 interface ChapterLink {
   id: string;
@@ -15,37 +16,76 @@ interface Props {
   chapters: ChapterLink[];
   currentLessonId?: string;
   onPath?: boolean;
+  progress?: { done: number; total: number };
 }
-const { pathId, chapters, currentLessonId, onPath = false } = Astro.props;
+const {
+  pathId,
+  chapters,
+  currentLessonId,
+  onPath = false,
+  progress,
+} = Astro.props;
+const currentChapterIndex = chapters.findIndex((chapter) =>
+  chapter.lessons.some((lesson) => lesson.id === currentLessonId),
+);
+const done = progress?.done ?? 0;
+const total = progress?.total ?? 0;
+const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+const ringkas =
+  currentChapterIndex >= 0
+    ? `Bab ${currentChapterIndex + 1} dari ${chapters.length}`
+    : `${chapters.length} bab`;
 ---
 {chapters.length > 0 && (
   <nav
-    class="chapter-nav min-w-0 min-[1100px]:sticky min-[1100px]:top-20 min-[1100px]:max-h-[calc(100dvh-6rem)] min-[1100px]:overflow-y-auto min-[1100px]:pe-1"
+    class="chapter-nav min-w-0 [scrollbar-width:thin] min-[1024px]:sticky min-[1024px]:top-[84px] min-[1024px]:max-h-[calc(100dvh-7.5rem)] min-[1024px]:overflow-y-auto"
     aria-label="Daftar bab"
   >
-    <details class="daftar chapter-nav-drawer min-[1100px]:hidden">
-      <summary class="rounded-kontrol border border-garis bg-kartu px-3">
+    <details class="daftar chapter-nav-drawer min-[1024px]:hidden">
+      <summary class="rounded-kontrol border border-garis bg-kartu px-3 shadow-sm">
         <span class="text-sm font-medium text-tinta">Daftar bab</span>
         <svg class="size-4 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       </summary>
-      <div class="pt-4">
+      <div class="mt-4 mb-6">
         <ChapterLinks pathId={pathId} chapters={chapters} currentLessonId={currentLessonId} onPath={onPath} />
       </div>
     </details>
-    <div class="hidden min-[1100px]:block">
-      <p class="mb-3 text-sm font-semibold text-tinta">Daftar bab</p>
-      <ChapterLinks pathId={pathId} chapters={chapters} currentLessonId={currentLessonId} onPath={onPath} />
+
+    <div class="hidden min-[1024px]:block">
+      <div class="rounded-kartu border border-garis bg-kartu p-3">
+        <p class="px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-tinta-lembut">
+          Daftar bab
+        </p>
+
+        {total > 0 && (
+          <div class="mt-2 px-2">
+            <p class="text-xs tabular-nums text-tinta-lembut">
+              {ringkas}
+              {' · '}
+              <span class="font-medium text-tinta">{done}/{total}</span>
+              {' pelajaran selesai'}
+            </p>
+            <div
+              class="mt-2 h-0.5 w-full overflow-hidden rounded-full bg-garis"
+              role="progressbar"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow={percent}
+              aria-label="Progres jalur"
+            >
+              <div class="h-full bg-jalur" style={`width: ${percent}%`} />
+            </div>
+          </div>
+        )}
+
+        <div class="mt-3">
+          <ChapterLinks pathId={pathId} chapters={chapters} currentLessonId={currentLessonId} onPath={onPath} />
+        </div>
+      </div>
     </div>
   </nav>
 )}
 
-<script>
-  document.querySelectorAll('.chapter-nav-drawer a[href]').forEach((anchor) => {
-    anchor.addEventListener('click', () => {
-      const details = anchor.closest('.chapter-nav-drawer');
-      if (details instanceof HTMLDetailsElement) details.open = false;
-    });
-  });
-</script>
+<script type="module" src="/scripts/chapter-nav.js"></script>

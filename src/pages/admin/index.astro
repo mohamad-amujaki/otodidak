@@ -133,7 +133,7 @@ if (auth.superadmin) {
   }
 }
 ---
-<AdminShell title="Admin" section="ringkasan" balance={auth.balance} superadmin={auth.superadmin} navStats={navStats}>
+<AdminShell title="Admin" section="ringkasan" balance={auth.balance} superadmin={auth.superadmin} navStats={navStats} userName={String(auth.user.name)} userEmail={String(auth.user.email)}>
   <h1 class="judul">Ringkasan</h1>
   <p class="mt-2 text-sm text-tinta-lembut">Operasi platform Otodidak</p>
 

@@ -65,14 +65,6 @@ export async function ensureSeed(db: Database): Promise<void> {
     .insert(sourceProviders)
     .values([
       {
-        id: 'source_brave',
-        kind: 'web' as const,
-        name: 'brave',
-        baseUrl: 'https://api.search.brave.com/res/v1/web/search',
-        secretName: 'BRAVE_SEARCH_API_KEY',
-        active: 1,
-      },
-      {
         id: 'source_youtube',
         kind: 'youtube' as const,
         name: 'youtube',

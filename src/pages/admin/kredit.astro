@@ -2,22 +2,41 @@
 import { env } from 'cloudflare:workers';
 import AdminPagination from '../../components/AdminPagination.astro';
 import AdminShell from '../../components/AdminShell.astro';
+import AdminAlert from '../../components/admin/AdminAlert.astro';
 import AdminBadge from '../../components/admin/AdminBadge.astro';
 import AdminEmptyState from '../../components/admin/AdminEmptyState.astro';
+import AdminRow from '../../components/admin/AdminRow.astro';
+import AdminTable from '../../components/admin/AdminTable.astro';
 import {
+  adminAdjustCategories,
+  adminAdjustCategoryLabels,
+  adminMessageTone,
   ledgerReasonLabels,
   orderStatusLabels,
 } from '../../domain/admin-labels';
 import { shortOrderId } from '../../domain/credit-ui';
 import { formatIdr, formatWhenShort } from '../../domain/format';
 import { isRecord } from '../../domain/guard';
+import { runAdminAction } from '../../server/admin-actions';
 import { listAdminLedger, listAdminOrders } from '../../server/admin-data';
 import { requireAdmin } from '../../server/admin-guard';
+import { formatRedeemCode, listCreditCodes } from '../../server/credit-codes';
 
 const auth = await requireAdmin(Astro.request, { nav: true });
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
 
-const tab = Astro.url.searchParams.get('tab') === 'buku' ? 'buku' : 'pesanan';
+let message = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+    message = 'Muat ulang halaman, lalu kirim lagi.';
+  else
+    message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
+}
+
+const tabParam = Astro.url.searchParams.get('tab');
+const tab =
+  tabParam === 'buku' ? 'buku' : tabParam === 'kode' ? 'kode' : 'pesanan';
 const limit = Number(Astro.url.searchParams.get('limit') ?? 20);
 const offset = Number(Astro.url.searchParams.get('offset') ?? 0);
 const orderStatus = Astro.url.searchParams.get('orderStatus') ?? '';
@@ -57,6 +76,7 @@ const ledgerTotal =
   typeof ledgerData.total === 'number' ? ledgerData.total : entries.length;
 const ordersTotal =
   typeof ordersData.total === 'number' ? ordersData.total : orders.length;
+const codes = tab === 'kode' ? await listCreditCodes(auth.session.db) : [];
 
 function tabHref(next: 'pesanan' | 'buku') {
   const p = new URLSearchParams();
@@ -79,22 +99,26 @@ const ordersExportHref = exportOrdersParams.size
   : '/api/admin/orders/export';
 const ledgerExportHref = '/api/admin/ledger/export';
 ---
-<AdminShell title="Kredit" section="kredit" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav}>
+<AdminShell title="Kredit" section="kredit" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav} userName={String(auth.user.name)} userEmail={String(auth.user.email)}>
   <div class="flex flex-col gap-3 min-[768px]:flex-row min-[768px]:items-end min-[768px]:justify-between">
     <div>
       <h1 class="judul">Kredit & pesanan</h1>
       <p class="mt-2 text-sm text-tinta-lembut">
         {tab === 'buku'
           ? `Buku besar global · ${ledgerTotal} baris`
-          : `Pesanan kredit · ${ordersTotal} total`}
+          : tab === 'kode'
+            ? `Kode akses · ${codes.length} kode`
+            : `Pesanan kredit · ${ordersTotal} total`}
       </p>
     </div>
-    <a
-      class="inline-flex min-h-10 items-center justify-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40 hover:bg-kertas"
-      href={tab === 'buku' ? ledgerExportHref : ordersExportHref}
-    >
-      Unduh CSV
-    </a>
+    {tab !== 'kode' && (
+      <a
+        class="inline-flex min-h-10 items-center justify-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40 hover:bg-kertas"
+        href={tab === 'buku' ? ledgerExportHref : ordersExportHref}
+      >
+        Unduh CSV
+      </a>
+    )}
   </div>
 
   <nav class="mt-6 flex flex-wrap gap-2" aria-label="Tab kredit">
@@ -116,7 +140,99 @@ const ledgerExportHref = '/api/admin/ledger/export';
     >
       Buku besar
     </a>
+    <a
+      class:list={[
+        'inline-flex min-h-10 items-center rounded-kontrol px-4 text-sm font-medium',
+        tab === 'kode' ? 'bg-jalur-lembut text-jalur' : 'border border-garis text-tinta-lembut hover:bg-kartu',
+      ]}
+      href={tabHref('kode')}
+    >
+      Kode akses
+    </a>
   </nav>
+
+  {tab === 'kode' && (
+    <section class="mt-6 space-y-4">
+      {message && <AdminAlert message={message} tone={adminMessageTone(message)} />}
+      <form class="rounded-kartu border border-garis bg-kartu p-4 shadow-sm" method="post">
+        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        <input type="hidden" name="aksi" value="kode-baru" />
+        <h2 class="text-lg font-semibold text-tinta">Buat kode akses</h2>
+        <p class="mt-1 text-sm text-tinta-lembut">
+          Kode ditukar pengguna di halaman Kredit. Satu akun hanya bisa menukar sekali per kode.
+        </p>
+        <div class="mt-3 grid gap-3 max-w-2xl min-[768px]:grid-cols-3">
+          <label class="text-sm">
+            <span class="font-medium">Kredit per penukaran</span>
+            <input class="mt-1 min-h-11 w-full rounded-kontrol border border-garis bg-kartu px-3 tabular-nums" name="credits" type="number" min="1" max="100000" step="1" value="50" required />
+          </label>
+          <label class="text-sm">
+            <span class="font-medium">Kuota pemakaian</span>
+            <input class="mt-1 min-h-11 w-full rounded-kontrol border border-garis bg-kartu px-3 tabular-nums" name="maxRedemptions" type="number" min="1" max="500" step="1" value="1" required />
+          </label>
+          <label class="text-sm">
+            <span class="font-medium">Berlaku (hari)</span>
+            <input class="mt-1 min-h-11 w-full rounded-kontrol border border-garis bg-kartu px-3 tabular-nums" name="expiresInDays" type="number" min="0" max="365" step="1" value="14" required />
+            <span class="mt-1 block text-xs text-tinta-lembut">0 = tanpa kedaluwarsa</span>
+          </label>
+        </div>
+        <button class="mt-3 min-h-11 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white transition-[filter] hover:brightness-110" type="submit">
+          Buat kode
+        </button>
+      </form>
+
+      {codes.length === 0 ? (
+        <AdminEmptyState message="Belum ada kode akses." resetHref="/admin/kredit?tab=kode" resetLabel="Muat ulang" />
+      ) : (
+        <AdminTable
+          class="text-sm"
+          columns={[
+            { label: 'Kode' },
+            { label: 'Kredit' },
+            { label: 'Terpakai' },
+            { label: 'Kedaluwarsa' },
+            { label: 'Status' },
+            { label: 'Aksi', srOnly: true },
+          ]}
+          grid="min-[1024px]:grid-cols-[minmax(0,11rem)_5rem_6rem_minmax(0,9rem)_6rem_5rem] min-[1024px]:gap-4"
+        >
+          {codes.map((code) => (
+            <AdminRow grid="min-[1024px]:grid-cols-[minmax(0,11rem)_5rem_6rem_minmax(0,9rem)_6rem_5rem] min-[1024px]:gap-4">
+              <span class="font-mono text-sm tracking-wider text-tinta">
+                {formatRedeemCode(code.code)}
+              </span>
+              <span class="font-semibold tabular-nums text-jalur">+{code.credits}</span>
+              <span class="tabular-nums text-tinta-lembut">
+                {code.redeemedCount}/{code.maxRedemptions}
+              </span>
+              <span class="text-tinta-lembut">
+                {code.expiresAt ? formatWhenShort(code.expiresAt) : 'tanpa batas'}
+              </span>
+              <span>
+                {code.active === 1 ? (
+                  <AdminBadge tone="success">Aktif</AdminBadge>
+                ) : (
+                  <AdminBadge tone="neutral">Nonaktif</AdminBadge>
+                )}
+              </span>
+              {code.active === 1 ? (
+                <form method="post">
+                  <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                  <input type="hidden" name="aksi" value="kode-nonaktif" />
+                  <input type="hidden" name="codeId" value={code.id} />
+                  <button class="min-h-9 rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta-lembut transition-colors hover:border-bahaya/40 hover:text-bahaya" type="submit">
+                    Nonaktifkan
+                  </button>
+                </form>
+              ) : (
+                <span class="text-xs text-tinta-lembut">—</span>
+              )}
+            </AdminRow>
+          ))}
+        </AdminTable>
+      )}
+    </section>
+  )}
 
   {tab === 'pesanan' && (
     <form class="mt-4 flex flex-wrap items-end gap-2" method="get" action="/admin/kredit">
@@ -138,36 +254,45 @@ const ledgerExportHref = '/api/admin/ledger/export';
     entries.length === 0 ? (
       <AdminEmptyState message="Belum ada baris buku besar." resetHref="/admin/kredit?tab=buku" resetLabel="Muat ulang" />
     ) : (
-      <div class="mt-6 overflow-hidden rounded-kartu border border-garis bg-kartu">
-        <div class="hidden min-[900px]:grid min-[900px]:grid-cols-[7rem_minmax(0,1fr)_minmax(0,1.2fr)_5rem_auto] min-[900px]:gap-2 min-[900px]:border-b min-[900px]:border-garis min-[900px]:bg-kertas/50 min-[900px]:px-4 min-[900px]:py-2 min-[900px]:text-xs min-[900px]:font-medium min-[900px]:text-tinta-lembut">
-          <span>Waktu</span>
-          <span>Pengguna</span>
-          <span>Alasan</span>
-          <span>Jumlah</span>
-          <span></span>
-        </div>
-        <ul class="divide-y divide-garis text-sm">
-          {entries.map((entry) => {
-            const amount = Number(entry.amount);
-            return (
-              <li class="grid gap-1 px-4 py-3 min-[900px]:grid-cols-[7rem_minmax(0,1fr)_minmax(0,1.2fr)_5rem_auto] min-[900px]:items-center min-[900px]:gap-2">
-                <span class="text-xs text-tinta-lembut">{formatWhenShort(String(entry.createdAt ?? ''))}</span>
-                <a class="font-medium text-jalur hover:underline truncate" href={`/admin/pengguna/${String(entry.userId)}`}>
-                  {entry.userName}
-                </a>
-                <span class="truncate text-tinta-lembut">
-                  {ledgerReasonLabels[String(entry.reason)] ?? entry.reason}
-                  {entry.note && ` · ${entry.note}`}
-                </span>
-                <span class:list={['font-bold tabular-nums', amount >= 0 ? 'text-jalur' : 'text-bahaya']}>
-                  {amount >= 0 ? '+' : ''}{amount}
-                </span>
-                <span class="hidden min-[900px]:block text-right text-xs text-tinta-lembut">{entry.userEmail}</span>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+      <AdminTable
+        class="mt-6 text-sm"
+        columns={[
+          { label: 'Waktu' },
+          { label: 'Pengguna' },
+          { label: 'Alasan' },
+          { label: 'Jumlah' },
+          { label: 'Email', srOnly: true },
+        ]}
+        grid="min-[1024px]:grid-cols-[7rem_minmax(0,1fr)_minmax(0,1.2fr)_5rem_minmax(0,11rem)] min-[1024px]:gap-4"
+      >
+        {entries.map((entry) => {
+          const amount = Number(entry.amount);
+          return (
+            <AdminRow grid="min-[1024px]:grid-cols-[7rem_minmax(0,1fr)_minmax(0,1.2fr)_5rem_minmax(0,11rem)] min-[1024px]:gap-4">
+              <span class="text-xs text-tinta-lembut">{formatWhenShort(String(entry.createdAt ?? ''))}</span>
+              <a class="truncate font-medium text-jalur hover:underline" href={`/admin/pengguna/${String(entry.userId)}`}>
+                {entry.userName}
+              </a>
+              <span class="truncate text-tinta-lembut">
+                {ledgerReasonLabels[String(entry.reason)] ?? entry.reason}
+                {typeof entry.category === 'string' && entry.category && (
+                  <span class="rounded-full border border-garis bg-kertas px-2 py-0.5 text-[11px] font-medium">
+                    {adminAdjustCategoryLabels[entry.category] ?? entry.category}
+                  </span>
+                )}
+                {entry.note && ` · ${entry.note}`}
+                {typeof entry.actorName === 'string' && entry.actorName && (
+                  <span class="block text-xs text-tinta-lembut/80">diubah oleh {entry.actorName}</span>
+                )}
+              </span>
+              <span class:list={['font-bold tabular-nums', amount >= 0 ? 'text-jalur' : 'text-bahaya']}>
+                {amount >= 0 ? '+' : ''}{amount}
+              </span>
+              <span class="hidden truncate text-right text-xs text-tinta-lembut min-[1024px]:block">{entry.userEmail}</span>
+            </AdminRow>
+          );
+        })}
+      </AdminTable>
     )
   )}
 
@@ -178,27 +303,35 @@ const ledgerExportHref = '/api/admin/ledger/export';
         resetHref="/admin/kredit?tab=pesanan"
       />
     ) : (
-      <div class="mt-6 overflow-hidden rounded-kartu border border-garis bg-kartu">
-        <ul class="divide-y divide-garis text-sm">
-          {orders.map((order) => {
-            const status = String(order.status);
-            return (
-              <li class="grid gap-2 px-4 py-3 min-[900px]:grid-cols-[7rem_auto_minmax(0,1fr)_5rem_5rem] min-[900px]:items-center min-[900px]:gap-3">
-                <span class="text-xs text-tinta-lembut">{formatWhenShort(String(order.createdAt ?? ''))}</span>
-                <AdminBadge tone={orderTone(status)}>{orderStatusLabels[status] ?? status}</AdminBadge>
-                <div class="min-w-0">
-                  <a class="font-medium text-jalur hover:underline" href={`/admin/pengguna/${String(order.userId)}`}>
-                    {order.userEmail}
-                  </a>
-                  <p class="font-mono text-xs text-tinta-lembut">{shortOrderId(String(order.orderId ?? ''))}</p>
-                </div>
-                <span class="tabular-nums">{order.credits} kr</span>
-                <span class="font-medium tabular-nums">{formatIdr(Number(order.amountIdr ?? 0))}</span>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+      <AdminTable
+        class="mt-6 text-sm"
+        columns={[
+          { label: 'Waktu' },
+          { label: 'Status' },
+          { label: 'Pengguna' },
+          { label: 'Kredit' },
+          { label: 'Jumlah' },
+        ]}
+        grid="min-[1024px]:grid-cols-[7rem_8rem_minmax(0,1fr)_5rem_7rem] min-[1024px]:gap-4"
+      >
+        {orders.map((order) => {
+          const status = String(order.status);
+          return (
+            <AdminRow grid="min-[1024px]:grid-cols-[7rem_8rem_minmax(0,1fr)_5rem_7rem] min-[1024px]:gap-4">
+              <span class="text-xs text-tinta-lembut">{formatWhenShort(String(order.createdAt ?? ''))}</span>
+              <AdminBadge tone={orderTone(status)}>{orderStatusLabels[status] ?? status}</AdminBadge>
+              <div class="min-w-0">
+                <a class="font-medium text-jalur hover:underline" href={`/admin/pengguna/${String(order.userId)}`}>
+                  {order.userEmail}
+                </a>
+                <p class="font-mono text-xs text-tinta-lembut">{shortOrderId(String(order.orderId ?? ''))}</p>
+              </div>
+              <span class="tabular-nums">{order.credits} kr</span>
+              <span class="font-medium tabular-nums">{formatIdr(Number(order.amountIdr ?? 0))}</span>
+            </AdminRow>
+          );
+        })}
+      </AdminTable>
     )
   )}
 

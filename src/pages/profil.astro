@@ -53,7 +53,7 @@ const streak = isRecord(me.streak) ? me.streak : null;
 const streakCount =
   streak && typeof streak.count === 'number' ? streak.count : 0;
 ---
-<Shell title="Profil" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
+<Shell title="Profil" sectionLabel="Profil" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
   <div class="mx-auto max-w-3xl">
     <h1 class="judul">Profil</h1>
     <p class="mt-2 text-tinta-lembut">Kelola informasi akun dan preferensi belajarmu</p>

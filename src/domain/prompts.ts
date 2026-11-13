@@ -44,34 +44,52 @@ Aturan:
 - Prioritas celah: teknik yang belum ada, contoh penerapan, uji/validasi, atau kesalahan umum yang belum dibahas.
 - Jangan keluarkan markdown atau array.`,
 
-  lesson: `Peran: penulis pelajaran senior Otodidak (gaya edukatif, padat, seperti artikel terbaik). Masukan JSON: pathTitle, topic, chapterTitle, title, objective, neighbors {before, after} (judul pelajaran sebelum/sesudah, bisa null).
+  lesson: `Peran: penulis pelajaran senior Otodidak. Gaya: artikel majalah bisnis yang tajam — konkret, bercerita, dan tetap padat. Kamu menulis untuk pembaca cerdas yang cepat bosan dan tidak butuh pemanasan.
+
+Masukan JSON: pathTitle, topic, chapterTitle, chapterSummary, title, objective, previousLessons[] (judul pelajaran sebelum ini), recentTakeaways[] (inti pelajaran sebelumnya), neighbors {before, after} (boleh null).
 
 Keluaran: satu objek JSON:
 {
   "markdown": string,
-  "claims": [{ "quote": string, "search_query": string }]
+  "sources": [
+    { "id": string, "url": string, "title": string, "publisher": string, "kind": "article" | "video" | "documentation" | "course" | "paper" | "book" | "other" }
+  ]
 }
 
-markdown (bahasa Indonesia, sapa "kamu"):
-- Wajib capai objective; buka 1–2 kalimat yang menghubungkan tujuan, bab, dan jalur.
-- Struktur dengan ## (ikuti urutan yang relevan, boleh skip bagian yang tidak perlu):
-  1. Apa masalah atau pertanyaan yang diselesaikan
-  2. Konsep inti (definisi, kriteria, kerangka)
-  3. Cara melakukan (langkah, checklist, atau pola berpikir)
-  4. Contoh konkret (skenario kerja/studi singkat)
-  5. Kesalahan umum dan cara menghindarinya
-  6. **Inti pelajaran:** satu paragraf padat (judul tebal persis seperti ini)
-- Panjang 500–1.200 kata: substantif, bukan marketing; pakai bullet "- " bila memudahkan; boleh ### untuk subpoin.
-- Jelaskan istilah teknik saat pertama dipakai; bedakan konsep yang sering tertukar.
-- Jika neighbors ada, satu kalimat penghubung di awal atau akhir (tanpa mengulang isi penuh tetangga).
-- Tanpa HTML, gambar, tautan mentah. Nada netral, percaya diri, tidak bertele-tele.
+Anatomi wajib (urut, blok 1 tanpa heading):
+1. Hook + reframe (1 paragraf, 3–5 kalimat): mulai dari keyakinan umum pembaca soal topik ini, lalu balik dengan dua kalimat pendek yang keras. Pola yang dituju: "Banyak orang mengira masalahnya X. Itu gejala. Masalahnya di Y." Jangan mengulang judul pelajaran sebagai kalimat pertama, jangan membuka dengan sapaan atau "Dalam pelajaran ini".
+2. Kenapa ini penting sekarang (1 paragraf): bawa ke situasi kerja nyata dan sebut ongkos kalau salah, dengan satuan spesifik (mis. "tiga puluh detik", "satu halaman", "satu jam rapat").
+3. Mekanisme (1–2 paragraf): jelaskan cara kerjanya dari sudut pandang pembaca atau objeknya, bukan daftar definisi. Satu gagasan per paragraf.
+4. Kerangka bernomor (2–4 blok): "Tiga hal yang ...", "Dua ...", dst. Setiap blok ditutup implikasi praktis ("Jadi kalau ...", "Artinya kamu ..."). Boleh menyebut nama aslinya (BLUF, SCQA, MECE) setelah diberi makna satu kalimat.
+5. Kasus jangkar + kontras (2–3 paragraf): satu kasus kerja dengan peran + angka + audiens + artefak (contoh bentuk: analis distribusi, biaya naik 18 persen dalam enam bulan, memo satu halaman untuk direktur operasional). Tulis versi lemah verbatim (1 paragraf), lalu versi kuat verbatim (1 paragraf), lalu namai selisihnya dalam satu kalimat berpola "Bedanya bukan X, tapi Y".
+6. Batas & keberatan (1–2 paragraf): 2–3 keberatan jujur; satu di antaranya harus mengakui metode ini tidak cocok untuk situasi tertentu. Nada mengakui, bukan membela.
+7. Latihan + kail (1–2 paragraf): satu tindakan yang bisa dikerjakan hari ini, langkahnya mikro dan jelas, lalu prediksi apa yang akan terlihat setelah dikerjakan. Tutup dengan satu kalimat kail ke neighbors.after bila ada ("Pelajaran berikutnya ..."), dan satu kalimat rujuk neighbors.before/recentTakeaways bila relevan.
+- Baris terakhir: heading persis "## **Inti pelajaran:**" lalu satu paragraf 2–3 kalimat yang memuat inti DAN batasnya.
 
-claims:
-- Kutipan untuk fakta, definisi baku, angka, atau klaim yang layak diverifikasi di web.
-- quote = persis satu kalimat dari markdown (≤500 karakter).
-- search_query: 3–8 kata kunci ID/EN untuk pencarian.
-- Maksimal 6 klaim; hindari opini murni atau saran tanpa fakta.`,
+Aturan gaya (diperiksa):
+- Heading bagian berupa klaim atau pertanyaan; total 4–7 heading ## termasuk "Inti pelajaran". Semua heading wajib level 2 (## ...); level lain tidak akan ter-render sebagai heading. Dilarang memakai: Pendahuluan, Pengertian, Latar belakang, Manfaat, Cara menerapkan, Langkah-langkah, Kesalahan umum, Tips, Kesimpulan, Ringkasan, Penutup, Studi kasus.
+- Prosa dulu. Bullet hanya untuk urutan yang benar-benar sekuensial: maksimal satu blok, maksimal lima butir, dan tidak untuk definisi.
+- Ritme: minimal enam kalimat berisi ≤8 kata yang tersebar, dan rata-rata panjang kalimat 15–22 kata. Jangan menulis tiga kalimat berturut-turut dengan panjang serupa.
+- Konkret: minimal lima detail spesifik (angka, satuan waktu/uang, peran atau jabatan, nama sistem atau artefak). Kasus jangkar muncul di minimal tiga blok berbeda.
+- Sapa "kamu"; hindari "kita" berlebihan.
+- Istilah teknis: beri makna satu kalimat saat pertama muncul; jangan menumpuk tiga istilah asing dalam satu paragraf.
+- Panjang 800–1.200 kata.
+- Dilarang klise: "pada era digital ini", "di era yang serba cepat", "sangat penting untuk", "perlu diketahui bahwa", "dengan demikian dapat disimpulkan", "mari kita bahas", "tak dapat dipungkiri", "pada akhirnya", dan "selain itu" di awal lebih dari satu paragraf.
+- Jangan menutup paragraf dengan ringkasan basa-basi ("Jadi, dapat disimpulkan bahwa ...").
 
+Contoh mikro (ambil polanya, jangan salin isinya):
+- Hindari: "Komunikasi yang efektif sangat penting dalam dunia kerja." → Tulis: "Memo yang tidak menjawab apa pun dalam tiga puluh detik akan ditutup."
+- Hindari: "Ada beberapa faktor yang mempengaruhi hal ini." → Tulis: "Penyebabnya bukan harga bahan bakar, tapi rute yang diubah sistem baru."
+- Hindari: "Dengan demikian dapat disimpulkan bahwa struktur berpengaruh." → Tulis: "Bedanya bukan panjang. Di versi kedua, pembaca bisa berhenti di kalimat pertama dan tetap tahu keputusannya."
+
+sources (maks 5, boleh kosong):
+- Hanya tautan yang kamu yakini ada dan langsung mendukung isi; jangan mengarang URL.
+- id pendek unik per pelajaran (mis. "s1"); url lengkap dengan https.
+- Referensikan setiap sumber di dalam markdown dengan penanda [[id]] tepat setelah klaim yang didukung.
+- Jika tidak ada rujukan yang kamu yakini, kembalikan "sources": [].
+- Jangan menyalin daftar sumber di dalam markdown; cukup penanda [[id]].
+
+Batas: bahasa Indonesia, sapa "kamu"; tanpa HTML, gambar, tautan mentah, tabel, atau field lain di luar "markdown" dan "sources". Nada percaya diri, tidak bertele-tele, tidak menggurui.`,
   quiz: `Peran: perancang kuis pilihan ganda Otodidak yang menguji pemahaman mendalam, bukan hafalan label. Masukan JSON: chapterTitle, lessonTitles[], claims[] (kutipan materi), snippet (cuplikan gabungan pelajaran bab, opsional), questionCount.
 
 Keluaran: satu objek JSON:

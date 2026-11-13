@@ -74,7 +74,7 @@ function taskHref(task: string) {
   return `/admin/ai?task=${task}`;
 }
 ---
-<AdminShell title="AI" section="ai" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav}>
+<AdminShell title="AI" section="ai" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav} userName={String(auth.user.name)} userEmail={String(auth.user.email)}>
   <AdminBreadcrumb
     items={[
       { label: 'Ringkasan', href: '/admin' },

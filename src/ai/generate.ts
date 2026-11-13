@@ -15,6 +15,7 @@ import {
   type TaskName,
 } from '../domain/schemas';
 import { logEvent } from '../server/log';
+import type { ToolDefinition } from './tools';
 
 export class ModelError extends Error {
   readonly errorCode: 'provider_timeout' | 'invalid_output';
@@ -59,11 +60,18 @@ export async function loadModel(
   return { ...row, prompt };
 }
 
+const TASK_TEMPERATURE: Record<TaskName, number> = {
+  roadmap: 0.3,
+  lesson: 0.7,
+  quiz: 0.2,
+};
+
 export async function completeJson(
   env: Env,
   model: ModelRow,
   input: unknown,
   task: TaskName,
+  options?: { temperature?: number; tool?: ToolDefinition },
 ): Promise<unknown> {
   if (model.authKind === 'workers_ai_binding')
     throw new ModelError('provider_timeout');
@@ -73,7 +81,87 @@ export async function completeJson(
   if (apiKey === 'mock' || apiKey === 'fail')
     return mockCompletion(env, task, input, apiKey);
   requireAllowedLlmBaseUrl(model.baseUrl);
+  const startedAt = Date.now();
+  const payload = await requestCompletion(
+    model,
+    apiKey,
+    input,
+    task,
+    options,
+    Boolean(options?.tool),
+  );
+  logEvent({
+    message: 'model_usage',
+    status: task,
+    model: model.modelName,
+    ms: Date.now() - startedAt,
+    usage: {
+      prompt: payload.usage?.prompt_tokens,
+      completion: payload.usage?.completion_tokens,
+      total: payload.usage?.total_tokens,
+    },
+  });
+  const message = payload.choices?.[0]?.message;
+  const toolArguments = message?.tool_calls?.[0]?.function?.arguments;
+  if (typeof toolArguments === 'string' && toolArguments.trim()) {
+    try {
+      return JSON.parse(toolArguments) as unknown;
+    } catch {
+      throw new ModelError('invalid_output');
+    }
+  }
+  const content = message?.content;
+  if (!content) throw new ModelError('invalid_output');
+  try {
+    return JSON.parse(content) as unknown;
+  } catch {
+    throw new ModelError('invalid_output');
+  }
+}
+
+type CompletionPayload = {
+  choices?: {
+    message?: {
+      content?: string;
+      tool_calls?: { function?: { arguments?: string } }[];
+    };
+  }[];
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+};
+
+const TOOLS_FALLBACK_STATUSES = new Set([400, 404, 422]);
+
+async function requestCompletion(
+  model: ModelRow,
+  apiKey: string,
+  input: unknown,
+  task: TaskName,
+  options: { temperature?: number; tool?: ToolDefinition } | undefined,
+  useTools: boolean,
+): Promise<CompletionPayload> {
   const base = model.baseUrl.replace(/\/$/, '');
+  const body: Record<string, unknown> = {
+    model: model.modelName,
+    messages: [
+      { role: 'system', content: model.prompt },
+      { role: 'user', content: JSON.stringify(input) },
+    ],
+    max_tokens: model.maxOutputTokens,
+    temperature: options?.temperature ?? TASK_TEMPERATURE[task] ?? 0.4,
+  };
+  if (useTools && options?.tool) {
+    body.tools = [{ type: 'function', function: options.tool }];
+    body.tool_choice = {
+      type: 'function',
+      function: { name: options.tool.name },
+    };
+  } else {
+    body.response_format = { type: 'json_object' };
+  }
   let response: Response;
   try {
     response = await fetch(`${base}/chat/completions`, {
@@ -82,16 +170,7 @@ export async function completeJson(
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: model.modelName,
-        messages: [
-          { role: 'system', content: model.prompt },
-          { role: 'user', content: JSON.stringify(input) },
-        ],
-        max_tokens: model.maxOutputTokens,
-        temperature: 0.4,
-        response_format: { type: 'json_object' },
-      }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(model.timeoutMs),
     });
   } catch (error) {
@@ -103,6 +182,14 @@ export async function completeJson(
     throw new ModelError('provider_timeout');
   }
   if (!response.ok) {
+    if (useTools && TOOLS_FALLBACK_STATUSES.has(response.status)) {
+      logEvent({
+        message: 'model_tools_fallback',
+        status: `${task}:${response.status}`,
+        model: model.modelName,
+      });
+      return requestCompletion(model, apiKey, input, task, options, false);
+    }
     logEvent({
       message: 'model_status',
       errorCode: 'provider_timeout',
@@ -110,16 +197,7 @@ export async function completeJson(
     });
     throw new ModelError('provider_timeout');
   }
-  const payload = (await response.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
-  const content = payload.choices?.[0]?.message?.content;
-  if (!content) throw new ModelError('invalid_output');
-  try {
-    return JSON.parse(content) as unknown;
-  } catch {
-    throw new ModelError('invalid_output');
-  }
+  return (await response.json()) as CompletionPayload;
 }
 
 export function parseOutlineLessonOutput(value: unknown): OutlineLessonOutput {
@@ -148,8 +226,6 @@ function readProviderSecret(env: Env, name: string): string | null {
   switch (name) {
     case 'OPENAI_API_KEY':
       return env.OPENAI_API_KEY || null;
-    case 'BRAVE_SEARCH_API_KEY':
-      return env.BRAVE_SEARCH_API_KEY || null;
     case 'YOUTUBE_API_KEY':
       return env.YOUTUBE_API_KEY || null;
     default:
@@ -231,13 +307,35 @@ function mockLesson(input: unknown): LessonOutput {
       : {};
   const title = record.title || 'Pelajaran';
   const objective = record.objective || 'Memahami pokok bahasan.';
-  const sourced = `${title} punya langkah yang bisa dicek.`;
-  const unsourced = 'Angka contoh ini tidak punya tautan.';
   return {
-    markdown: `## Apa yang kamu capai\n\n${objective}\n\n## Konsep inti\n\n${title} membahas satu gagasan yang bisa dipakai langsung.\n\n## Cara melakukan\n\n${sourced}\n\n## Contoh singkat\n\nBayangkan kasus kerja sehari-hari yang membutuhkan ${title.toLowerCase()}.\n\n## Kesalahan umum\n\n${unsourced}\n\n**Inti pelajaran:** ${objective}`,
-    claims: [
-      { quote: sourced, search_query: title },
-      { quote: unsourced, search_query: 'tanpa-hasil' },
+    markdown: `## Inti jawaban
+
+${objective}
+
+## Konsep inti
+
+${title} membahas satu gagasan yang bisa dipakai langsung. [[s1]]
+
+## Cara menerapkan
+
+1. Tulis masalahnya dalam satu kalimat.
+2. Pilih satu langkah kecil yang bisa dicek.
+
+## Kesalahan umum
+
+- Mulai dari alat sebelum masalahnya jelas.
+
+## **Inti pelajaran:**
+
+${objective}`,
+    sources: [
+      {
+        id: 's1',
+        url: 'https://example.com/rujukan',
+        title: 'Contoh rujukan',
+        publisher: 'example.com',
+        kind: 'article',
+      },
     ],
   };
 }

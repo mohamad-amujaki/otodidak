@@ -11,7 +11,10 @@ const sections = [
   { id: 'catatan-teknis', title: 'Catatan teknis', icon: 'code' },
 ];
 ---
-<Shell title="Privasi">
+<Shell
+  title="Privasi"
+  description="Kebijakan privasi Otodidak: data apa yang disimpan, cara pembayaran diproses, dan bagaimana permintaan penghapusan ditangani."
+>
   <div class="mx-auto max-w-6xl">
     <div class="grid gap-8 min-[1024px]:grid-cols-[240px_1fr]">
       <LegalToc sections={sections} variant="aside" />

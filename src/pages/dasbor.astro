@@ -88,7 +88,7 @@ const streakCount =
   streak && typeof streak.count === 'number' ? streak.count : 0;
 const balance = typeof me.balance === 'number' ? me.balance : 0;
 ---
-<Shell title="Dasbor" balance={balance} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
+<Shell title="Dasbor" sectionLabel="Dasbor" balance={balance} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
   <div class="mb-6 flex flex-col gap-4 min-[640px]:flex-row min-[640px]:items-end min-[640px]:justify-between">
     <div>
       <h1 class="judul">Dasbor</h1>
@@ -133,7 +133,7 @@ const balance = typeof me.balance === 'number' ? me.balance : 0;
         description="Tunggu sebentar, kami sedang membuat roadmap belajarmu."
         lines={3}
         compact
-        pollSeconds={5}
+        jobId={String(activeJob.id)}
       />
     </div>
   )}
@@ -328,5 +328,4 @@ const balance = typeof me.balance === 'number' ? me.balance : 0;
     </div>
   )}
 
-  {activeJob && <meta http-equiv="refresh" content="4" />}
 </Shell>

@@ -1,0 +1,19 @@
+---
+interface Props {
+  grid: string;
+  danger?: boolean;
+  class?: string;
+}
+
+const { grid, danger = false, class: className = '' } = Astro.props;
+---
+<li
+  class:list={[
+    'relative grid grid-cols-1 gap-3 px-4 py-3.5 transition-colors hover:bg-kertas/60 min-[1024px]:items-center',
+    grid,
+    danger && 'border-l-4 border-l-bahaya bg-bahaya/5',
+    className,
+  ]}
+>
+  <slot />
+</li>

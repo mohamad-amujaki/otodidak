@@ -1,6 +1,7 @@
 import { SEED_PROMPTS } from '../domain/prompts';
 import {
   adminAdjustLedger,
+  adminAdjustLedgerBulk,
   adminEraseUserLearning,
   appErrorToMessage,
   patchAdminUser,
@@ -9,6 +10,7 @@ import {
   updateModelForTask,
   updatePromptTemplate,
 } from './admin-mutations';
+import { createCreditCode, setCreditCodeActive } from './credit-codes';
 import { adminRequeueGenerationJob } from './generation';
 import { pageSession } from './ssr';
 
@@ -44,7 +46,7 @@ export async function runAdminAction(
       return 'Materi belajar dihapus. Buku kredit tetap ada.';
     }
     if (action === 'sesuaikan') {
-      await adminAdjustLedger(
+      const outcome = await adminAdjustLedger(
         db,
         bindings,
         user,
@@ -52,9 +54,67 @@ export async function runAdminAction(
         {
           amount: Number(form.get('amount')),
           note: String(form.get('note') ?? ''),
+          category: String(form.get('category') ?? '') || undefined,
+          nonce: String(form.get('nonce') ?? '') || undefined,
         },
       );
-      return 'Buku kredit diperbarui.';
+      if (outcome.status === 'capped')
+        return `Batas harian terlampaui. Sisa jatah ${outcome.remaining} kredit dalam 24 jam.`;
+      if (outcome.status === 'duplicate')
+        return 'Aksi ini sudah diterapkan sebelumnya. Saldo tidak berubah.';
+      if (outcome.status === 'insufficient')
+        return 'Gagal: pengurangan itu akan membuat saldo negatif.';
+      const verb = outcome.amount > 0 ? 'ditambah' : 'dikurangi';
+      return `Kredit ${verb} ${Math.abs(outcome.amount)}. Saldo baru ${outcome.balance}.`;
+    }
+    if (action === 'sesuaikan-banyak') {
+      const selected = form
+        .getAll('userId')
+        .map((value) => String(value))
+        .filter(Boolean);
+      if (selected.length === 0) return 'Pilih minimal satu pengguna di tabel.';
+      const outcome = await adminAdjustLedgerBulk(db, bindings, user, {
+        userIds: selected,
+        amount: Number(form.get('amount')),
+        note: String(form.get('note') ?? ''),
+        category: String(form.get('category') ?? '') || undefined,
+        nonce: String(form.get('nonce') ?? '') || undefined,
+      });
+      if (outcome.capped)
+        return `Batas harian terlampaui. Sisa jatah ${outcome.remaining} kredit dalam 24 jam.`;
+      const verb = outcome.amount > 0 ? 'ditambah' : 'dikurangi';
+      const skipped: string[] = [];
+      if (outcome.duplicate > 0)
+        skipped.push(`${outcome.duplicate} sudah diterapkan`);
+      if (outcome.insufficient > 0)
+        skipped.push(`${outcome.insufficient} saldo tidak cukup`);
+      if (outcome.missing > 0)
+        skipped.push(`${outcome.missing} tidak ditemukan`);
+      if (outcome.applied === 0)
+        return skipped.length > 0
+          ? `Tidak ada perubahan. Dilewati: ${skipped.join(' · ')}.`
+          : 'Tidak ada pengguna yang dipilih.';
+      const tail =
+        skipped.length > 0 ? ` Dilewati: ${skipped.join(' · ')}.` : '';
+      return `Kredit ${verb} ${Math.abs(outcome.amount)} untuk ${outcome.applied} pengguna.${tail}`;
+    }
+    if (action === 'kode-baru') {
+      const created = await createCreditCode(db, bindings, user, {
+        credits: Number(form.get('credits')),
+        maxRedemptions: Number(form.get('maxRedemptions')),
+        expiresInDays: Number(form.get('expiresInDays')),
+      });
+      return `Kode dibuat: ${created.formatted}. Bagikan ke pengguna yang dituju.`;
+    }
+    if (action === 'kode-nonaktif') {
+      await setCreditCodeActive(
+        db,
+        bindings,
+        user,
+        String(form.get('codeId') ?? ''),
+        false,
+      );
+      return 'Kode dinonaktifkan.';
     }
     if (action === 'konfigurasi') {
       await updateAppConfig(db, bindings, user, {

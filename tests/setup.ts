@@ -18,6 +18,8 @@ const tables = [
   'payment_event',
   'credit_order',
   'credit_ledger',
+  'credit_redeem_redemption',
+  'credit_redeem_code',
   'user',
 ];
 

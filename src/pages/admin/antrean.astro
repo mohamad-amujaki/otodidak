@@ -5,6 +5,8 @@ import AdminShell from '../../components/AdminShell.astro';
 import AdminAlert from '../../components/admin/AdminAlert.astro';
 import AdminBadge from '../../components/admin/AdminBadge.astro';
 import AdminEmptyState from '../../components/admin/AdminEmptyState.astro';
+import AdminRow from '../../components/admin/AdminRow.astro';
+import AdminTable from '../../components/admin/AdminTable.astro';
 import { jobKindLabels, jobStatusLabels } from '../../domain/admin-labels';
 import { formatWhenShort } from '../../domain/format';
 import { isRecord } from '../../domain/guard';
@@ -52,7 +54,7 @@ function jobStatusTone(status: string) {
   return 'neutral';
 }
 ---
-<AdminShell title="Antrean" section="antrean" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav}>
+<AdminShell title="Antrean" section="antrean" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav} userName={String(auth.user.name)} userEmail={String(auth.user.email)}>
   <h1 class="judul">Antrean generasi</h1>
   <p class="mt-2 text-sm text-tinta-lembut">Job roadmap, pelajaran, dan kuis · {total} total</p>
   {message && (
@@ -129,45 +131,38 @@ function jobStatusTone(status: string) {
   {jobs.length === 0 ? (
     <AdminEmptyState message="Tidak ada job untuk filter ini." resetHref="/admin/antrean" />
   ) : (
-    <div class="mt-6 overflow-hidden rounded-kartu border border-garis bg-kartu">
-      <ul class="divide-y divide-garis text-sm">
-        {jobs.map((job) => {
-          const status = String(job.status);
-          return (
-            <li
-              class:list={[
-                'grid gap-2 px-4 py-3 min-[900px]:grid-cols-[5rem_5rem_minmax(0,1fr)_4rem_7rem_auto]',
-                status === 'failed' && 'bg-bahaya/5',
-              ]}
-            >
-              <AdminBadge tone={jobStatusTone(status)}>{jobStatusLabels[status] ?? status}</AdminBadge>
-              <span class="text-tinta-lembut">{jobKindLabels[String(job.kind)] ?? job.kind}</span>
-              <div>
-                <a class="font-medium text-jalur hover:underline" href={`/admin/pengguna/${String(job.userId)}`}>
-                  {job.userEmail}
-                </a>
-                {job.errorCode && <p class="text-xs text-bahaya">{job.errorCode}</p>}
-              </div>
-              <span class="tabular-nums text-tinta-lembut">{job.attempts}×</span>
-              <span class="text-xs text-tinta-lembut">{formatWhenShort(String(job.createdAt ?? ''))}</span>
-              {status === 'failed' && (
-                <form method="post" class="min-[900px]:justify-self-end">
-                  <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-                  <input type="hidden" name="aksi" value="job-ulang" />
-                  <input type="hidden" name="jobId" value={String(job.id)} />
-                  <button
-                    class="min-h-9 rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium hover:bg-kertas"
-                    type="submit"
-                  >
-                    Antrekan lagi
-                  </button>
-                </form>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </div>
+    <AdminTable
+      class="mt-6 text-sm"
+      columns={[
+        { label: 'Status' },
+        { label: 'Jenis' },
+        { label: 'Pengguna' },
+        { label: 'Percobaan' },
+        { label: 'Waktu' },
+      ]}
+      grid="min-[1024px]:grid-cols-[5.5rem_5.5rem_minmax(0,1fr)_5rem_8rem] min-[1024px]:gap-4"
+    >
+      {jobs.map((job) => {
+        const status = String(job.status);
+        return (
+          <AdminRow
+            grid="min-[1024px]:grid-cols-[5.5rem_5.5rem_minmax(0,1fr)_5rem_8rem] min-[1024px]:gap-4"
+            danger={status === 'failed'}
+          >
+            <AdminBadge tone={jobStatusTone(status)}>{jobStatusLabels[status] ?? status}</AdminBadge>
+            <span class="text-tinta-lembut">{jobKindLabels[String(job.kind)] ?? job.kind}</span>
+            <div class="min-w-0">
+              <a class="font-medium text-jalur hover:underline" href={`/admin/pengguna/${String(job.userId)}`}>
+                {job.userEmail}
+              </a>
+              {job.errorCode && <p class="text-xs text-bahaya">{job.errorCode}</p>}
+            </div>
+            <span class="tabular-nums text-tinta-lembut">{job.attempts}×</span>
+            <span class="text-xs text-tinta-lembut">{formatWhenShort(String(job.createdAt ?? ''))}</span>
+          </AdminRow>
+        );
+      })}
+    </AdminTable>
   )}
 
   <AdminPagination

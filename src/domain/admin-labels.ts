@@ -1,3 +1,29 @@
+export function adminMessageTone(
+  message: string,
+): 'success' | 'warning' | 'danger' {
+  if (/gagal|invalid|tidak valid|negatif/i.test(message)) return 'danger';
+  if (
+    /dilewati|sudah diterapkan|tidak ada perubahan|tidak dikenal|pilih minimal|terlampaui|jatah/i.test(
+      message,
+    )
+  )
+    return 'warning';
+  return 'success';
+}
+
+export const adminAdjustCategories = [
+  { value: 'bonus', label: 'Bonus' },
+  { value: 'kompensasi', label: 'Kompensasi gagal generate' },
+  { value: 'dukungan', label: 'Dukungan pengguna' },
+  { value: 'uji', label: 'Uji internal' },
+  { value: 'koreksi', label: 'Koreksi kesalahan' },
+] as const;
+
+export const adminAdjustCategoryLabels: Record<string, string> =
+  Object.fromEntries(
+    adminAdjustCategories.map((category) => [category.value, category.label]),
+  );
+
 export const ledgerReasonLabels: Record<string, string> = {
   signup_grant: 'Kredit awal',
   purchase: 'Pembelian',
@@ -6,6 +32,7 @@ export const ledgerReasonLabels: Record<string, string> = {
   quiz: 'Kuis',
   refund: 'Pengembalian',
   admin_adjust: 'Penyesuaian admin',
+  redeem: 'Kode akses',
   outline: 'Kerangka pelajaran',
 };
 
@@ -19,11 +46,14 @@ export const configFieldLabels: Record<string, string> = {
   costQuiz: 'Biaya buat kuis (kredit)',
   signupCredits: 'Kredit daftar baru',
   lessonMinuteLabel: 'Label menit per pelajaran',
+  adminDailyCreditCap: 'Batas harian kredit admin',
 };
 
 export const configFieldHints: Partial<Record<string, string>> = {
   quizPassPercent: 'Persentase jawaban benar minimal untuk lulus.',
   lessonMinuteLabel: 'Angka perkiraan yang ditampilkan di UI pelajaran.',
+  adminDailyCreditCap:
+    'Total kredit positif yang boleh diberikan satu superadmin dalam 24 jam.',
 };
 
 export const orderStatusLabels: Record<string, string> = {
@@ -68,6 +98,7 @@ export const configFieldGroups = {
     'quizPassPercent',
   ] as const,
   biaya: ['costRoadmap', 'costLesson', 'costQuiz'] as const,
+  pengawasan: ['adminDailyCreditCap'] as const,
   onboarding: ['signupCredits', 'lessonMinuteLabel'] as const,
 };
 
@@ -75,5 +106,6 @@ export const configGroupTitles: Record<keyof typeof configFieldGroups, string> =
   {
     batas: 'Batas konten',
     biaya: 'Biaya kredit',
+    pengawasan: 'Pengawasan',
     onboarding: 'Onboarding',
   };

@@ -1,0 +1,53 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1200"
+  height="630"
+  viewBox="0 0 1200 630"
+  role="img"
+  aria-label="Otodidak — ubah satu topik jadi jalur belajar yang utuh"
+  font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
+>
+  <title>Otodidak — ubah satu topik jadi jalur belajar yang utuh</title>
+  <rect width="1200" height="630" fill="#f4f7fb" />
+  <rect width="1200" height="14" fill="#0b6e4f" />
+  <g transform="translate(80 84)">
+    <rect width="64" height="64" rx="14" fill="#0b6e4f" />
+    <g
+      transform="translate(16 16) scale(1.3333)"
+      fill="none"
+      stroke="#ffffff"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path
+        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+      />
+    </g>
+    <text x="84" y="44" font-size="34" font-weight="700" fill="#0b6e4f">
+      Otodidak
+    </text>
+  </g>
+  <text x="80" y="290" font-size="60" font-weight="700" fill="#12263a">
+    Ubah satu topik jadi
+  </text>
+  <text x="80" y="362" font-size="60" font-weight="700" fill="#12263a">
+    jalur belajar yang utuh
+  </text>
+  <text x="80" y="432" font-size="28" fill="#3d4f63">
+    Roadmap otomatis, pelajaran bersumber, dan progres yang terlihat.
+  </text>
+  <g transform="translate(80 500)">
+    <rect width="440" height="72" rx="10" fill="#0b6e4f" />
+    <text
+      x="220"
+      y="46"
+      font-size="26"
+      font-weight="600"
+      fill="#ffffff"
+      text-anchor="middle"
+    >
+      Mulai gratis — tanpa kartu kredit
+    </text>
+  </g>
+</svg>

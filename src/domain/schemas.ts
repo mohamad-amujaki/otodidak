@@ -105,6 +105,16 @@ export const adminUserSchema = z
     message: 'Pilih peran atau status.',
   });
 
+export const adminAdjustCategoryValues = [
+  'bonus',
+  'kompensasi',
+  'dukungan',
+  'uji',
+  'koreksi',
+] as const;
+
+export type AdminAdjustCategory = (typeof adminAdjustCategoryValues)[number];
+
 export const adminAdjustSchema = z.strictObject({
   amount: z
     .number()
@@ -113,6 +123,21 @@ export const adminAdjustSchema = z.strictObject({
     .max(1_000_000)
     .refine((value) => value !== 0, 'Jumlah tidak boleh nol.'),
   note: z.string().trim().min(3).max(500),
+  category: z.enum(adminAdjustCategoryValues).optional(),
+  nonce: z.string().trim().min(8).max(64).optional(),
+});
+
+export const adminBulkAdjustSchema = z.strictObject({
+  userIds: z.array(z.string().trim().min(1)).min(1).max(50),
+  amount: z
+    .number()
+    .int()
+    .min(-1_000_000)
+    .max(1_000_000)
+    .refine((value) => value !== 0, 'Jumlah tidak boleh nol.'),
+  note: z.string().trim().min(3).max(500),
+  category: z.enum(adminAdjustCategoryValues).optional(),
+  nonce: z.string().trim().min(8).max(64).optional(),
 });
 
 export const configSchema = z.strictObject({
@@ -125,6 +150,7 @@ export const configSchema = z.strictObject({
   costQuiz: z.number().int().min(0).max(100),
   signupCredits: z.number().int().min(0).max(1000),
   lessonMinuteLabel: z.number().int().min(1).max(60),
+  adminDailyCreditCap: z.number().int().min(0).max(100000),
 });
 
 export const promptSchema = z.strictObject({
@@ -175,16 +201,30 @@ export const outlineLessonOutputSchema = z.strictObject({
   objective,
 });
 
+const lessonSourceKind = z.enum([
+  'article',
+  'video',
+  'documentation',
+  'course',
+  'paper',
+  'book',
+  'other',
+]);
+
 export const lessonOutputSchema = z.strictObject({
   markdown: z.string().trim().min(1).max(100_000),
-  claims: z
+  sources: z
     .array(
       z.strictObject({
-        quote: z.string().trim().min(1).max(500),
-        search_query: z.string().trim().min(1).max(200),
+        id: z.string().trim().min(1).max(64),
+        url: z.url().max(2048),
+        title: z.string().trim().min(1).max(180),
+        publisher: z.string().trim().max(120).optional(),
+        kind: lessonSourceKind,
       }),
     )
-    .max(8),
+    .max(6)
+    .default([]),
 });
 
 export const quizOutputSchema = z.strictObject({

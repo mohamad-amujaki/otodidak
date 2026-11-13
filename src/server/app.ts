@@ -1,14 +1,12 @@
 import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { z } from 'zod';
-import { debitIfEnough } from '../billing/ledger';
 import {
   aiModels,
   aiProviders,
   appConfig,
   creditPacks,
   generationJobs,
-  promptTemplates,
   type UserRow,
   users,
 } from '../db/schema';
@@ -34,13 +32,7 @@ import {
   topicSchema,
 } from '../domain/schemas';
 import { nowIso } from '../domain/time';
-import {
-  balanceOf,
-  database,
-  ensureUser,
-  eraseLearning,
-  loadConfig,
-} from './account';
+import { database, ensureUser, eraseLearning, loadConfig } from './account';
 import { isSuperadmin } from './admin-access';
 import {
   adminUserDetail,
@@ -57,6 +49,7 @@ import {
 } from './admin-data';
 import { adminLedgerExportCsv, adminOrdersExportCsv } from './admin-export';
 import { readAdminQuery } from './admin-list';
+import { adminAdjustLedger, updatePromptTemplate } from './admin-mutations';
 import { DEV_COOKIE, devIdentityFor, identify, signDevSession } from './auth';
 import {
   createCreditPackOrder,
@@ -505,23 +498,21 @@ export function createApp() {
     assertSuperadmin(c);
     const body = await readJson(c, adminAdjustSchema);
     const db = await database(c.env);
-    const rows = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, c.req.param('id')))
-      .limit(1);
-    if (!rows[0]) throw new AppError('not_found');
-    const result = await debitIfEnough(db, {
-      userId: rows[0].id,
-      amount: body.amount,
-      reason: 'admin_adjust',
-      refType: 'admin',
-      refId: c.get('user').id,
-      idempotencyKey: `admin:${crypto.randomUUID()}`,
-      note: body.note,
+    const outcome = await adminAdjustLedger(
+      db,
+      c.env,
+      c.get('user'),
+      c.req.param('id'),
+      body,
+    );
+    if (outcome.status === 'insufficient')
+      throw new AppError('insufficient_credits');
+    if (outcome.status === 'capped') throw new AppError('rate_limited');
+    return c.json({
+      ok: true,
+      status: outcome.status,
+      balance: outcome.balance,
     });
-    if (result !== 'inserted') throw new AppError('insufficient_credits');
-    return c.json({ ok: true, balance: await balanceOf(db, rows[0].id) });
   });
 
   app.get('/api/admin/config', async (c) =>
@@ -547,14 +538,13 @@ export function createApp() {
     assertSuperadmin(c);
     const task = readTask(c.req.param('task'));
     const body = await readJson(c, promptSchema);
-    await (await database(c.env))
-      .update(promptTemplates)
-      .set({
-        body: body.body,
-        updatedAt: nowIso(),
-        updatedBy: c.get('user').id,
-      })
-      .where(eq(promptTemplates.task, task));
+    await updatePromptTemplate(
+      await database(c.env),
+      c.env,
+      c.get('user'),
+      task,
+      body,
+    );
     return c.json({ ok: true });
   });
 
@@ -710,8 +700,6 @@ function knownSecret(env: Env, name: string): boolean {
   switch (name) {
     case 'OPENAI_API_KEY':
       return env.OPENAI_API_KEY.length > 0;
-    case 'BRAVE_SEARCH_API_KEY':
-      return env.BRAVE_SEARCH_API_KEY.length > 0;
     case 'YOUTUBE_API_KEY':
       return env.YOUTUBE_API_KEY.length > 0;
     default:

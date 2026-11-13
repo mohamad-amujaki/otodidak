@@ -111,7 +111,7 @@ const statusLabel =
   statusOptions.find((o) => o.id === status)?.label ?? 'Semua';
 const filtering = Boolean(query) || status !== 'semua';
 ---
-<Shell title="Pustaka" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
+<Shell title="Pustaka" sectionLabel="Pustaka" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
   <!-- Header Section -->
   <div class="mb-6 flex flex-col gap-4 min-[768px]:flex-row min-[768px]:items-center min-[768px]:justify-between">
     <div>

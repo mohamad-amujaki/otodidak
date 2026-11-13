@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, inArray, sql } from 'drizzle-orm';
 import { debitIfEnough } from '../billing/ledger';
 import type { Database } from '../db/client';
 import {
@@ -7,6 +7,7 @@ import {
   appConfig,
   creditPacks,
   promptTemplates,
+  promptVersions,
   type UserRow,
   users,
 } from '../db/schema';
@@ -14,6 +15,7 @@ import { AppError, errorMessage } from '../domain/errors';
 import { assertAllowedLlmBaseUrl } from '../domain/provider-url';
 import {
   adminAdjustSchema,
+  adminBulkAdjustSchema,
   adminUserSchema,
   configSchema,
   modelSchema,
@@ -22,25 +24,19 @@ import {
   taskSchema,
 } from '../domain/schemas';
 import { nowIso } from '../domain/time';
-import { eraseLearning } from './account';
-import { isSuperadmin } from './admin-access';
+import { eraseLearning, loadConfig } from './account';
+import { assertSuperadmin, isSuperadmin } from './admin-access';
 
 function knownSecret(env: Env, name: string): boolean {
   if (!/^[A-Z0-9_]+$/.test(name)) return false;
   switch (name) {
     case 'OPENAI_API_KEY':
       return env.OPENAI_API_KEY.length > 0;
-    case 'BRAVE_SEARCH_API_KEY':
-      return env.BRAVE_SEARCH_API_KEY.length > 0;
     case 'YOUTUBE_API_KEY':
       return env.YOUTUBE_API_KEY.length > 0;
     default:
       return false;
   }
-}
-
-function assertSuperadmin(env: Env, actor: UserRow) {
-  if (!isSuperadmin(env, actor.email)) throw new AppError('forbidden');
 }
 
 function readTask(value: string) {
@@ -103,13 +99,43 @@ export async function adminEraseUserLearning(
   await eraseLearning(db, rows[0].id);
 }
 
+export type AdminAdjustStatus =
+  | 'applied'
+  | 'duplicate'
+  | 'insufficient'
+  | 'capped';
+
+export type AdminAdjustOutcome = {
+  status: AdminAdjustStatus;
+  amount: number;
+  balance: number;
+  remaining: number;
+};
+
+/** Total kredit positif yang sudah diberikan aktor ini dalam 24 jam terakhir. */
+export async function adminGrantedLast24h(
+  db: Database,
+  actorId: string,
+): Promise<number> {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const row = await db.get<{ total: number | null }>(sql`
+    select coalesce(sum(amount), 0) as total
+    from credit_ledger
+    where ref_id = ${actorId}
+      and reason = 'admin_adjust'
+      and amount > 0
+      and created_at >= ${since}
+  `);
+  return Number(row?.total ?? 0);
+}
+
 export async function adminAdjustLedger(
   db: Database,
   env: Env,
   actor: UserRow,
   userId: string,
   raw: unknown,
-): Promise<number> {
+): Promise<AdminAdjustOutcome> {
   assertSuperadmin(env, actor);
   const body = adminAdjustSchema.parse(raw);
   const rows = await db
@@ -118,18 +144,114 @@ export async function adminAdjustLedger(
     .where(eq(users.id, userId))
     .limit(1);
   if (!rows[0]) throw new AppError('not_found');
+  const { balanceOf } = await import('../billing/ledger');
+  const balance = await balanceOf(db, rows[0].id);
+  if (body.amount > 0) {
+    const cap = (await loadConfig(db)).adminDailyCreditCap;
+    const granted = await adminGrantedLast24h(db, actor.id);
+    if (granted + body.amount > cap)
+      return {
+        status: 'capped',
+        amount: body.amount,
+        balance,
+        remaining: Math.max(0, cap - granted),
+      };
+  }
   const result = await debitIfEnough(db, {
     userId: rows[0].id,
     amount: body.amount,
     reason: 'admin_adjust',
     refType: 'admin',
     refId: actor.id,
-    idempotencyKey: `admin:${crypto.randomUUID()}`,
+    idempotencyKey: `admin:${body.nonce ?? crypto.randomUUID()}`,
     note: body.note,
+    category: body.category ?? null,
   });
-  if (result !== 'inserted') throw new AppError('insufficient_credits');
-  const { balanceOf } = await import('../billing/ledger');
-  return balanceOf(db, rows[0].id);
+  return {
+    status:
+      result === 'inserted'
+        ? 'applied'
+        : result === 'duplicate'
+          ? 'duplicate'
+          : 'insufficient',
+    amount: body.amount,
+    balance: await balanceOf(db, rows[0].id),
+    remaining: 0,
+  };
+}
+
+export type AdminBulkAdjustOutcome = {
+  applied: number;
+  duplicate: number;
+  insufficient: number;
+  missing: number;
+  amount: number;
+  capped: boolean;
+  remaining: number;
+};
+
+export async function adminAdjustLedgerBulk(
+  db: Database,
+  env: Env,
+  actor: UserRow,
+  raw: unknown,
+): Promise<AdminBulkAdjustOutcome> {
+  assertSuperadmin(env, actor);
+  const body = adminBulkAdjustSchema.parse(raw);
+  const ids = [...new Set(body.userIds)];
+  let remaining = 0;
+  if (body.amount > 0) {
+    const cap = (await loadConfig(db)).adminDailyCreditCap;
+    const granted = await adminGrantedLast24h(db, actor.id);
+    remaining = Math.max(0, cap - granted);
+    if (granted + body.amount * ids.length > cap)
+      return {
+        applied: 0,
+        duplicate: 0,
+        insufficient: 0,
+        missing: 0,
+        amount: body.amount,
+        capped: true,
+        remaining,
+      };
+  }
+  const known = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(inArray(users.id, ids));
+  const knownIds = new Set(known.map((row) => row.id));
+  let applied = 0;
+  let duplicate = 0;
+  let insufficient = 0;
+  let missing = 0;
+  for (const id of ids) {
+    if (!knownIds.has(id)) {
+      missing += 1;
+      continue;
+    }
+    const result = await debitIfEnough(db, {
+      userId: id,
+      amount: body.amount,
+      reason: 'admin_adjust',
+      refType: 'admin',
+      refId: actor.id,
+      idempotencyKey: `admin-bulk:${body.nonce ?? crypto.randomUUID()}:${id}`,
+      note: body.note,
+      category: body.category ?? null,
+    });
+    if (result === 'inserted') applied += 1;
+    else if (result === 'duplicate') duplicate += 1;
+    else insufficient += 1;
+  }
+  return {
+    applied,
+    duplicate,
+    insufficient,
+    missing,
+    amount: body.amount,
+    capped: false,
+    remaining,
+  };
 }
 
 export async function updateAppConfig(
@@ -153,14 +275,29 @@ export async function updatePromptTemplate(
   assertSuperadmin(env, actor);
   const task = readTask(taskRaw);
   const body = promptSchema.parse(raw);
-  await db
-    .update(promptTemplates)
-    .set({
+  const rows = await db
+    .select()
+    .from(promptTemplates)
+    .where(eq(promptTemplates.task, task))
+    .limit(1);
+  const current = rows[0];
+  if (!current) throw new AppError('not_found');
+  const version = current.version + 1;
+  const now = nowIso();
+  await db.batch([
+    db
+      .update(promptTemplates)
+      .set({ body: body.body, version, updatedAt: now, updatedBy: actor.id })
+      .where(eq(promptTemplates.task, task)),
+    db.insert(promptVersions).values({
+      id: crypto.randomUUID(),
+      task,
+      version,
       body: body.body,
-      updatedAt: nowIso(),
-      updatedBy: actor.id,
-    })
-    .where(eq(promptTemplates.task, task));
+      createdAt: now,
+      createdBy: actor.id,
+    }),
+  ]);
 }
 
 export async function updateModelForTask(

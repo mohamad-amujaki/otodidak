@@ -3,10 +3,12 @@ import { env } from 'cloudflare:workers';
 import LedgerRows from '../components/credit/LedgerRows.astro';
 import OrderRows from '../components/credit/OrderRows.astro';
 import Shell from '../components/Shell.astro';
+import { safeReturnPath } from '../domain/credit-ui';
 import { AppError } from '../domain/errors';
 import { formatIdr } from '../domain/format';
 import { isRecord, record } from '../domain/guard';
 import { publicCreditPacks } from '../server/admin-data';
+import { redeemCreditCode } from '../server/credit-codes';
 import { createCreditPackOrder } from '../server/credit-orders-service';
 import { creditsPayload } from '../server/credits-page';
 import { pageMe } from '../server/ssr';
@@ -20,12 +22,33 @@ if ('redirect' in page) return Astro.redirect(page.redirect);
 const { session, me: meRaw } = page;
 const me = record(meRaw);
 const user = record(me.user);
+const kembali = safeReturnPath(Astro.url.searchParams.get('kembali'));
+const returnQuery = (value: string) => {
+  const target = safeReturnPath(value) ?? kembali;
+  return target ? `?kembali=${encodeURIComponent(target)}` : '';
+};
 let message = '';
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
-  else {
+  else if (String(form.get('aksi') ?? '') === 'kode') {
+    const result = await redeemCreditCode(
+      session.db,
+      session.user.id,
+      String(form.get('kode') ?? ''),
+    );
+    if (result.status === 'redeemed')
+      return Astro.redirect(`/kredit?kode=redeemed&jumlah=${result.credits}`);
+    message =
+      result.status === 'duplicate'
+        ? 'Kode ini sudah pernah kamu tukar.'
+        : result.status === 'exhausted'
+          ? 'Kuota kode ini sudah habis.'
+          : result.status === 'expired'
+            ? 'Kode ini sudah kedaluwarsa.'
+            : 'Kode tidak dikenali. Periksa lagi penulisannya.';
+  } else {
     try {
       const created = await createCreditPackOrder(
         env,
@@ -34,7 +57,9 @@ if (Astro.request.method === 'POST') {
         session.user,
         String(form.get('packId') ?? ''),
       );
-      return Astro.redirect(`/kredit/pesanan/${created.id}`);
+      return Astro.redirect(
+        `/kredit/pesanan/${created.id}${returnQuery(String(form.get('kembali') ?? ''))}`,
+      );
     } catch (error) {
       message =
         error instanceof AppError ? error.message : 'Gagal membuat pesanan.';
@@ -83,8 +108,10 @@ const summary = {
 };
 const showSummary = summary.added > 0 || summary.used < 0;
 const balance = typeof me.balance === 'number' ? me.balance : 0;
+const kodeStatus = Astro.url.searchParams.get('kode') ?? '';
+const kodeJumlah = Number(Astro.url.searchParams.get('jumlah') ?? 0);
 ---
-<Shell title="Kredit" balance={balance} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
+<Shell title="Kredit" sectionLabel="Kredit" balance={balance} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
   <div class="mx-auto w-full max-w-6xl space-y-8">
     <div>
       <h1 class="judul">Kredit</h1>
@@ -140,6 +167,54 @@ const balance = typeof me.balance === 'number' ? me.balance : 0;
       </div>
     </div>
 
+    {kembali && (
+      <div class="flex flex-wrap items-center gap-3 rounded-kontrol border border-jalur/30 bg-jalur-lembut px-4 py-3">
+        <p class="min-w-0 flex-1 text-sm text-tinta">
+          Kredit belum cukup untuk menyusun materi. Setelah kredit masuk, kamu bisa melanjutkan dari halaman tadi.
+        </p>
+        <a
+          class="inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta transition-colors hover:border-jalur/40"
+          href={kembali}
+        >
+          Kembali ke materi
+        </a>
+      </div>
+    )}
+
+    {kodeStatus === 'redeemed' && (
+      <div class="flex flex-wrap items-center gap-3 rounded-kontrol border border-jalur/30 bg-jalur-lembut px-4 py-3" role="status">
+        <p class="min-w-0 flex-1 text-sm tabular-nums text-tinta">
+          Kode berhasil ditukar. <span class="font-semibold text-jalur">+{kodeJumlah} kredit</span> sudah masuk ke saldo kamu.
+        </p>
+        <a class="inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta" href="/kredit">
+          Lihat saldo
+        </a>
+      </div>
+    )}
+
+    <section class="rounded-kartu border border-garis bg-kartu p-4 shadow-sm min-[640px]:p-5">
+      <h2 class="text-lg font-bold text-tinta">Punya kode akses?</h2>
+      <p class="mt-1 text-sm text-tinta-lembut">
+        Masukkan kode dari admin. Setiap kode hanya bisa ditukar sekali per akun dan langsung menambah saldo.
+      </p>
+      <form class="mt-3 flex flex-col gap-2 min-[640px]:flex-row" method="post">
+        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        <input type="hidden" name="aksi" value="kode" />
+        <input
+          class="min-h-11 flex-1 rounded-kontrol border border-garis bg-kartu px-3 font-mono tracking-wider uppercase"
+          name="kode"
+          required
+          placeholder="XXXX-XXXX-XXXX"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Kode akses"
+        />
+        <button class="min-h-11 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white transition-[filter] hover:brightness-110" type="submit">
+          Tukar kode
+        </button>
+      </form>
+    </section>
+
     {pendingTotal > 0 && (
       <a
         class="flex items-center gap-3 rounded-kontrol border border-hangat/30 bg-hangat-lembut px-4 py-3 transition-colors hover:border-hangat/50"
@@ -193,6 +268,7 @@ const balance = typeof me.balance === 'number' ? me.balance : 0;
                 </p>
                 <form method="post" class="mt-auto pt-4">
                   <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                  <input type="hidden" name="kembali" value={kembali ?? ''} />
                   <input type="hidden" name="packId" value={String(pack.id)} />
                   <button
                     class="flex w-full min-h-11 items-center justify-center gap-2 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white shadow-md transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"

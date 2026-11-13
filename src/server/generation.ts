@@ -6,6 +6,7 @@ import {
   parseModelOutput,
   parseOutlineLessonOutput,
 } from '../ai/generate';
+import { generatorTools } from '../ai/tools';
 import {
   debitIfEnough,
   findLedgerByKey,
@@ -29,11 +30,12 @@ import {
 } from '../db/schema';
 import {
   JOB_LOCK_TTL_SECONDS,
-  MAX_WEB_SOURCES,
+  MAX_LESSON_SOURCES,
   QUEUE_MAX_ATTEMPTS,
   QUIZ_SNIPPET_CHARS,
 } from '../domain/defaults';
 import { AppError } from '../domain/errors';
+import { auditLessonQuality } from '../domain/lesson-quality';
 import { SEED_PROMPTS } from '../domain/prompts';
 import type {
   LessonOutput,
@@ -41,7 +43,7 @@ import type {
   RoadmapOutput,
 } from '../domain/schemas';
 import { nowIso } from '../domain/time';
-import { searchWeb, searchYouTube } from '../sources/search';
+import { searchYouTube } from '../sources/search';
 import { database, loadConfig, requireActiveJobClear } from './account';
 import { logEvent } from './log';
 import { allowGenerateIp, assertUserGenerationRate } from './rate';
@@ -114,9 +116,19 @@ export async function processGeneration(
       );
     else if (job.kind === 'lesson') await writeLesson(env, db, job.refId);
     else await writeQuiz(env, db, job.refId, config.quizQuestionCount);
+    const promptRow = await db
+      .select({ version: promptTemplates.version })
+      .from(promptTemplates)
+      .where(eq(promptTemplates.task, job.kind))
+      .limit(1);
     await db
       .update(generationJobs)
-      .set({ status: 'succeeded', errorCode: null, finishedAt: nowIso() })
+      .set({
+        status: 'succeeded',
+        errorCode: null,
+        finishedAt: nowIso(),
+        promptVersion: promptRow[0]?.version ?? null,
+      })
       .where(eq(generationJobs.id, job.id));
     await env.APP_KV.delete(lockKey(job.userId));
     logEvent({
@@ -129,6 +141,8 @@ export async function processGeneration(
   } catch (error) {
     const errorCode =
       error instanceof ModelError ? error.errorCode : 'provider_timeout';
+    const invalidOutput =
+      error instanceof ModelError && error.errorCode === 'invalid_output';
     logEvent({
       message: 'generation_failed',
       jobId: job.id,
@@ -136,7 +150,8 @@ export async function processGeneration(
       errorCode,
       status: String(attempt),
     });
-    if (attempt >= QUEUE_MAX_ATTEMPTS) {
+    // Output invalid tidak akan membaik dengan input yang sama: gagal cepat.
+    if (invalidOutput || attempt >= QUEUE_MAX_ATTEMPTS) {
       await refundJob(env, db, job);
       return 'ack';
     }
@@ -302,7 +317,10 @@ export async function suggestChapterLesson(
   let outline: { title: string; objective: string };
   try {
     const model = await loadModel(db, 'lesson', SEED_PROMPTS.outlineLesson);
-    const raw = await completeJson(env, model, modelInput, 'lesson');
+    const raw = await completeJson(env, model, modelInput, 'lesson', {
+      temperature: 0.2,
+      tool: generatorTools.outlineLesson,
+    });
     outline = parseOutlineLessonOutput(raw);
   } catch (error) {
     await insertLedger(db, {
@@ -541,67 +559,63 @@ async function writeLesson(
     pathTitle: context.pathTitle,
     topic: context.topic,
     chapterTitle: context.chapterTitle,
+    chapterSummary: context.chapterSummary,
     title: context.title,
     objective: context.objective,
+    previousLessons: context.previousLessons,
+    recentTakeaways: context.recentTakeaways,
     neighbors: context.neighbors,
   });
   if (!isLesson(output)) throw new ModelError('invalid_output');
   if (output.markdown.length > 100_000) throw new ModelError('invalid_output');
-  const claims = output.claims.slice(0, 8);
   const sources: {
     id: string;
     kind: 'web' | 'youtube';
     url: string;
     title: string;
   }[] = [];
-  const claimRows: {
-    quote: string;
-    unsourced: number;
-    sourceId: string | null;
-  }[] = [];
-  let searchFailed = false;
-  for (const [index, claim] of claims.entries()) {
-    if (searchFailed || index >= MAX_WEB_SOURCES) {
-      claimRows.push({ quote: claim.quote, unsourced: 1, sourceId: null });
+  const idMap = new Map<string, string>();
+  for (const source of output.sources) {
+    if (sources.length >= MAX_LESSON_SOURCES) break;
+    const existing = sources.find((item) => item.url === source.url);
+    if (existing) {
+      idMap.set(source.id, existing.id);
       continue;
     }
-    try {
-      const hits = await searchWeb(env, db, claim.search_query);
-      const hit = hits.find((item) => item.url.startsWith('https://'));
-      if (
-        hit &&
-        sources.filter((item) => item.kind === 'web').length < MAX_WEB_SOURCES
-      ) {
-        const sourceId = crypto.randomUUID();
-        sources.push({
-          id: sourceId,
-          kind: 'web',
-          url: hit.url,
-          title: hit.title,
-        });
-        claimRows.push({ quote: claim.quote, unsourced: 0, sourceId });
-      } else {
-        claimRows.push({ quote: claim.quote, unsourced: 1, sourceId: null });
-      }
-    } catch {
-      searchFailed = true;
-      claimRows.push({ quote: claim.quote, unsourced: 1, sourceId: null });
-    }
+    const sourceId = crypto.randomUUID();
+    idMap.set(source.id, sourceId);
+    sources.push({
+      id: sourceId,
+      kind: source.kind === 'video' ? 'youtube' : 'web',
+      url: source.url,
+      title: source.title,
+    });
   }
-  if (searchFailed) {
-    for (const row of claimRows) {
-      row.unsourced = 1;
-      row.sourceId = null;
-    }
-    sources.splice(0, sources.length);
-  }
+  let markdown = output.markdown.replace(
+    /\[\[([A-Za-z0-9_-]{1,64})\]\]/g,
+    (_whole, modelId: string) => {
+      const mapped = idMap.get(modelId);
+      return mapped ? `[[${mapped}]]` : '';
+    },
+  );
+  const uncited = sources.filter(
+    (source) => !markdown.includes(`[[${source.id}]]`),
+  );
+  if (uncited.length > 0)
+    markdown = `${markdown.trimEnd()} ${uncited
+      .map((source) => `[[${source.id}]]`)
+      .join(' ')}`;
   try {
     const video = await searchYouTube(
       env,
       db,
       `${context.title} ${context.topic}`,
     );
-    if (video?.url.startsWith('https://'))
+    if (
+      video?.url.startsWith('https://') &&
+      sources.length < MAX_LESSON_SOURCES &&
+      !sources.some((item) => item.url === video.url)
+    )
       sources.push({
         id: crypto.randomUUID(),
         kind: 'youtube',
@@ -616,18 +630,16 @@ async function writeLesson(
   for (const [position, source] of sources.entries()) {
     await db.insert(lessonSources).values({ ...source, lessonId, position });
   }
-  for (const claim of claimRows) {
-    await db.insert(lessonClaims).values({
-      id: crypto.randomUUID(),
-      lessonId,
-      quote: claim.quote,
-      unsourced: claim.unsourced,
-      sourceId: claim.sourceId,
+  const quality = auditLessonQuality(markdown);
+  if (quality.issues.length > 0)
+    logEvent({
+      message: 'lesson_quality',
+      status: 'warn',
+      errorCode: quality.issues.join(' | ').slice(0, 180),
     });
-  }
   await db
     .update(lessons)
-    .set({ body: output.markdown, status: 'ready' })
+    .set({ body: markdown, status: 'ready' })
     .where(eq(lessons.id, lessonId));
 }
 
@@ -721,7 +733,9 @@ async function runModel(
   const prompt = prompts[0]?.body;
   if (!prompt) throw new ModelError('invalid_output');
   const model = await loadModel(db, task, prompt);
-  const raw = await completeJson(env, model, input, task);
+  const raw = await completeJson(env, model, input, task, {
+    tool: generatorTools[task],
+  });
   return parseModelOutput(task, raw);
 }
 
@@ -769,7 +783,7 @@ async function lessonContext(db: Database, lessonId: string) {
     .select()
     .from(chapters)
     .where(eq(chapters.pathId, path.id));
-  const ordered: { title: string }[] = [];
+  const ordered: { title: string; body: string | null }[] = [];
   const sortedChapters = [...chapterRowsAll].sort(
     (left, right) => left.position - right.position,
   );
@@ -781,9 +795,10 @@ async function lessonContext(db: Database, lessonId: string) {
     for (const entry of [...chapterLessons].sort(
       (left, right) => left.position - right.position,
     ))
-      ordered.push({ title: entry.title });
+      ordered.push({ title: entry.title, body: entry.body ?? null });
   }
   const index = ordered.findIndex((item) => item.title === lesson.title);
+  const earlier = index > 0 ? ordered.slice(0, index) : [];
   const neighbors = [
     ordered[index - 1]?.title,
     ordered[index + 1]?.title,
@@ -792,10 +807,30 @@ async function lessonContext(db: Database, lessonId: string) {
     pathTitle: path.title,
     topic: path.topic,
     chapterTitle: chapter.title,
+    chapterSummary: chapter.summary,
     title: lesson.title,
     objective: lesson.objective,
+    previousLessons: earlier.slice(-6).map((item) => item.title),
+    recentTakeaways: earlier
+      .slice(-3)
+      .map((item) => takeawayOf(item.body))
+      .filter((item): item is string => Boolean(item)),
     neighbors,
   };
+}
+
+function takeawayOf(body: string | null): string | null {
+  if (!body) return null;
+  const marked = body.match(/\*\*Inti pelajaran:\*\*\s*([\s\S]+)/i);
+  const source = (marked?.[1] ?? body).trim();
+  const paragraph =
+    source
+      .split(/\n{2,}/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .pop() ?? '';
+  const clean = paragraph.replace(/\s+/g, ' ').trim();
+  return clean ? clean.slice(0, 240) : null;
 }
 
 async function ownedLesson(db: Database, userId: string, lessonId: string) {

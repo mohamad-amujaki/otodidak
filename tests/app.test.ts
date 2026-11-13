@@ -238,12 +238,11 @@ describe('putaran belajar', () => {
     expect(row?.n).toBe(3);
   });
 
-  it('klaim tanpa tautan disimpan sebagai tanpa sumber', async () => {
+  it('sumber dari model disimpan dan sitasinya dipetakan', async () => {
     const cookie = await signIn('sumber@example.com');
     const started = await startPath(cookie);
     await processGeneration(env, started.jobId, 1);
     const lessonId = await firstLesson(cookie, started.pathId);
-    await env.APP_KV.put('dev:search-mode', 'empty');
     const opened = await api(`/api/lessons/${lessonId}/open`, {
       method: 'POST',
       json: {},
@@ -257,22 +256,25 @@ describe('putaran belajar', () => {
         1,
       ),
     ).toBe('ack');
-    const unsourced = await count(
-      'select count(*) as n from lesson_claim where lesson_id = ? and unsourced = 1',
+    const web = await count(
+      "select count(*) as n from lesson_source where lesson_id = ? and kind = 'web'",
       lessonId,
     );
-    const sourced = await count(
-      'select count(*) as n from lesson_claim where lesson_id = ? and unsourced = 0',
-      lessonId,
-    );
-    expect(unsourced).toBeGreaterThan(0);
-    expect(sourced).toBe(0);
+    expect(web).toBeGreaterThan(0);
+    expect(
+      await count(
+        'select count(*) as n from lesson_claim where lesson_id = ?',
+        lessonId,
+      ),
+    ).toBe(0);
     const lesson = await env.DB.prepare(
-      'select status from lesson where id = ?',
+      'select status, body from lesson where id = ?',
     )
       .bind(lessonId)
-      .first<{ status: string }>();
+      .first<{ status: string; body: string }>();
     expect(lesson?.status).toBe('ready');
+    expect(lesson?.body).toContain('[[');
+    expect(lesson?.body).not.toContain('[[s1]]');
   });
 
   it('pelajar ditolak dari rute admin', async () => {

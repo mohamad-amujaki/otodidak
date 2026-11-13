@@ -30,7 +30,7 @@ const groupKeys = Object.keys(
   configFieldGroups,
 ) as (keyof typeof configFieldGroups)[];
 ---
-<AdminShell title="Konfigurasi" section="konfigurasi" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav}>
+<AdminShell title="Konfigurasi" section="konfigurasi" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav} userName={String(auth.user.name)} userEmail={String(auth.user.email)}>
   <h1 class="judul">Konfigurasi produk</h1>
   <p class="mt-2 text-sm text-tinta-lembut">Batas konten, biaya kredit, dan onboarding untuk semua pengguna.</p>
   {message && (

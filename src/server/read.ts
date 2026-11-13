@@ -13,6 +13,7 @@ import {
   type UserRow,
   users,
 } from '../db/schema';
+import { MAX_QUIZ_ATTEMPT_HISTORY } from '../domain/defaults';
 import { quizStatusLabel } from '../domain/format';
 import { streakSentences } from '../domain/streak';
 import { jakartaDate } from '../domain/time';
@@ -288,6 +289,7 @@ type QuizPayload = {
     scorePercent: number;
     createdAt: string;
   } | null;
+  attempts: { id: string; scorePercent: number; createdAt: string }[];
 };
 
 async function quizPayloadFor(
@@ -324,9 +326,21 @@ async function quizPayloadFor(
   ]);
   const questionsByQuiz = groupBy(questions, (question) => question.quizId);
   const latestAttempt = new Map<string, (typeof attempts)[number]>();
+  const attemptsByQuiz = new Map<
+    string,
+    { id: string; scorePercent: number; createdAt: string }[]
+  >();
   for (const attempt of attempts) {
     if (!latestAttempt.has(attempt.quizId))
       latestAttempt.set(attempt.quizId, attempt);
+    const history = attemptsByQuiz.get(attempt.quizId) ?? [];
+    if (history.length < MAX_QUIZ_ATTEMPT_HISTORY)
+      history.push({
+        id: attempt.id,
+        scorePercent: attempt.scorePercent,
+        createdAt: attempt.createdAt,
+      });
+    attemptsByQuiz.set(attempt.quizId, history);
   }
   for (const [quizId, quizQuestionsForId] of questionsByQuiz) {
     if (quizQuestionsForId.length === 0) continue;
@@ -353,6 +367,7 @@ async function quizPayloadFor(
             createdAt: attempt.createdAt,
           }
         : null,
+      attempts: attemptsByQuiz.get(quizId) ?? [],
     });
   }
   return payloads;

@@ -11,7 +11,8 @@ export type LedgerReason =
   | 'quiz'
   | 'outline'
   | 'refund'
-  | 'admin_adjust';
+  | 'admin_adjust'
+  | 'redeem';
 
 export async function balanceOf(db: Database, userId: string): Promise<number> {
   const row = await db.get<{ balance: number | null }>(sql`
@@ -49,14 +50,15 @@ export async function debitIfEnough(
     refId: string | null;
     idempotencyKey: string;
     note?: string | null;
+    category?: string | null;
   },
 ): Promise<'inserted' | 'duplicate' | 'insufficient'> {
   const id = crypto.randomUUID();
   const createdAt = nowIso();
   try {
     const result = await db.run(sql`
-      insert into credit_ledger (id, user_id, amount, reason, ref_type, ref_id, idempotency_key, note, created_at)
-      select ${id}, ${input.userId}, ${input.amount}, ${input.reason}, ${input.refType}, ${input.refId}, ${input.idempotencyKey}, ${input.note ?? null}, ${createdAt}
+      insert into credit_ledger (id, user_id, amount, reason, ref_type, ref_id, idempotency_key, note, category, created_at)
+      select ${id}, ${input.userId}, ${input.amount}, ${input.reason}, ${input.refType}, ${input.refId}, ${input.idempotencyKey}, ${input.note ?? null}, ${input.category ?? null}, ${createdAt}
       where (select coalesce(sum(amount), 0) from credit_ledger where user_id = ${input.userId}) + ${input.amount} >= 0
         and not exists (select 1 from credit_ledger where idempotency_key = ${input.idempotencyKey})
     `);
@@ -81,6 +83,7 @@ export async function insertLedger(
     refId: string | null;
     idempotencyKey: string;
     note?: string | null;
+    category?: string | null;
   },
 ): Promise<boolean> {
   const inserted = await db
@@ -94,6 +97,7 @@ export async function insertLedger(
       refId: input.refId,
       idempotencyKey: input.idempotencyKey,
       note: input.note ?? null,
+      category: input.category ?? null,
       createdAt: nowIso(),
     })
     .onConflictDoNothing()

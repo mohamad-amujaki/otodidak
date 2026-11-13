@@ -45,17 +45,56 @@ export const creditLedger = sqliteTable(
         'outline',
         'refund',
         'admin_adjust',
+        'redeem',
       ],
     }).notNull(),
     refType: text('ref_type'),
     refId: text('ref_id'),
     idempotencyKey: text('idempotency_key').notNull(),
     note: text('note'),
+    category: text('category'),
     createdAt: text('created_at').notNull(),
   },
   (table) => [
     index('credit_ledger_user_created').on(table.userId, table.createdAt),
     uniqueIndex('credit_ledger_idempotency').on(table.idempotencyKey),
+  ],
+);
+
+export const creditRedeemCodes = sqliteTable(
+  'credit_redeem_code',
+  {
+    id: text('id').primaryKey(),
+    code: text('code').notNull(),
+    credits: integer('credits').notNull(),
+    maxRedemptions: integer('max_redemptions').notNull().default(1),
+    redeemedCount: integer('redeemed_count').notNull().default(0),
+    active: integer('active').notNull().default(1),
+    expiresAt: text('expires_at'),
+    createdAt: text('created_at').notNull(),
+    createdBy: text('created_by'),
+  },
+  (table) => [uniqueIndex('credit_redeem_code_code').on(table.code)],
+);
+
+export const creditRedeemRedemptions = sqliteTable(
+  'credit_redeem_redemption',
+  {
+    id: text('id').primaryKey(),
+    codeId: text('code_id')
+      .notNull()
+      .references(() => creditRedeemCodes.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    credits: integer('credits').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('credit_redeem_redemption_code_user').on(
+      table.codeId,
+      table.userId,
+    ),
   ],
 );
 
@@ -231,6 +270,7 @@ export const generationJobs = sqliteTable(
     }).notNull(),
     errorCode: text('error_code'),
     attempts: integer('attempts').notNull().default(0),
+    promptVersion: integer('prompt_version'),
     createdAt: text('created_at').notNull(),
     startedAt: text('started_at'),
     finishedAt: text('finished_at'),
@@ -270,9 +310,23 @@ export const aiModels = sqliteTable('ai_model', {
 export const promptTemplates = sqliteTable('prompt_template', {
   task: text('task', { enum: ['roadmap', 'lesson', 'quiz'] }).primaryKey(),
   body: text('body').notNull(),
+  version: integer('version').notNull().default(1),
   updatedAt: text('updated_at').notNull(),
   updatedBy: text('updated_by'),
 });
+
+export const promptVersions = sqliteTable(
+  'prompt_version',
+  {
+    id: text('id').primaryKey(),
+    task: text('task', { enum: ['roadmap', 'lesson', 'quiz'] }).notNull(),
+    version: integer('version').notNull(),
+    body: text('body').notNull(),
+    createdAt: text('created_at').notNull(),
+    createdBy: text('created_by'),
+  },
+  (table) => [index('prompt_version_task').on(table.task, table.version)],
+);
 
 export const appConfig = sqliteTable('app_config', {
   id: text('id').primaryKey(),
@@ -285,6 +339,9 @@ export const appConfig = sqliteTable('app_config', {
   costQuiz: integer('cost_quiz').notNull(),
   signupCredits: integer('signup_credits').notNull(),
   lessonMinuteLabel: integer('lesson_minute_label').notNull(),
+  adminDailyCreditCap: integer('admin_daily_credit_cap')
+    .notNull()
+    .default(1000),
 });
 
 export const sourceProviders = sqliteTable('source_provider', {
