@@ -87,6 +87,34 @@ describe('putaran belajar', () => {
     expect(await balance(cookie)).toBe(before);
   });
 
+  it('menambah pelajaran dengan AI di tinjau jalur', async () => {
+    const cookie = await signIn('ai-outline@example.com');
+    const started = await startPath(cookie);
+    expect(await processGeneration(env, started.jobId, 1)).toBe('ack');
+    const detail = await api(`/api/paths/${started.pathId}`, { cookie });
+    const body = await jsonBody<{
+      chapters: { id: string; lessons: { id: string }[] }[];
+    }>(detail);
+    const chapterId = body.chapters[0]?.id;
+    if (!chapterId) throw new Error('bab tidak ada');
+    const before = await balance(cookie);
+    const added = await api(`/api/chapters/${chapterId}/lessons/ai`, {
+      method: 'POST',
+      json: {},
+      cookie,
+    });
+    expect(added.status).toBe(200);
+    const lesson = await jsonBody<{ lessonId: string; title: string }>(added);
+    expect(lesson.title.length).toBeGreaterThan(0);
+    expect(await balance(cookie)).toBe(before - 1);
+    const after = await api(`/api/paths/${started.pathId}`, { cookie });
+    const again = await jsonBody<{
+      chapters: { lessons: { id: string }[] }[];
+    }>(after);
+    expect(again.chapters[0]?.lessons.some((row) => row.id === lesson.lessonId))
+      .toBe(true);
+  });
+
   it('kunci pelajaran yang sudah ada menolak pembukaan kedua', async () => {
     const cookie = await signIn('ulang@example.com');
     const started = await startPath(cookie);
@@ -263,11 +291,14 @@ describe('putaran belajar', () => {
   it('admin biasa ditolak dari paket platform', async () => {
     await signIn('admin-kedua@example.com', 'Admin Kedua');
     const cookie = await signIn('admin@example.com', 'Admin');
-    await api(`/api/admin/users/${await userIdFor('admin-kedua@example.com')}`, {
-      cookie,
-      method: 'PATCH',
-      json: { role: 'admin' },
-    });
+    await api(
+      `/api/admin/users/${await userIdFor('admin-kedua@example.com')}`,
+      {
+        cookie,
+        method: 'PATCH',
+        json: { role: 'admin' },
+      },
+    );
     const other = await signIn('admin-kedua@example.com', 'Admin Kedua');
     const response = await api('/api/admin/packs', { cookie: other });
     expect(response.status).toBe(403);

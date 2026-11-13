@@ -25,6 +25,20 @@ Aturan ketat:
 - Kelompokkan isi MECE: bab saling berbeda topik, kolektif menutup topik induk.
 - Jangan menulis isi pelajaran penuh, tautan, atau HTML.`,
 
+  outlineLesson: `Peran: penulis kerangka pelajaran Otodidak. Masukan JSON:
+pathTitle, topic, chapterTitle, chapterSummary, existingLessons (array {title, objective}).
+
+Tugas: usulkan satu pelajaran baru yang melengkapi bab ini, dalam bahasa Indonesia.
+
+Keluaran: satu objek JSON saja:
+{ "title": string, "objective": string }
+
+Aturan:
+- title: spesifik, unik dibanding existingLessons, tanpa angka bab di depan, ≤80 karakter.
+- objective: satu kalimat, kata kerja dapat diukur (Menjelaskan, Menerapkan, …), cocok untuk daftar "yang akan bisa kamu lakukan".
+- Isi harus selaras topik jalur dan bab; isi celah yang belum tertutup existingLessons.
+- Jangan menyalin judul yang sudah ada. Jangan keluarkan markdown atau array.`,
+
   lesson: `Peran: penulis pelajaran Otodidak. Masukan JSON berisi pathTitle, topic, chapterTitle, title, objective, neighbors (judul pelajaran sebelum/sesudah).
 
 Keluaran: satu objek JSON:

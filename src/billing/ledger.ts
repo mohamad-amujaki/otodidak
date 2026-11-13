@@ -9,6 +9,7 @@ export type LedgerReason =
   | 'roadmap'
   | 'lesson'
   | 'quiz'
+  | 'outline'
   | 'refund'
   | 'admin_adjust';
 

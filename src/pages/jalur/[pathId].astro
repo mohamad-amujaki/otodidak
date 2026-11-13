@@ -28,7 +28,23 @@ if (Astro.request.method === 'POST') {
     message = 'Muat ulang halaman, lalu kirim lagi.';
   } else {
     const action = String(form.get('aksi') ?? '');
-    if (action === 'kuis') {
+    if (action === 'tambah-ai') {
+      const chapterId = String(form.get('chapterId') ?? '');
+      const result = await callApi(
+        Astro.request,
+        env,
+        `/api/chapters/${chapterId}/lessons/ai`,
+        { method: 'POST', json: {}, csrf: Astro.locals.csrf },
+      );
+      const error = errorOf(result.data);
+      if (error) message = error.message;
+      else {
+        messageIsInfo = true;
+        message = 'Pelajaran baru ditambahkan dari saran AI.';
+        const again = await callApi(Astro.request, env, `/api/paths/${pathId}`);
+        detail = record(again.data);
+      }
+    } else if (action === 'kuis') {
       const result = await callApi(
         Astro.request,
         env,
@@ -104,6 +120,12 @@ const navChapters = chapters.map((chapter) => ({
 const minutes =
   typeof config.lessonMinuteLabel === 'number' ? config.lessonMinuteLabel : 15;
 const quizCost = typeof config.costQuiz === 'number' ? config.costQuiz : 1;
+const outlineLessonCost =
+  typeof config.costQuiz === 'number' ? config.costQuiz : 1;
+const maxLessonsPerChapter =
+  typeof config.maxLessonsPerChapter === 'number'
+    ? config.maxLessonsPerChapter
+    : 4;
 const activeJob = isRecord(me.activeJob) ? me.activeJob : null;
 
 type LessonView = {
@@ -749,18 +771,32 @@ function actionFrom(form: FormData): OutlineAction {
                   ))}
                 </div>
 
-                <form class="mt-3 pl-9" method="post">
-                  <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-                  <input type="hidden" name="tinjau" value="1" />
-                  <input type="hidden" name="aksi" value="tambah" />
-                  <input type="hidden" name="chapterId" value={chapter.id} />
-                  <button class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-dashed border-garis bg-kartu px-3 text-sm font-medium text-tinta-lembut transition-colors hover:border-jalur/40 hover:text-jalur" type="submit">
-                    <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                    </svg>
-                    Tambah pelajaran
-                  </button>
-                </form>
+                <div class="mt-3 flex flex-wrap gap-2 pl-9">
+                  <form method="post">
+                    <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                    <input type="hidden" name="tinjau" value="1" />
+                    <input type="hidden" name="aksi" value="tambah" />
+                    <input type="hidden" name="chapterId" value={chapter.id} />
+                    <button class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-dashed border-garis bg-kartu px-3 text-sm font-medium text-tinta-lembut transition-colors hover:border-jalur/40 hover:text-jalur disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={chapter.lessons.length >= maxLessonsPerChapter || Boolean(activeJob)}>
+                      <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                      </svg>
+                      Tambah pelajaran
+                    </button>
+                  </form>
+                  <form method="post" onsubmit={`return confirm('Buat pelajaran dengan AI menggunakan ${outlineLessonCost} kredit?')`}>
+                    <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                    <input type="hidden" name="tinjau" value="1" />
+                    <input type="hidden" name="aksi" value="tambah-ai" />
+                    <input type="hidden" name="chapterId" value={chapter.id} />
+                    <button class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta transition-colors hover:border-jalur/30 hover:bg-jalur-lembut/40 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={chapter.lessons.length >= maxLessonsPerChapter || Boolean(activeJob)}>
+                      <svg class="size-4 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                      Buat pelajaran dengan AI · {outlineLessonCost} kredit
+                    </button>
+                  </form>
+                </div>
               </div>
             ))}
           </div>

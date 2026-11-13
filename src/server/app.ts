@@ -60,7 +60,12 @@ import {
 import { isSuperadmin } from './admin-access';
 import { DEV_COOKIE, devIdentityFor, identify, signDevSession } from './auth';
 import { cookieHeader, readCookie, timingSafeEqual } from './crypto';
-import { openLesson, startQuiz, startRoadmap } from './generation';
+import {
+  openLesson,
+  startQuiz,
+  startRoadmap,
+  suggestChapterLesson,
+} from './generation';
 import { logEvent } from './log';
 import { requestAppOrigin } from './origin';
 import { saveOutline } from './outline-save';
@@ -287,6 +292,16 @@ export function createApp() {
       c.req.param('id'),
     );
     return c.json(started, 202);
+  });
+
+  app.post('/api/chapters/:id/lessons/ai', async (c) => {
+    const created = await suggestChapterLesson(
+      c.env,
+      c.req.raw,
+      c.get('user'),
+      c.req.param('id'),
+    );
+    return c.json(created);
   });
 
   app.post('/api/quizzes/:id/attempts', async (c) => {
