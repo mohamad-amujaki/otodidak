@@ -11,6 +11,7 @@ export default defineConfig({
       miniflare: {
         bindings: {
           TEST_MIGRATIONS: migrations,
+          ENVIRONMENT: 'development',
           CLERK_SECRET_KEY: 'mock',
           BOOTSTRAP_ADMIN_EMAIL: 'admin@example.com',
           SUPERADMIN_EMAILS: 'admin@example.com',
