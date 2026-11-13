@@ -33,13 +33,22 @@ if (Astro.request.method === 'POST') {
 }
 const pathsRaw = (await library(session.db, session.user.id)).filter(isRecord);
 const sort = Astro.url.searchParams.get('urut') ?? 'terbaru';
+const query = (Astro.url.searchParams.get('cari') ?? '').trim();
+const queryLower = query.toLowerCase();
 function progressPercent(path: Record<string, unknown>): number {
   const progress = record(path.progress);
   const done = Number(progress.done ?? 0);
   const total = Number(progress.total ?? 0);
   return total > 0 ? Math.round((done / total) * 100) : 0;
 }
-const paths = [...pathsRaw].sort((left, right) => {
+const filtered = queryLower
+  ? pathsRaw.filter((path) => {
+      const title = String(path.title ?? '').toLowerCase();
+      const topic = String(path.topic ?? '').toLowerCase();
+      return title.includes(queryLower) || topic.includes(queryLower);
+    })
+  : pathsRaw;
+const paths = [...filtered].sort((left, right) => {
   if (sort === 'judul')
     return String(left.title ?? '').localeCompare(
       String(right.title ?? ''),
@@ -49,6 +58,13 @@ const paths = [...pathsRaw].sort((left, right) => {
     return progressPercent(right) - progressPercent(left);
   return 0;
 });
+function listHref(urut: string): string {
+  const url = new URL('/pustaka', Astro.url);
+  if (urut !== 'terbaru') url.searchParams.set('urut', urut);
+  if (query) url.searchParams.set('cari', query);
+  const search = url.searchParams.toString();
+  return search ? `${url.pathname}?${search}` : url.pathname;
+}
 const sortOptions = [
   { id: 'terbaru', label: 'Terbaru' },
   { id: 'progress', label: 'Progress' },
@@ -61,7 +77,11 @@ const sortOptions = [
     <div>
       <h1 class="judul">Pustaka</h1>
       <p class="mt-1 text-tinta-lembut">
-        {paths.length === 0 ? 'Koleksi jalur pembelajaran kosong' : `${paths.length} jalur pembelajaran`}
+        {pathsRaw.length === 0
+          ? 'Koleksi jalur pembelajaran kosong'
+          : query
+            ? `${paths.length} dari ${pathsRaw.length} jalur cocok`
+            : `${paths.length} jalur pembelajaran`}
       </p>
     </div>
     <a class="btn-jalur w-full min-[768px]:w-auto" href="/dasbor?baru=1">
@@ -83,7 +103,7 @@ const sortOptions = [
     </div>
   )}
 
-  {paths.length === 0 ? (
+  {pathsRaw.length === 0 ? (
     <div class="rounded-kartu border border-garis bg-kartu p-8 text-center shadow-sm min-[768px]:p-12">
       <div class="mx-auto flex size-16 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
         <svg class="size-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -106,6 +126,25 @@ const sortOptions = [
     </div>
   ) : (
     <>
+    <form class="mb-4 flex flex-col gap-2 min-[640px]:flex-row" method="get" role="search">
+      {sort !== 'terbaru' && <input type="hidden" name="urut" value={sort} />}
+      <label class="sr-only" for="cari-jalur">Cari jalur pembelajaran</label>
+      <input
+        id="cari-jalur"
+        class="min-h-11 flex-1 rounded-kontrol border border-garis bg-kartu px-3 text-tinta placeholder:text-tinta-lembut focus:border-jalur"
+        type="search"
+        name="cari"
+        value={query}
+        placeholder="Cari judul atau topik…"
+        autocomplete="off"
+      />
+      <button
+        class="min-h-11 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta hover:border-jalur/40"
+        type="submit"
+      >
+        Cari
+      </button>
+    </form>
     <div class="mb-4 flex flex-wrap items-center gap-2" role="group" aria-label="Urutkan jalur">
       <span class="text-sm text-tinta-lembut">Urutkan:</span>
       {sortOptions.map((option) => (
@@ -116,13 +155,21 @@ const sortOptions = [
               ? 'border-jalur bg-jalur-lembut text-jalur'
               : 'border-garis bg-kartu text-tinta hover:border-jalur/40',
           ]}
-          href={option.id === 'terbaru' ? '/pustaka' : `/pustaka?urut=${option.id}`}
+          href={listHref(option.id)}
           aria-current={sort === option.id ? 'true' : undefined}
         >
           {option.label}
         </a>
       ))}
     </div>
+    {paths.length === 0 ? (
+      <div class="rounded-kartu border border-garis bg-kartu p-8 text-center shadow-sm">
+        <p class="text-tinta-lembut">Tidak ada jalur yang cocok dengan “{query}”.</p>
+        <a class="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-jalur hover:underline" href="/pustaka">
+          Hapus pencarian
+        </a>
+      </div>
+    ) : (
     <ul class="grid gap-4 min-[768px]:grid-cols-2 min-[1100px]:grid-cols-3">
       {paths.map((path) => {
         const progress = record(path.progress);
@@ -142,7 +189,7 @@ const sortOptions = [
         const iconStyle = isActive ? 'bg-jalur text-white' : 'bg-kartu text-jalur';
         
         return (
-          <li class="group flex flex-col overflow-hidden rounded-kartu border border-garis bg-kartu shadow-sm transition-all hover:shadow-md hover:border-jalur/30">
+          <li class="group hover-lift flex flex-col overflow-hidden rounded-kartu border border-garis bg-kartu shadow-sm transition-[box-shadow,border-color] hover:shadow-md hover:border-jalur/30">
             <div class={`relative flex h-32 items-center justify-center ${headerBg}`}>
               <div class={`flex size-16 items-center justify-center rounded-kontrol ${iconStyle} shadow-md`}>
                 <svg class="size-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -229,6 +276,7 @@ const sortOptions = [
         );
       })}
     </ul>
+    )}
     </>
   )}
 </Shell>

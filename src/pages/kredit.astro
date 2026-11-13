@@ -217,7 +217,15 @@ const showSummary = summary.added > 0 || summary.used < 0;
           </a>
         </div>
         {entriesTotal === 0 ? (
-          <p class="text-sm text-tinta-lembut">Belum ada transaksi.</p>
+          <div class="rounded-kontrol border border-dashed border-garis bg-kertas/50 p-6 text-center">
+            <p class="text-sm font-medium text-tinta">Belum ada transaksi</p>
+            <p class="mt-1 text-sm text-tinta-lembut">
+              Aktivitas kredit muncul setelah kamu membuat jalur, pelajaran, atau membeli paket.
+            </p>
+            <a class="btn-jalur mt-4 text-sm" href="#paket-kredit">
+              Lihat paket kredit
+            </a>
+          </div>
         ) : (
           <>
             <LedgerRows entries={entries} dense linkable />
@@ -236,7 +244,12 @@ const showSummary = summary.added > 0 || summary.used < 0;
           </a>
         </div>
         {pendingSnippet.length === 0 && recentOrders.length === 0 ? (
-          <p class="text-sm text-tinta-lembut">Belum ada pesanan.</p>
+          <div class="rounded-kontrol border border-dashed border-garis bg-kertas/50 p-6 text-center">
+            <p class="text-sm font-medium text-tinta">Belum ada pesanan</p>
+            <p class="mt-1 text-sm text-tinta-lembut">
+              Beli paket kredit untuk menambah saldo lewat QRIS.
+            </p>
+          </div>
         ) : (
           <div class="space-y-4">
             {pendingSnippet.length > 0 && (
