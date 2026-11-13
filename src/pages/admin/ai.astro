@@ -9,7 +9,7 @@ import {
   aiTasks,
 } from '../../domain/admin-labels';
 import { MAX_PROMPT_CHARS } from '../../domain/defaults';
-import { isRecord, record } from '../../domain/guard';
+import { record } from '../../domain/guard';
 import { runAdminAction } from '../../server/admin-actions';
 import { requireSuperadminPage } from '../../server/admin-guard';
 import { callApi } from '../../server/call';
@@ -72,7 +72,14 @@ function taskHref(task: string) {
     ]}
   />
 
-  <div class="mt-4 min-[1100px]:grid min-[1100px]:grid-cols-[minmax(0,1fr)_220px] min-[1100px]:gap-8 min-[1100px]:items-start">
+  <div
+    class="mt-4 min-[1100px]:grid min-[1100px]:grid-cols-[minmax(0,1fr)_220px] min-[1100px]:gap-8 min-[1100px]:items-start"
+    data-admin-ai
+    data-prompt-max={String(MAX_PROMPT_CHARS)}
+    data-task-code={activeTask}
+    data-model-name={String(model.modelName ?? '')}
+    data-base-url={String(model.baseUrl ?? '')}
+  >
     <div class="min-w-0">
       <h1 class="judul mt-2">AI & generasi konten</h1>
       <p class="mt-2 text-sm text-tinta-lembut">
@@ -103,7 +110,7 @@ function taskHref(task: string) {
         ))}
       </nav>
 
-      <form class="mt-6 space-y-6" method="post">
+      <form class="mt-6 space-y-6" method="post" data-ai-form>
         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
         <input type="hidden" name="aksi" value="ai-task" />
         <input type="hidden" name="task" value={activeTask} />
@@ -120,9 +127,14 @@ function taskHref(task: string) {
               id={`prompt-${activeTask}`}
               name="body"
               maxlength={MAX_PROMPT_CHARS}
+              data-prompt
             >{promptBody}</textarea>
           </label>
-          <p class:list={['mt-2 text-xs tabular-nums', promptNearLimit ? 'text-bahaya' : 'text-tinta-lembut']}>
+          <p
+            class:list={['mt-2 text-xs tabular-nums', promptNearLimit ? 'text-bahaya' : 'text-tinta-lembut']}
+            data-prompt-count
+            aria-live="polite"
+          >
             {promptLen.toLocaleString('id-ID')} / {MAX_PROMPT_CHARS.toLocaleString('id-ID')} karakter
           </p>
         </section>
@@ -204,6 +216,55 @@ function taskHref(task: string) {
           Simpan untuk {aiTaskLabels[activeTask] ?? activeTask}
         </button>
       </form>
+
+      <dialog
+        class="w-[min(100%,28rem)] rounded-kartu border border-garis bg-kartu p-0 shadow-lg backdrop:bg-tinta/40"
+        data-ai-confirm-dialog
+        aria-labelledby="ai-confirm-title"
+      >
+        <form method="dialog" class="p-5">
+          <h2 id="ai-confirm-title" class="text-lg font-semibold text-tinta">
+            Konfirmasi perubahan model
+          </h2>
+          <p class="mt-2 text-sm text-tinta-lembut">
+            Nama model atau URL dasar berubah. Ketik kode tugas{' '}
+            <span class="font-mono font-medium text-tinta">{activeTask}</span>{' '}
+            untuk melanjutkan.
+          </p>
+          <label class="mt-4 block text-sm" for="ai-confirm-input">
+            <span class="font-medium">Kode tugas</span>
+            <input
+              class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-3 font-mono text-sm"
+              id="ai-confirm-input"
+              type="text"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              data-ai-confirm-input
+            />
+          </label>
+          <p class="mt-2 text-xs text-bahaya" data-ai-confirm-hint>
+            Kode harus sama persis (mis. {activeTask}).
+          </p>
+          <div class="mt-5 flex flex-wrap justify-end gap-2">
+            <button
+              class="min-h-10 rounded-kontrol border border-garis px-4 text-sm"
+              type="submit"
+              value="cancel"
+            >
+              Batal
+            </button>
+            <button
+              class="min-h-10 rounded-kontrol bg-bahaya px-4 text-sm font-semibold text-white disabled:opacity-50"
+              type="button"
+              data-ai-confirm-go
+              disabled
+            >
+              Simpan perubahan
+            </button>
+          </div>
+        </form>
+      </dialog>
     </div>
 
     <aside class="mt-8 min-[1100px]:mt-0 space-y-4 text-sm">
@@ -227,4 +288,5 @@ function taskHref(task: string) {
       </p>
     </aside>
   </div>
+  <script src="/scripts/admin-ai.js" defer></script>
 </AdminShell>

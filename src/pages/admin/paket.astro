@@ -83,14 +83,22 @@ const showPreview = Astro.url.searchParams.get('pratinjau') !== '0';
         )}
       </p>
     </div>
-    <a
-      class="inline-flex min-h-10 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-jalur hover:border-jalur/40"
-      href="/kredit#paket-kredit"
-      target="_blank"
-      rel="noopener noreferrer"
-    >
-      Buka halaman pelajar
-    </a>
+    <div class="flex flex-wrap gap-2">
+      <a
+        class="inline-flex min-h-10 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-jalur hover:border-jalur/40"
+        href={showPreview ? '/admin/paket?pratinjau=0' : '/admin/paket'}
+      >
+        {showPreview ? 'Sembunyikan pratinjau' : 'Tampilkan pratinjau'}
+      </a>
+      <a
+        class="inline-flex min-h-10 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-jalur hover:border-jalur/40"
+        href="/kredit#paket-kredit"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Buka halaman pelajar
+      </a>
+    </div>
   </div>
 
   <AdminAlert
@@ -99,7 +107,7 @@ const showPreview = Astro.url.searchParams.get('pratinjau') !== '0';
   />
   {message && <AdminAlert message={message} tone={messageTone} />}
 
-  <div class="mt-8 overflow-hidden rounded-kartu border border-garis bg-kartu">
+  <div class="mt-8 overflow-hidden rounded-kartu border border-garis bg-kartu" data-admin-paket>
     <div class="hidden min-[900px]:grid min-[900px]:grid-cols-[3.5rem_minmax(0,1fr)_5rem_7rem_6rem_4.5rem_auto] min-[900px]:gap-2 min-[900px]:border-b min-[900px]:border-garis min-[900px]:bg-kertas/50 min-[900px]:px-4 min-[900px]:py-2 min-[900px]:text-xs min-[900px]:font-medium min-[900px]:text-tinta-lembut">
       <span>Urut</span>
       <span>Nama</span>
@@ -111,7 +119,7 @@ const showPreview = Astro.url.searchParams.get('pratinjau') !== '0';
     </div>
     <ul class="divide-y divide-garis">
       {sorted.map((pack) => (
-        <li class="px-4 py-4">
+        <li class="px-4 py-4" data-pack-row>
           <form class="grid gap-3 min-[900px]:grid-cols-[3.5rem_minmax(0,1fr)_5rem_7rem_6rem_4.5rem_auto] min-[900px]:items-center min-[900px]:gap-2" method="post">
             <input type="hidden" name="csrf" value={Astro.locals.csrf} />
             <input type="hidden" name="aksi" value="paket" />
@@ -158,7 +166,10 @@ const showPreview = Astro.url.searchParams.get('pratinjau') !== '0';
                 value={String(pack.priceIdr)}
               />
             </label>
-            <p class="text-sm font-medium tabular-nums text-tinta-lembut min-[900px]:text-center">
+            <p
+              class="text-sm font-medium tabular-nums text-tinta-lembut min-[900px]:text-center"
+              data-rp-per-credit
+            >
               {formatIdr(pricePerCredit(pack.priceIdr, pack.credits))}
             </p>
             <div class="flex flex-wrap items-center gap-2">
@@ -190,4 +201,5 @@ const showPreview = Astro.url.searchParams.get('pratinjau') !== '0';
       <CreditPackPreview packs={packs} />
     </div>
   )}
+  <script src="/scripts/admin-paket.js" defer></script>
 </AdminShell>
