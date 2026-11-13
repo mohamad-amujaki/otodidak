@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("/fonts/plus-jakarta-sans.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Source Serif 4";
+  src: url("/fonts/source-serif-4.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --color-kertas: #f4f7fb;
+  --color-kartu: #ffffff;
+  --color-garis: #d5dee8;
+  --color-tinta: #12263a;
+  --color-tinta-lembut: #3d4f63;
+  --color-jalur: #0b6e4f;
+  --color-jalur-lembut: #e5f2ec;
+  --color-hangat: #9a4b16;
+  --color-hangat-lembut: #f8e6d4;
+  --color-ulang: #8a4b08;
+  --color-diam: #5c6b7a;
+  --color-bahaya: #9b2335;
+  --color-fokus: #1d4e89;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Source Serif 4", ui-serif, georgia, serif;
+  --radius-kartu: 12px;
+  --radius-kontrol: 8px;
+}
+
+@layer base {
+  html {
+    background: var(--color-kertas);
+    color: var(--color-tinta);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-fokus);
+    outline-offset: 2px;
+  }
+
+  summary {
+    list-style: none;
+  }
+
+  summary::-webkit-details-marker {
+    display: none;
+  }
+}
+
+@layer components {
+  .baca h2 {
+    margin-top: 1.5rem;
+    font-size: 1.35rem;
+    line-height: 1.3;
+  }
+
+  .baca p,
+  .baca ul {
+    margin-top: 1rem;
+  }
+
+  .baca ul {
+    padding-left: 1.25rem;
+    list-style: disc;
+  }
+
+  .tanpa-sumber {
+    display: inline-block;
+    margin-left: 0.35rem;
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.4;
+    color: var(--color-hangat);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

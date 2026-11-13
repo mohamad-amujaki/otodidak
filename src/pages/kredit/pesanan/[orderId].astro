@@ -1,0 +1,61 @@
+---
+import { env } from 'cloudflare:workers';
+import Shell from '../../../components/Shell.astro';
+import { formatIdr } from '../../../domain/format';
+import { record } from '../../../domain/guard';
+import { callApi, errorOf } from '../../../server/call';
+
+const { orderId } = Astro.params;
+if (!orderId) return Astro.redirect('/kredit');
+const meResult = await callApi(Astro.request, env, '/api/me');
+if (meResult.status !== 200) return Astro.redirect('/masuk');
+const me = record(meResult.data);
+const user = record(me.user);
+let message = '';
+if (Astro.request.method === 'POST' && env.SUMOPOD_API_KEY === 'mock') {
+  const form = await Astro.request.formData();
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+    message = 'Muat ulang halaman, lalu kirim lagi.';
+  else {
+    const result = await callApi(
+      Astro.request,
+      env,
+      `/api/dev/payments/${orderId}/complete`,
+      { method: 'POST', json: {}, csrf: Astro.locals.csrf },
+    );
+    const error = errorOf(result.data);
+    if (error) message = error.message;
+  }
+}
+const orderResult = await callApi(
+  Astro.request,
+  env,
+  `/api/credit-orders/${orderId}`,
+);
+if (orderResult.status === 404) return Astro.redirect('/kredit');
+const order = record(orderResult.data);
+const status = String(order.status ?? '');
+const copy =
+  status === 'paid'
+    ? 'Kredit sudah masuk.'
+    : status === 'pending'
+      ? 'Menunggu pembayaran.'
+      : 'Pembayaran tidak masuk.';
+---
+<Shell title="Pesanan" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
+  <h1 class="text-[1.75rem] leading-[1.25]">Pesanan</h1>
+  <p class="mt-3 text-lg">{copy}</p>
+  <p class="mt-2 tabular-nums">{order.credits} kredit · {formatIdr(Number(order.amountIdr))}</p>
+  {message && <p class="mt-3 text-sm text-bahaya">{message}</p>}
+  {status === 'pending' && typeof order.paymentLinkUrl === 'string' && (
+    <p class="mt-4"><a class="inline-flex min-h-11 items-center text-jalur" href={order.paymentLinkUrl}>Buka halaman bayar</a></p>
+  )}
+  {status === 'pending' && env.SUMOPOD_API_KEY === 'mock' && (
+    <form class="mt-4" method="post">
+      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+      <p class="text-sm text-tinta-lembut">Tombol ini hanya ada saat kunci pembayaran masih percobaan.</p>
+      <button class="mt-2 inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-white" type="submit">Tandai pembayaran percobaan berhasil</button>
+    </form>
+  )}
+  {status === 'pending' && <meta http-equiv="refresh" content="5" />}
+</Shell>

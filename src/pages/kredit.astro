@@ -1,0 +1,90 @@
+---
+import { env } from 'cloudflare:workers';
+import Shell from '../components/Shell.astro';
+import { formatIdr, formatWhen } from '../domain/format';
+import { isRecord, record } from '../domain/guard';
+import { callApi, errorOf } from '../server/call';
+
+const meResult = await callApi(Astro.request, env, '/api/me');
+if (meResult.status !== 200) return Astro.redirect('/masuk');
+const me = record(meResult.data);
+const user = record(me.user);
+let message = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+    message = 'Muat ulang halaman, lalu kirim lagi.';
+  else {
+    const result = await callApi(Astro.request, env, '/api/credit-orders', {
+      method: 'POST',
+      json: { packId: String(form.get('packId') ?? '') },
+      csrf: Astro.locals.csrf,
+    });
+    const error = errorOf(result.data);
+    if (error) message = error.message;
+    else if (isRecord(result.data) && typeof result.data.id === 'string')
+      return Astro.redirect(`/kredit/pesanan/${result.data.id}`);
+  }
+}
+const packsResult = await callApi(Astro.request, env, '/api/credit-packs');
+const creditResult = await callApi(Astro.request, env, '/api/credits');
+const packs =
+  isRecord(packsResult.data) && Array.isArray(packsResult.data.packs)
+    ? packsResult.data.packs.filter(isRecord)
+    : [];
+const credit = record(creditResult.data);
+const entries = Array.isArray(credit.entries)
+  ? credit.entries.filter(isRecord)
+  : [];
+const orders = Array.isArray(credit.orders)
+  ? credit.orders.filter(isRecord)
+  : [];
+const reasons: Record<string, string> = {
+  signup_grant: 'Kredit awal',
+  purchase: 'Pembelian',
+  roadmap: 'Jalur',
+  lesson: 'Pelajaran',
+  quiz: 'Kuis',
+  refund: 'Pengembalian',
+  admin_adjust: 'Penyesuaian',
+};
+---
+<Shell title="Kredit" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
+  <h1 class="text-[1.75rem] leading-[1.25]">Kredit</h1>
+  <p class="mt-2 text-3xl tabular-nums">{me.balance}</p>
+  {message && <p class="mt-3 text-sm text-bahaya">{message}</p>}
+  <ul class="mt-6 grid gap-3">
+    {packs.map((pack) => (
+      <li class="rounded-kartu border border-garis bg-kartu p-4">
+        <p class="text-lg">{pack.name}</p>
+        <p class="tabular-nums">{pack.credits} kredit · {formatIdr(Number(pack.priceIdr))}</p>
+        <form method="post" class="mt-2">
+          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+          <input type="hidden" name="packId" value={String(pack.id)} />
+          <button class="inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-white" type="submit" disabled={user.status === 'suspended'}>Bayar dengan QRIS</button>
+        </form>
+      </li>
+    ))}
+  </ul>
+  <section class="mt-8">
+    <h2 class="text-xl">Buku besar</h2>
+    <ul class="mt-3 space-y-2">
+      {entries.map((entry) => (
+        <li class="flex justify-between gap-3 text-sm">
+          <span>{reasons[String(entry.reason)] ?? entry.reason}</span>
+          <span class="tabular-nums">{entry.amount}</span>
+        </li>
+      ))}
+    </ul>
+  </section>
+  <section class="mt-8">
+    <h2 class="text-xl">Pesanan</h2>
+    <ul class="mt-3 space-y-2">
+      {orders.map((order) => (
+        <li>
+          <a href={`/kredit/pesanan/${String(order.id)}`}>{formatWhen(String(order.createdAt))} · {order.status}</a>
+        </li>
+      ))}
+    </ul>
+  </section>
+</Shell>

@@ -1,0 +1,279 @@
+---
+import { env } from 'cloudflare:workers';
+import Shell from '../../components/Shell.astro';
+import { minuteLabel } from '../../domain/format';
+import { isRecord, record } from '../../domain/guard';
+import type { Outline, OutlineAction } from '../../domain/outline';
+import { applyOutlineAction } from '../../domain/outline';
+import { callApi, errorOf } from '../../server/call';
+
+const { pathId } = Astro.params;
+if (!pathId) return Astro.redirect('/pustaka');
+const meResult = await callApi(Astro.request, env, '/api/me');
+if (meResult.status !== 200) return Astro.redirect('/masuk');
+const me = record(meResult.data);
+const user = record(me.user);
+const config = record(me.config);
+let message = '';
+const detailResult = await callApi(Astro.request, env, `/api/paths/${pathId}`);
+if (detailResult.status === 404) return Astro.redirect('/pustaka');
+let detail = record(detailResult.data);
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+    message = 'Muat ulang halaman, lalu kirim lagi.';
+  else {
+    const action = String(form.get('aksi') ?? '');
+    if (action === 'kuis') {
+      const result = await callApi(
+        Astro.request,
+        env,
+        `/api/chapters/${String(form.get('chapterId') ?? '')}/quiz`,
+        { method: 'POST', json: {}, csrf: Astro.locals.csrf },
+      );
+      const error = errorOf(result.data);
+      message = error ? error.message : 'Menyusun kuis.';
+    } else if (action === 'aktif') {
+      const result = await callApi(
+        Astro.request,
+        env,
+        `/api/paths/${pathId}/active`,
+        { method: 'POST', json: {}, csrf: Astro.locals.csrf },
+      );
+      const error = errorOf(result.data);
+      if (error) message = error.message;
+    } else {
+      const outline = toOutline(detail);
+      const next = applyOutlineAction(outline, actionFrom(form), {
+        maxChapters:
+          typeof config.maxChapters === 'number' ? config.maxChapters : 8,
+        maxLessonsPerChapter:
+          typeof config.maxLessonsPerChapter === 'number'
+            ? config.maxLessonsPerChapter
+            : 4,
+      });
+      if (!next.ok) message = next.message;
+      else if (
+        String(form.get('konfirmasi') ?? '') !== 'ya' &&
+        (action === 'hapus-bab' || action === 'hapus-pelajaran')
+      ) {
+        message = 'Centang konfirmasi untuk menghapus.';
+      } else {
+        const saved = await callApi(
+          Astro.request,
+          env,
+          `/api/paths/${pathId}`,
+          { method: 'PATCH', json: next.outline, csrf: Astro.locals.csrf },
+        );
+        const error = errorOf(saved.data);
+        if (error) message = error.message;
+        else {
+          const again = await callApi(
+            Astro.request,
+            env,
+            `/api/paths/${pathId}`,
+          );
+          detail = record(again.data);
+        }
+      }
+    }
+  }
+}
+const chapters = Array.isArray(detail.chapters)
+  ? detail.chapters.filter(isRecord)
+  : [];
+const minutes =
+  typeof config.lessonMinuteLabel === 'number' ? config.lessonMinuteLabel : 15;
+const quizCost = typeof config.costQuiz === 'number' ? config.costQuiz : 1;
+const activeJob = isRecord(me.activeJob) ? me.activeJob : null;
+
+function toOutline(path: Record<string, unknown>): Outline {
+  const rows = Array.isArray(path.chapters)
+    ? path.chapters.filter(isRecord)
+    : [];
+  return {
+    title: String(path.title ?? ''),
+    chapters: rows.map((chapter) => ({
+      id: String(chapter.id),
+      title: String(chapter.title ?? ''),
+      summary: String(chapter.summary ?? ''),
+      lessons: (Array.isArray(chapter.lessons)
+        ? chapter.lessons.filter(isRecord)
+        : []
+      ).map((lesson) => ({
+        id: String(lesson.id),
+        title: String(lesson.title ?? ''),
+        objective: String(lesson.objective ?? ''),
+      })),
+    })),
+  };
+}
+
+function actionFrom(form: FormData): OutlineAction {
+  const aksi = String(form.get('aksi') ?? '');
+  const direction = String(form.get('arah') ?? '') === 'turun' ? 'down' : 'up';
+  switch (aksi) {
+    case 'judul':
+      return { type: 'title', title: String(form.get('title') ?? '') };
+    case 'bab':
+      return {
+        type: 'chapter-title',
+        chapterId: String(form.get('chapterId') ?? ''),
+        title: String(form.get('title') ?? ''),
+      };
+    case 'ringkas':
+      return {
+        type: 'chapter-summary',
+        chapterId: String(form.get('chapterId') ?? ''),
+        summary: String(form.get('summary') ?? ''),
+      };
+    case 'pelajaran':
+      return {
+        type: 'lesson',
+        lessonId: String(form.get('lessonId') ?? ''),
+        title: String(form.get('title') ?? ''),
+        objective: String(form.get('objective') ?? ''),
+      };
+    case 'geser-bab':
+      return {
+        type: 'move-chapter',
+        chapterId: String(form.get('chapterId') ?? ''),
+        direction,
+      };
+    case 'geser-pelajaran':
+      return {
+        type: 'move-lesson',
+        lessonId: String(form.get('lessonId') ?? ''),
+        direction,
+      };
+    case 'tambah':
+      return {
+        type: 'add-lesson',
+        chapterId: String(form.get('chapterId') ?? ''),
+      };
+    case 'hapus-pelajaran':
+      return {
+        type: 'delete-lesson',
+        lessonId: String(form.get('lessonId') ?? ''),
+      };
+    case 'hapus-bab':
+      return {
+        type: 'delete-chapter',
+        chapterId: String(form.get('chapterId') ?? ''),
+      };
+    default:
+      return { type: 'title', title: String(form.get('title') ?? '') };
+  }
+}
+---
+<Shell title={String(detail.title ?? 'Jalur')} balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
+  <div class="min-[1100px]:grid min-[1100px]:grid-cols-[280px_minmax(0,1fr)] min-[1100px]:gap-8">
+    <div>
+      <h1 class="text-[1.75rem] leading-[1.25]">{detail.title}</h1>
+      <p class="text-sm text-tinta-lembut">{detail.topic}</p>
+      {detail.status === 'draft' && <p class="mt-3">Menyusun jalur.</p>}
+      {message && <p class="mt-3 text-sm text-bahaya">{message}</p>}
+      {detail.isActive !== true && detail.status === 'ready' && (
+        <form method="post" class="mt-3">
+          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+          <input type="hidden" name="aksi" value="aktif" />
+          <button class="inline-flex min-h-11 items-center rounded-kontrol border border-garis px-3" type="submit">Jadikan jalur aktif</button>
+        </form>
+      )}
+    </div>
+    <div class="mt-6 space-y-4 min-[1100px]:mt-0">
+      {chapters.map((chapter) => {
+        const lessons = Array.isArray(chapter.lessons) ? chapter.lessons.filter(isRecord) : [];
+        return (
+          <article class="rounded-kartu border border-garis bg-kartu p-4">
+            <p class="text-sm text-tinta-lembut">{chapter.quizStatusLabel}</p>
+            <h2 class="text-xl">{chapter.title}</h2>
+            <p class="text-sm text-tinta-lembut">{chapter.summary}</p>
+            <form class="mt-3 space-y-2" method="post">
+              <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+              <input type="hidden" name="aksi" value="bab" />
+              <input type="hidden" name="chapterId" value={String(chapter.id)} />
+              <label class="block text-sm" for={`bab-${chapter.id}`}>Judul bab</label>
+              <input class="min-h-11 w-full rounded-kontrol border border-garis px-3" id={`bab-${chapter.id}`} name="title" value={String(chapter.title ?? '')} />
+              <button class="inline-flex min-h-11 items-center rounded-kontrol border border-garis px-3" type="submit">Simpan judul bab</button>
+            </form>
+            <form class="mt-3 space-y-2" method="post">
+              <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+              <input type="hidden" name="aksi" value="ringkas" />
+              <input type="hidden" name="chapterId" value={String(chapter.id)} />
+              <label class="block text-sm" for={`ringkas-${chapter.id}`}>Ringkasan</label>
+              <textarea class="min-h-20 w-full rounded-kontrol border border-garis px-3 py-2" id={`ringkas-${chapter.id}`} name="summary">{chapter.summary}</textarea>
+              <button class="inline-flex min-h-11 items-center rounded-kontrol border border-garis px-3" type="submit">Simpan ringkasan</button>
+            </form>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <form method="post"><input type="hidden" name="csrf" value={Astro.locals.csrf} /><input type="hidden" name="aksi" value="geser-bab" /><input type="hidden" name="arah" value="naik" /><input type="hidden" name="chapterId" value={String(chapter.id)} /><button class="min-h-11 min-w-11 rounded-kontrol border border-garis" type="submit">Naik</button></form>
+              <form method="post"><input type="hidden" name="csrf" value={Astro.locals.csrf} /><input type="hidden" name="aksi" value="geser-bab" /><input type="hidden" name="arah" value="turun" /><input type="hidden" name="chapterId" value={String(chapter.id)} /><button class="min-h-11 min-w-11 rounded-kontrol border border-garis" type="submit">Turun</button></form>
+            </div>
+            <ul class="mt-4 space-y-3">
+              {lessons.map((lesson) => (
+                <li class="border-t border-garis pt-3">
+                  <a class="font-medium" href={`/jalur/${pathId}/pelajaran/${String(lesson.id)}`}>{lesson.title}</a>
+                  <p class="text-sm text-tinta-lembut">{lesson.objective}</p>
+                  <form class="mt-2 space-y-2" method="post">
+                    <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                    <input type="hidden" name="aksi" value="pelajaran" />
+                    <input type="hidden" name="lessonId" value={String(lesson.id)} />
+                    <label class="block text-sm" for={`judul-${lesson.id}`}>Judul pelajaran</label>
+                    <input class="min-h-11 w-full rounded-kontrol border border-garis px-3" id={`judul-${lesson.id}`} name="title" value={String(lesson.title ?? '')} />
+                    <label class="block text-sm" for={`tujuan-${lesson.id}`}>Tujuan</label>
+                    <input class="min-h-11 w-full rounded-kontrol border border-garis px-3" id={`tujuan-${lesson.id}`} name="objective" value={String(lesson.objective ?? '')} />
+                    <button class="inline-flex min-h-11 items-center rounded-kontrol border border-garis px-3" type="submit">Simpan pelajaran</button>
+                  </form>
+                  <p class="text-sm">{lesson.hasBody ? 'Isi sudah ada' : lesson.status === 'queued' ? 'Menyusun pelajaran.' : 'Kerangka'} · {minuteLabel(minutes)}</p>
+                  <div class="mt-2 flex flex-wrap gap-2">
+                    <form method="post"><input type="hidden" name="csrf" value={Astro.locals.csrf} /><input type="hidden" name="aksi" value="geser-pelajaran" /><input type="hidden" name="arah" value="naik" /><input type="hidden" name="lessonId" value={String(lesson.id)} /><button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Naik</button></form>
+                    <form method="post"><input type="hidden" name="csrf" value={Astro.locals.csrf} /><input type="hidden" name="aksi" value="geser-pelajaran" /><input type="hidden" name="arah" value="turun" /><input type="hidden" name="lessonId" value={String(lesson.id)} /><button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Turun</button></form>
+                    <form method="post" class="flex items-center gap-2">
+                      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                      <input type="hidden" name="aksi" value="hapus-pelajaran" />
+                      <input type="hidden" name="lessonId" value={String(lesson.id)} />
+                      <label class="text-sm"><input type="checkbox" name="konfirmasi" value="ya" /> Hapus</label>
+                      <button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Hapus pelajaran</button>
+                    </form>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div class="mt-4 flex flex-wrap gap-2">
+              <form method="post"><input type="hidden" name="csrf" value={Astro.locals.csrf} /><input type="hidden" name="aksi" value="tambah" /><input type="hidden" name="chapterId" value={String(chapter.id)} /><button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Tambah pelajaran</button></form>
+              {chapter.quiz ? (
+                <a class="inline-flex min-h-11 items-center px-2" href={`/jalur/${pathId}/kuis/${String(chapter.id)}`}>Kuis</a>
+              ) : (
+                <form method="post">
+                  <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                  <input type="hidden" name="aksi" value="kuis" />
+                  <input type="hidden" name="chapterId" value={String(chapter.id)} />
+                  <button class="min-h-11 rounded-kontrol bg-jalur px-3 text-white" type="submit" disabled={Boolean(activeJob)}>Susun kuis</button>
+                  <p class="text-sm text-tinta-lembut">Memakai {quizCost} kredit</p>
+                </form>
+              )}
+              <form method="post" class="flex items-center gap-2">
+                <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                <input type="hidden" name="aksi" value="hapus-bab" />
+                <input type="hidden" name="chapterId" value={String(chapter.id)} />
+                <label class="text-sm"><input type="checkbox" name="konfirmasi" value="ya" /> Hapus bab</label>
+                <button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Hapus bab</button>
+              </form>
+            </div>
+          </article>
+        );
+      })}
+      {detail.status === 'ready' && (
+        <form class="space-y-2" method="post">
+          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+          <input type="hidden" name="aksi" value="judul" />
+          <label for="judul-jalur">Judul jalur</label>
+          <input class="min-h-11 w-full rounded-kontrol border border-garis bg-kartu px-3" id="judul-jalur" name="title" value={String(detail.title ?? '')} />
+          <button class="inline-flex min-h-11 items-center rounded-kontrol border border-garis px-3" type="submit">Simpan judul</button>
+        </form>
+      )}
+    </div>
+  </div>
+  {activeJob && <meta http-equiv="refresh" content="4" />}
+</Shell>
