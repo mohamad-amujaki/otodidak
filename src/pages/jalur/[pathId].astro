@@ -2,7 +2,6 @@
 import { env } from 'cloudflare:workers';
 import ChapterNav from '../../components/ChapterNav.astro';
 import Shell from '../../components/Shell.astro';
-import { minuteLabel } from '../../domain/format';
 import { isRecord, record } from '../../domain/guard';
 import type { Outline, OutlineAction } from '../../domain/outline';
 import { applyOutlineAction } from '../../domain/outline';
@@ -16,15 +15,18 @@ const me = record(meResult.data);
 const user = record(me.user);
 const config = record(me.config);
 let message = '';
+let messageIsInfo = false;
+let reopenReview = false;
 const detailResult = await callApi(Astro.request, env, `/api/paths/${pathId}`);
 if (detailResult.status === 404) return Astro.redirect('/pustaka');
 let detail = record(detailResult.data);
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
-  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+  reopenReview = String(form.get('tinjau') ?? '') === '1';
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf) {
     message = 'Muat ulang halaman, lalu kirim lagi.';
-  else {
+  } else {
     const action = String(form.get('aksi') ?? '');
     if (action === 'kuis') {
       const result = await callApi(
@@ -34,7 +36,11 @@ if (Astro.request.method === 'POST') {
         { method: 'POST', json: {}, csrf: Astro.locals.csrf },
       );
       const error = errorOf(result.data);
-      message = error ? error.message : 'Menyusun kuis.';
+      if (error) message = error.message;
+      else {
+        message = 'Menyusun kuis. Muat ulang halaman ini beberapa saat lagi.';
+        messageIsInfo = true;
+      }
     } else if (action === 'aktif') {
       const result = await callApi(
         Astro.request,
@@ -99,6 +105,76 @@ const minutes =
   typeof config.lessonMinuteLabel === 'number' ? config.lessonMinuteLabel : 15;
 const quizCost = typeof config.costQuiz === 'number' ? config.costQuiz : 1;
 const activeJob = isRecord(me.activeJob) ? me.activeJob : null;
+
+type LessonView = {
+  id: string;
+  title: string;
+  objective: string;
+  completed: boolean;
+  hasBody: boolean;
+  status: string;
+};
+type ChapterView = {
+  id: string;
+  title: string;
+  summary: string;
+  quiz: unknown;
+  quizStatusLabel: string;
+  lessons: LessonView[];
+};
+
+const chapterViews: ChapterView[] = chapters.map((chapter) => ({
+  id: String(chapter.id),
+  title: String(chapter.title ?? 'Bab'),
+  summary: String(chapter.summary ?? ''),
+  quiz: chapter.quiz,
+  quizStatusLabel: String(chapter.quizStatusLabel ?? ''),
+  lessons: (Array.isArray(chapter.lessons)
+    ? chapter.lessons.filter(isRecord)
+    : []
+  ).map((lesson) => ({
+    id: String(lesson.id),
+    title: String(lesson.title ?? 'Pelajaran'),
+    objective: String(lesson.objective ?? ''),
+    completed: lesson.completedAt !== null && lesson.completedAt !== undefined,
+    hasBody: lesson.hasBody === true,
+    status: String(lesson.status ?? ''),
+  })),
+}));
+
+const allLessons = chapterViews.flatMap((chapter) => chapter.lessons);
+const lessonCount = allLessons.length;
+const progress = isRecord(detail.progress) ? detail.progress : {};
+const doneFromProgress = Number(progress.done ?? 0);
+const done = Number.isFinite(doneFromProgress)
+  ? doneFromProgress
+  : allLessons.filter((lesson) => lesson.completed).length;
+const total = Number(progress.total ?? lessonCount) || lessonCount;
+const percent = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+const totalMinutes = lessonCount * minutes;
+const isReady = detail.status === 'ready';
+const isActive = detail.isActive === true;
+const isComplete = isReady && lessonCount > 0 && done >= total;
+const firstLesson = allLessons[0] ?? null;
+const nextLesson = allLessons.find((lesson) => !lesson.completed) ?? null;
+const outcomes = [
+  ...new Set(
+    allLessons
+      .map((lesson) => lesson.objective.trim())
+      .filter((objective) => objective.length > 12),
+  ),
+].slice(0, 5);
+
+const statusBadge = !isReady
+  ? { label: 'Menyusun', class: 'bg-hangat-lembut text-hangat' }
+  : isComplete
+    ? { label: 'Selesai', class: 'bg-jalur text-white' }
+    : isActive
+      ? { label: 'Jalur aktif', class: 'bg-jalur-lembut text-jalur' }
+      : {
+          label: 'Siap dipelajari',
+          class: 'border border-garis bg-kartu text-tinta-lembut',
+        };
 
 function toOutline(path: Record<string, unknown>): Outline {
   const rows = Array.isArray(path.chapters)
@@ -179,179 +255,610 @@ function actionFrom(form: FormData): OutlineAction {
   }
 }
 ---
+
 <Shell title={String(detail.title ?? 'Jalur')} balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
-  <h1 class="judul">{detail.title}</h1>
-  <p class="mt-1 text-sm leading-[1.4] text-tinta-lembut">{detail.topic}</p>
-  {detail.status === 'draft' && <p class="mt-3">Menyusun jalur.</p>}
-  {message && <p class="mt-3 text-sm text-bahaya">{message}</p>}
-  {detail.isActive !== true && detail.status === 'ready' && (
-    <form method="post" class="mt-3">
-      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-      <input type="hidden" name="aksi" value="aktif" />
-      <button class="w-full rounded-kontrol border border-garis bg-kartu min-[768px]:w-auto" type="submit">Jadikan jalur aktif</button>
-    </form>
+  <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-sm text-tinta-lembut">
+    <a class="inline-flex min-h-8 items-center transition-colors hover:text-jalur" href="/pustaka">Pustaka</a>
+    <svg class="size-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+    </svg>
+    <span class="max-w-[18rem] truncate" aria-current="page">{detail.title}</span>
+  </nav>
+
+  <header class="mt-4 flex flex-col gap-6 min-[900px]:flex-row min-[900px]:items-end min-[900px]:justify-between">
+    <div class="min-w-0">
+      <div class="flex flex-wrap items-center gap-2">
+        <p class="eyebrow">Jalur belajar</p>
+        <span class:list={["inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold", statusBadge.class]}>
+          <span class:list={["size-1.5 rounded-full", isActive || isComplete ? 'bg-current' : 'bg-tinta-lembut']}></span>
+          {statusBadge.label}
+        </span>
+      </div>
+      <h1 class="judul mt-2">{detail.title}</h1>
+      <p class="mt-2 max-w-[62ch] text-sm leading-[1.6] text-tinta-lembut">{detail.topic}</p>
+
+      {isReady && (
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+          <span class="inline-flex items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-2.5 py-1 text-xs font-medium text-tinta-lembut">
+            <svg class="size-3.5 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+            {chapterViews.length} bab
+          </span>
+          <span class="inline-flex items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-2.5 py-1 text-xs font-medium text-tinta-lembut">
+            <svg class="size-3.5 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h10" />
+            </svg>
+            {lessonCount} pelajaran
+          </span>
+          <span class="inline-flex items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-2.5 py-1 text-xs font-medium text-tinta-lembut">
+            <svg class="size-3.5 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            ±{totalMinutes} mnt
+          </span>
+          {total > 0 && (
+            <span class="inline-flex items-center gap-1.5 rounded-kontrol border border-jalur/30 bg-jalur-lembut px-2.5 py-1 text-xs font-semibold text-jalur">
+              {percent}% selesai
+            </span>
+          )}
+        </div>
+      )}
+
+      {isReady && total > 0 && (
+        <div class="mt-4 max-w-sm">
+          <div class="flex items-center justify-between text-xs text-tinta-lembut">
+            <span>{done} dari {total} pelajaran selesai</span>
+            <span class="font-semibold tabular-nums text-tinta">{percent}%</span>
+          </div>
+          <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-garis">
+            <div class="h-full rounded-full bg-jalur transition-all" style={`width: ${percent}%`}></div>
+          </div>
+        </div>
+      )}
+    </div>
+
+    <div class="flex flex-wrap gap-2 min-[900px]:shrink-0">
+      {isReady && isActive && nextLesson && (
+        <a class="inline-flex min-h-11 w-full min-w-0 items-center justify-center gap-2 rounded-kontrol bg-jalur px-5 text-sm font-semibold text-white shadow-md transition-all hover:brightness-110 hover:shadow-lg min-[900px]:w-auto" href={`/jalur/${pathId}/pelajaran/${nextLesson.id}`}>
+          <svg class="size-4 shrink-0" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+          <span class="min-[900px]:hidden">Lanjutkan belajar</span>
+          <span class="hidden max-w-[24rem] truncate min-[900px]:inline">Lanjutkan: {nextLesson.title}</span>
+        </a>
+      )}
+      {isReady && isActive && isComplete && firstLesson && (
+        <a class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-5 text-sm font-semibold text-white shadow-md transition-all hover:brightness-110 hover:shadow-lg min-[900px]:w-auto" href={`/jalur/${pathId}/pelajaran/${firstLesson.id}`}>
+          <svg class="size-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+          Ulangi dari awal
+        </a>
+      )}
+      {isReady && !isActive && (
+        <form class="w-full min-[900px]:w-auto" method="post">
+          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+          <input type="hidden" name="aksi" value="aktif" />
+          <button class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-5 text-sm font-semibold text-white shadow-md transition-all hover:brightness-110 hover:shadow-lg min-[900px]:w-auto" type="submit">
+            <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Jadikan jalur aktif
+          </button>
+        </form>
+      )}
+      {isReady && (
+        <button class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:bg-kertas min-[900px]:w-auto" type="button" data-open-tinjau>
+          <svg class="size-4 text-tinta-lembut" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          Tinjau & sunting
+        </button>
+      )}
+    </div>
+  </header>
+
+  {message && (
+    <div class:list={["mt-5 rounded-kontrol border p-4", messageIsInfo ? 'border-jalur/30 bg-jalur-lembut' : 'border-bahaya/30 bg-bahaya/10']}>
+      <div class="flex gap-3">
+        <svg class:list={["size-5 shrink-0", messageIsInfo ? 'text-jalur' : 'text-bahaya']} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={messageIsInfo ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' : 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'} />
+        </svg>
+        <p class:list={["text-sm", messageIsInfo ? 'text-jalur' : 'text-bahaya']}>{message}</p>
+      </div>
+    </div>
   )}
-  <div class:list={["mt-6", navChapters.length > 0 && "min-[1100px]:grid min-[1100px]:grid-cols-[280px_minmax(0,1fr)] min-[1100px]:items-start min-[1100px]:gap-8"]}>
-    {navChapters.length > 0 && <ChapterNav pathId={pathId} chapters={navChapters} onPath />}
-    <div class:list={["min-w-0 space-y-4", navChapters.length > 0 && "mt-6 min-[1100px]:mt-0"]}>
-      {chapters.map((chapter) => {
-        const lessons = Array.isArray(chapter.lessons) ? chapter.lessons.filter(isRecord) : [];
-        return (
-          <article id={`bab-${String(chapter.id)}`} class="scroll-mt-20 rounded-kartu border border-garis bg-kartu p-4">
-            <p class="text-sm leading-[1.4] text-tinta-lembut">{chapter.quizStatusLabel}</p>
-            <h2 class="text-xl">{chapter.title}</h2>
-            <p class="text-sm text-tinta-lembut">{chapter.summary}</p>
-            <form class="mt-3 space-y-2" method="post">
-              <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-              <input type="hidden" name="aksi" value="bab" />
-              <input type="hidden" name="chapterId" value={String(chapter.id)} />
-              <label class="block text-sm" for={`bab-${chapter.id}`}>Judul bab</label>
-              <input class="min-h-11 w-full rounded-kontrol border border-garis px-3" id={`bab-${chapter.id}`} name="title" value={String(chapter.title ?? '')} />
-              <button class="inline-flex min-h-11 items-center rounded-kontrol border border-garis px-3" type="submit">Simpan judul bab</button>
-            </form>
-            <form class="mt-3 space-y-2" method="post">
-              <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-              <input type="hidden" name="aksi" value="ringkas" />
-              <input type="hidden" name="chapterId" value={String(chapter.id)} />
-              <label class="block text-sm" for={`ringkas-${chapter.id}`}>Ringkasan</label>
-              <textarea class="min-h-20 w-full rounded-kontrol border border-garis px-3 py-2" id={`ringkas-${chapter.id}`} name="summary">{chapter.summary}</textarea>
-              <button class="inline-flex min-h-11 items-center rounded-kontrol border border-garis px-3" type="submit">Simpan ringkasan</button>
-            </form>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <form method="post"><input type="hidden" name="csrf" value={Astro.locals.csrf} /><input type="hidden" name="aksi" value="geser-bab" /><input type="hidden" name="arah" value="naik" /><input type="hidden" name="chapterId" value={String(chapter.id)} /><button class="min-h-11 min-w-11 rounded-kontrol border border-garis" type="submit">Naik</button></form>
-              <form method="post"><input type="hidden" name="csrf" value={Astro.locals.csrf} /><input type="hidden" name="aksi" value="geser-bab" /><input type="hidden" name="arah" value="turun" /><input type="hidden" name="chapterId" value={String(chapter.id)} /><button class="min-h-11 min-w-11 rounded-kontrol border border-garis" type="submit">Turun</button></form>
-            </div>
-            <ul class="mt-4 space-y-3">
-              {lessons.map((lesson) => (
-                <li class="border-t border-garis pt-3">
-                  <a class="inline-flex min-h-11 items-center font-medium" href={`/jalur/${pathId}/pelajaran/${String(lesson.id)}`}>{lesson.title}</a>
-                  <p class="text-sm text-tinta-lembut">{lesson.objective}</p>
-                  <form class="mt-2 space-y-2" method="post">
-                    <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-                    <input type="hidden" name="aksi" value="pelajaran" />
-                    <input type="hidden" name="lessonId" value={String(lesson.id)} />
-                    <label class="block text-sm" for={`judul-${lesson.id}`}>Judul pelajaran</label>
-                    <input class="min-h-11 w-full rounded-kontrol border border-garis px-3" id={`judul-${lesson.id}`} name="title" value={String(lesson.title ?? '')} />
-                    <label class="block text-sm" for={`tujuan-${lesson.id}`}>Tujuan</label>
-                    <input class="min-h-11 w-full rounded-kontrol border border-garis px-3" id={`tujuan-${lesson.id}`} name="objective" value={String(lesson.objective ?? '')} />
-                    <button class="inline-flex min-h-11 items-center rounded-kontrol border border-garis px-3" type="submit">Simpan pelajaran</button>
-                  </form>
-                  <p class="text-sm">{lesson.hasBody ? 'Isi sudah ada' : lesson.status === 'queued' ? 'Menyusun pelajaran.' : 'Kerangka'} · {minuteLabel(minutes)}</p>
-                  <div class="mt-2 flex flex-wrap gap-2">
-                    <form method="post"><input type="hidden" name="csrf" value={Astro.locals.csrf} /><input type="hidden" name="aksi" value="geser-pelajaran" /><input type="hidden" name="arah" value="naik" /><input type="hidden" name="lessonId" value={String(lesson.id)} /><button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Naik</button></form>
-                    <form method="post"><input type="hidden" name="csrf" value={Astro.locals.csrf} /><input type="hidden" name="aksi" value="geser-pelajaran" /><input type="hidden" name="arah" value="turun" /><input type="hidden" name="lessonId" value={String(lesson.id)} /><button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Turun</button></form>
-                    <form method="post" class="flex max-w-full flex-wrap items-center gap-2">
-                      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-                      <input type="hidden" name="aksi" value="hapus-pelajaran" />
-                      <input type="hidden" name="lessonId" value={String(lesson.id)} />
-                      <label class="text-sm"><input type="checkbox" name="konfirmasi" value="ya" /> Hapus</label>
-                      <button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Hapus pelajaran</button>
-                    </form>
-                  </div>
+
+  {!isReady ? (
+    <section class="mt-8 overflow-hidden rounded-xl border border-garis bg-kartu p-8 shadow-sm min-[768px]:p-12">
+      <div class="mx-auto flex max-w-md flex-col items-center text-center">
+        <div class="flex size-14 items-center justify-center rounded-kontrol bg-jalur-lembut">
+          <svg class="size-7 animate-spin text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </div>
+        <h2 class="mt-4 text-xl font-bold text-tinta">Menyusun jalur belajarmu</h2>
+        <p class="mt-2 text-sm leading-[1.6] text-tinta-lembut">
+          Kami sedang memecah topik ini menjadi bab dan pelajaran yang runut. Halaman ini akan diperbarui otomatis.
+        </p>
+        <div class="mt-6 w-full space-y-3" aria-hidden="true">
+          <div class="skeleton h-4 w-3/4"></div>
+          <div class="skeleton h-4 w-full"></div>
+          <div class="skeleton h-4 w-5/6"></div>
+        </div>
+      </div>
+    </section>
+  ) : (
+    <div class:list={["mt-8", chapterViews.length > 0 && "min-[1100px]:grid min-[1100px]:grid-cols-[260px_minmax(0,1fr)] min-[1100px]:items-start min-[1100px]:gap-8"]}>
+      {chapterViews.length > 0 && <ChapterNav pathId={pathId} chapters={navChapters} />}
+      <div class:list={["min-w-0 space-y-6", chapterViews.length > 0 && "mt-6 min-[1100px]:mt-0"]}>
+        {outcomes.length > 0 && (
+          <section class="rounded-xl border border-garis bg-kartu p-5 shadow-sm">
+            <h2 class="text-[11px] font-bold uppercase tracking-[0.08em] text-tinta-lembut">Yang akan kamu kuasai</h2>
+            <ul class="mt-3 space-y-2.5">
+              {outcomes.map((outcome) => (
+                <li class="flex gap-2.5 text-sm leading-[1.55] text-tinta">
+                  <svg class="mt-0.5 size-4 shrink-0 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>{outcome}</span>
                 </li>
               ))}
             </ul>
-            <div class="mt-4 flex flex-wrap gap-2">
-              <form method="post"><input type="hidden" name="csrf" value={Astro.locals.csrf} /><input type="hidden" name="aksi" value="tambah" /><input type="hidden" name="chapterId" value={String(chapter.id)} /><button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Tambah pelajaran</button></form>
-              {chapter.quiz ? (
-                <a class="inline-flex min-h-11 items-center px-2" href={`/jalur/${pathId}/kuis/${String(chapter.id)}`}>Kuis</a>
-              ) : (
-                <>
-                  <button 
-                    type="button"
-                    onclick={`document.getElementById('quiz-modal-${String(chapter.id)}').classList.remove('hidden')`}
-                    class="flex items-center gap-2 rounded-lg border-2 border-jalur bg-jalur-lembut px-4 py-2 font-medium text-jalur transition-all hover:bg-jalur hover:text-white disabled:opacity-60 disabled:cursor-not-allowed"
-                    disabled={Boolean(activeJob)}
-                  >
-                    <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                    Buat Kuis
-                  </button>
+          </section>
+        )}
 
-                  <!-- Quiz Modal -->
-                  <div 
-                    id={`quiz-modal-${String(chapter.id)}`}
-                    class="fixed inset-0 z-50 hidden items-center justify-center bg-tinta/50 backdrop-blur-sm"
-                    onclick={`if (event.target === this) this.classList.add('hidden')`}
-                  >
-                    <div 
-                      class="mx-4 w-full max-w-md animate-fadeIn rounded-2xl border-2 border-garis bg-white p-6 shadow-2xl"
-                      onclick="event.stopPropagation()"
-                    >
-                      <!-- Header -->
-                      <div class="mb-4 flex items-start justify-between">
-                        <div>
-                          <h3 class="text-xl font-bold text-tinta">Kuis</h3>
-                          <p class="text-sm text-tinta-lembut">Kuis pelajaran</p>
-                        </div>
-                        <button 
-                          type="button"
-                          onclick={`document.getElementById('quiz-modal-${String(chapter.id)}').classList.add('hidden')`}
-                          class="flex size-8 items-center justify-center rounded-lg text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta"
-                        >
-                          <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+        {chapterViews.length > 0 && (
+        <section>
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-bold text-tinta">Urutan bab</h2>
+              <p class="mt-1 text-sm text-tinta-lembut">Ikuti dari atas ke bawah, atau lompat ke bab yang kamu butuhkan.</p>
+              {allLessons.some((lesson) => !lesson.hasBody) && (
+                <p class="mt-1 text-xs text-tinta-lembut">Pelajaran yang masih kerangka akan disusun saat pertama kali dibuka.</p>
+              )}
+            </div>
+            <button class="inline-flex min-h-11 items-center gap-2 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta transition-colors hover:bg-kertas" type="button" data-open-tinjau>
+              <svg class="size-4 text-tinta-lembut" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+              Sunting urutan
+            </button>
+          </div>
+
+          <div class="mt-4 space-y-4">
+            {chapterViews.map((chapter, chapterIndex) => {
+              const chapterDone = chapter.lessons.filter((lesson) => lesson.completed).length;
+              const chapterTotal = chapter.lessons.length;
+              const chapterPercent = chapterTotal > 0 ? Math.min(100, Math.round((chapterDone / chapterTotal) * 100)) : 0;
+              return (
+                <article id={`bab-${chapter.id}`} class="scroll-mt-24 overflow-hidden rounded-xl border border-garis bg-kartu shadow-sm">
+                  <header class="border-b border-garis p-5">
+                    <div class="flex items-start gap-3">
+                      <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-jalur-lembut text-sm font-bold text-jalur">
+                        {chapterIndex + 1}
                       </div>
-
-                      <!-- Content -->
-                      <div class="mb-6 rounded-xl bg-kertas p-4 text-center">
-                        <div class="mx-auto mb-3 flex size-16 items-center justify-center rounded-full bg-jalur-lembut">
-                          <svg class="size-8 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
+                      <div class="min-w-0 flex-1">
+                        <h3 class="text-lg font-semibold leading-snug text-tinta">{chapter.title}</h3>
+                        {chapter.summary && (
+                          <p class="mt-1 text-sm leading-[1.55] text-tinta-lembut">{chapter.summary}</p>
+                        )}
+                        <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-tinta-lembut">
+                          <span>{chapterDone}/{chapterTotal} pelajaran</span>
+                          <div class="h-1.5 w-28 overflow-hidden rounded-full bg-kertas">
+                            <div class="h-full rounded-full bg-jalur" style={`width: ${chapterPercent}%`}></div>
+                          </div>
+                          {chapterPercent === 100 && chapterTotal > 0 && (
+                            <span class="font-semibold text-jalur">Selesai</span>
+                          )}
                         </div>
-                        
-                        <h4 class="mb-2 text-lg font-bold text-tinta">Siap kapan pun kamu mau</h4>
-                        <p class="text-sm text-tinta-lembut">
-                          Beberapa pertanyaan singkat untuk memeriksa pemahamanmu. Ini tidak memengaruhi kemajuanmu.
-                        </p>
                       </div>
+                    </div>
+                  </header>
 
-                      <!-- Action -->
-                      <form method="post">
+                  <ol class="divide-y divide-garis">
+                    {chapter.lessons.map((lesson, lessonIndex) => {
+                      const isNext = isActive && nextLesson?.id === lesson.id;
+                      return (
+                        <li>
+                          <a
+                            class:list={[
+                              "group flex min-h-14 items-center gap-3 px-4 py-3 transition-colors hover:bg-kertas min-[640px]:px-5",
+                              isNext && "bg-jalur-lembut/50",
+                            ]}
+                            href={`/jalur/${pathId}/pelajaran/${lesson.id}`}
+                          >
+                            <span class:list={[
+                              "flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                              lesson.completed
+                                ? "bg-jalur text-white"
+                                : isNext
+                                  ? "bg-jalur text-white"
+                                  : "bg-kertas text-tinta-lembut",
+                            ]}>
+                              {lesson.completed ? (
+                                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : isNext ? (
+                                <svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="M8 5v14l11-7z" />
+                                </svg>
+                              ) : (
+                                lessonIndex + 1
+                              )}
+                            </span>
+                            <span class="min-w-0 flex-1">
+                              <span class="line-clamp-2 text-sm font-medium leading-snug text-tinta">{lesson.title}</span>
+                              {isNext && <span class="mt-0.5 block text-xs font-medium text-jalur">Berikutnya</span>}
+                              {lesson.status === 'queued' && (
+                                <span class="mt-0.5 block text-xs text-tinta-lembut">Menyusun pelajaran…</span>
+                              )}
+                            </span>
+                            <span class="shrink-0 text-[11px] tabular-nums text-tinta-lembut min-[640px]:text-xs">±{minutes} mnt</span>
+                            <svg class="hidden size-4 shrink-0 text-garis transition-transform group-hover:translate-x-0.5 group-hover:text-jalur min-[640px]:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                          </a>
+                        </li>
+                      );
+                    })}
+                  </ol>
+
+                  <footer class="flex flex-wrap items-center justify-between gap-3 border-t border-garis bg-kertas/40 px-5 py-3">
+                    <div class="flex items-center gap-2 text-xs text-tinta-lembut">
+                      {chapter.quiz && chapter.quizStatusLabel ? (
+                        <span class:list={[
+                          "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium",
+                          chapter.quizStatusLabel === 'Paham'
+                            ? "border-jalur/30 bg-jalur-lembut text-jalur"
+                            : chapter.quizStatusLabel === 'Perlu ulang'
+                              ? "border-hangat/30 bg-hangat-lembut text-hangat"
+                              : "border-garis bg-kartu text-tinta-lembut",
+                        ]}>
+                          Kuis · {chapter.quizStatusLabel}
+                        </span>
+                      ) : (
+                        <span>Kuis belum dibuat</span>
+                      )}
+                    </div>
+                    {chapter.quiz ? (
+                      <a class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol px-2 text-sm font-medium text-jalur transition-colors hover:bg-jalur-lembut" href={`/jalur/${pathId}/kuis/${chapter.id}`}>
+                        Kerjakan kuis
+                        <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                      </a>
+                    ) : (
+                      <form method="post" onsubmit={`return confirm('Buat kuis bab ini menggunakan ${quizCost} kredit?')`}>
                         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                         <input type="hidden" name="aksi" value="kuis" />
-                        <input type="hidden" name="chapterId" value={String(chapter.id)} />
-                        <button 
-                          class="w-full min-h-11 rounded-xl bg-tinta px-6 font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:brightness-110"
-                          type="submit"
-                        >
-                          Buat kuis
+                        <input type="hidden" name="chapterId" value={chapter.id} />
+                        <button class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta transition-colors hover:bg-kertas disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={Boolean(activeJob)}>
+                          <svg class="size-4 text-tinta-lembut" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                          </svg>
+                          Buat kuis · {quizCost} kredit
                         </button>
                       </form>
+                    )}
+                  </footer>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+        )}
 
-                      <!-- Info -->
-                      <p class="mt-3 text-center text-xs text-tinta-lembut">
-                        Kuis akan dibuat menggunakan {quizCost} kredit
-                      </p>
-                    </div>
-                  </div>
-                </>
-              )}
-              <form method="post" class="flex max-w-full flex-wrap items-center gap-2">
-                <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-                <input type="hidden" name="aksi" value="hapus-bab" />
-                <input type="hidden" name="chapterId" value={String(chapter.id)} />
-                <label class="text-sm"><input type="checkbox" name="konfirmasi" value="ya" /> Hapus bab</label>
-                <button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Hapus bab</button>
-              </form>
-            </div>
-          </article>
-        );
-      })}
-      {detail.status === 'ready' && (
-        <form class="space-y-2" method="post">
-          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-          <input type="hidden" name="aksi" value="judul" />
-          <label for="judul-jalur">Judul jalur</label>
-          <input class="min-h-11 w-full rounded-kontrol border border-garis bg-kartu px-3" id="judul-jalur" name="title" value={String(detail.title ?? '')} />
-          <button class="inline-flex min-h-11 items-center rounded-kontrol border border-garis px-3" type="submit">Simpan judul</button>
-        </form>
-      )}
+        {isReady && chapterViews.length === 0 && (
+          <div class="rounded-xl border border-garis bg-kartu p-8 text-center shadow-sm">
+            <h2 class="text-lg font-bold text-tinta">Jalur ini belum punya bab</h2>
+            <p class="mx-auto mt-2 max-w-md text-sm text-tinta-lembut">
+              Buka “Tinjau & sunting” untuk menambahkan pelajaran pertama, atau buat jalur baru dari Pustaka.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-  {activeJob && <meta http-equiv="refresh" content="4" />}
+  )}
+
+  <dialog id="tinjau-sheet" class="tinjau" aria-labelledby="tinjau-judul" data-open={reopenReview ? 'true' : undefined}>
+    <div class="flex max-h-[95dvh] w-[min(100vw-1rem,52rem)] flex-col overflow-hidden rounded-kartu border border-garis bg-kartu shadow-2xl">
+      <header class="shrink-0 border-b border-garis px-5 py-4 min-[640px]:px-6 min-[640px]:py-5">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <p class="eyebrow">Tinjau jalurmu</p>
+            <h2 id="tinjau-judul" class="mt-1 text-lg font-bold leading-tight text-tinta min-[640px]:text-xl">{detail.title}</h2>
+            <p class="line-clamp-3 mt-2 max-w-[60ch] text-sm leading-[1.55] text-tinta-lembut min-[640px]:line-clamp-none">{detail.topic}</p>
+            <p class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-tinta-lembut min-[640px]:mt-3">
+              <span>{chapterViews.length} bab</span>
+              <span>{lessonCount} pelajaran</span>
+              <span>±{totalMinutes} mnt</span>
+            </p>
+          </div>
+          <button class="flex size-9 shrink-0 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta" type="button" data-close-tinjau aria-label="Tutup tinjauan">
+            <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 min-[640px]:px-6 min-[640px]:py-5" data-tinjau-scroll>
+        {message && reopenReview && (
+          <div class="mb-4 rounded-kontrol border border-bahaya/30 bg-bahaya/10 p-3 text-sm text-bahaya">{message}</div>
+        )}
+        {outcomes.length > 0 && (
+          <section>
+            <h3 class="text-[11px] font-bold uppercase tracking-[0.08em] text-tinta-lembut">Yang akan kamu kuasai</h3>
+            <ul class="mt-3 space-y-2">
+              {outcomes.map((outcome) => (
+                <li class="flex gap-2 text-sm leading-[1.5] text-tinta">
+                  <span class="mt-2 size-1 shrink-0 rounded-full bg-jalur"></span>
+                  <span>{outcome}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <section class="mt-6">
+          <h3 class="text-[11px] font-bold uppercase tracking-[0.08em] text-tinta-lembut">Urutan yang diusulkan</h3>
+          <p class="mt-1 text-sm text-tinta-lembut">Sunting apa pun sebelum jalur dimulai. Perubahan tersimpan saat kamu menekan Simpan.</p>
+
+          <div class="mt-4 space-y-4">
+            {chapterViews.map((chapter, chapterIndex) => (
+              <div class="rounded-xl border border-garis bg-kertas/50 p-4">
+                <div class="flex flex-wrap items-start gap-2">
+                  <span class="mt-1 flex size-7 shrink-0 items-center justify-center rounded-lg bg-jalur-lembut text-xs font-bold text-jalur">{chapterIndex + 1}</span>
+                  <form class="order-3 w-full min-w-0 min-[640px]:order-none min-[640px]:w-auto min-[640px]:flex-1" method="post">
+                    <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                    <input type="hidden" name="tinjau" value="1" />
+                    <input type="hidden" name="aksi" value="bab" />
+                    <input type="hidden" name="chapterId" value={chapter.id} />
+                    <label class="sr-only" for={`tinjau-bab-${chapter.id}`}>Judul bab</label>
+                    <div class="flex flex-wrap items-center gap-2">
+                      <input class="min-h-10 min-w-0 flex-1 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-semibold" id={`tinjau-bab-${chapter.id}`} name="title" value={chapter.title} />
+                      <button class="min-h-10 shrink-0 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium transition-colors hover:bg-kertas" type="submit">Simpan</button>
+                    </div>
+                  </form>
+                  <div class="order-2 ml-auto flex shrink-0 items-center gap-1 min-[640px]:order-none min-[640px]:ml-0">
+                    <form method="post">
+                      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                      <input type="hidden" name="tinjau" value="1" />
+                      <input type="hidden" name="aksi" value="geser-bab" />
+                      <input type="hidden" name="arah" value="naik" />
+                      <input type="hidden" name="chapterId" value={chapter.id} />
+                      <button class="flex size-9 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-kartu hover:text-tinta disabled:opacity-30" type="submit" aria-label={`Naikkan bab ${chapter.title}`} disabled={chapterIndex === 0}>
+                        <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                        </svg>
+                      </button>
+                    </form>
+                    <form method="post">
+                      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                      <input type="hidden" name="tinjau" value="1" />
+                      <input type="hidden" name="aksi" value="geser-bab" />
+                      <input type="hidden" name="arah" value="turun" />
+                      <input type="hidden" name="chapterId" value={chapter.id} />
+                      <button class="flex size-9 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-kartu hover:text-tinta disabled:opacity-30" type="submit" aria-label={`Turunkan bab ${chapter.title}`} disabled={chapterIndex === chapterViews.length - 1}>
+                        <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                    </form>
+                    <form method="post" onsubmit="return confirm('Hapus bab ini beserta seluruh pelajarannya?')">
+                      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                      <input type="hidden" name="tinjau" value="1" />
+                      <input type="hidden" name="aksi" value="hapus-bab" />
+                      <input type="hidden" name="konfirmasi" value="ya" />
+                      <input type="hidden" name="chapterId" value={chapter.id} />
+                      <button class="flex size-9 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-bahaya/10 hover:text-bahaya disabled:opacity-30" type="submit" aria-label={`Hapus bab ${chapter.title}`} disabled={chapterViews.length <= 1}>
+                        <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+
+                <details class="group mt-2 pl-9">
+                  <summary class="inline-flex min-h-8 cursor-pointer items-center gap-1 text-xs font-medium text-tinta-lembut hover:text-jalur">
+                    Ringkasan bab
+                    <svg class="size-3.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </summary>
+                  <form class="mt-2 space-y-2" method="post">
+                    <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                    <input type="hidden" name="tinjau" value="1" />
+                    <input type="hidden" name="aksi" value="ringkas" />
+                    <input type="hidden" name="chapterId" value={chapter.id} />
+                    <label class="sr-only" for={`tinjau-ringkas-${chapter.id}`}>Ringkasan bab</label>
+                    <textarea class="min-h-20 rounded-kontrol border border-garis bg-kartu px-3 py-2 text-sm" id={`tinjau-ringkas-${chapter.id}`} name="summary">{chapter.summary}</textarea>
+                    <button class="min-h-9 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium transition-colors hover:bg-kertas" type="submit">Simpan ringkasan</button>
+                  </form>
+                </details>
+
+                <div class="mt-3 space-y-2 pl-9">
+                  {chapter.lessons.map((lesson, lessonIndex) => (
+                    <div class="rounded-kontrol border border-garis bg-kartu">
+                      <div class="flex flex-wrap items-center gap-1 p-1.5 min-[640px]:flex-nowrap">
+                        <span class="order-1 flex size-7 shrink-0 items-center justify-center rounded-md bg-kertas text-xs font-medium text-tinta-lembut">{lessonIndex + 1}</span>
+                        <details class="group order-3 w-full min-w-0 min-[640px]:order-2 min-[640px]:w-auto min-[640px]:flex-1">
+                          <summary class="flex min-h-9 cursor-pointer items-center gap-2 rounded-kontrol px-2 transition-colors hover:bg-kertas">
+                            <span class="line-clamp-2 min-w-0 flex-1 text-sm font-medium leading-snug text-tinta">{lesson.title}</span>
+                            <span class="hidden shrink-0 text-xs tabular-nums text-tinta-lembut min-[640px]:inline">±{minutes} mnt</span>
+                            <svg class="size-4 shrink-0 text-tinta-lembut transition-transform group-open:rotate-180 min-[640px]:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </summary>
+                          <form class="space-y-2 border-t border-garis p-3" method="post">
+                            <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                            <input type="hidden" name="tinjau" value="1" />
+                            <input type="hidden" name="aksi" value="pelajaran" />
+                            <input type="hidden" name="lessonId" value={lesson.id} />
+                            <label class="block text-xs font-medium text-tinta-lembut" for={`tinjau-judul-${lesson.id}`}>Judul pelajaran</label>
+                            <input class="min-h-10 rounded-kontrol border border-garis bg-kartu px-3 text-sm" id={`tinjau-judul-${lesson.id}`} name="title" value={lesson.title} />
+                            <label class="block text-xs font-medium text-tinta-lembut" for={`tinjau-tujuan-${lesson.id}`}>Tujuan</label>
+                            <input class="min-h-10 rounded-kontrol border border-garis bg-kartu px-3 text-sm" id={`tinjau-tujuan-${lesson.id}`} name="objective" value={lesson.objective} />
+                            <button class="min-h-9 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium transition-colors hover:bg-kertas" type="submit">Simpan pelajaran</button>
+                          </form>
+                        </details>
+                        <div class="order-2 ml-auto flex shrink-0 items-center gap-0.5 min-[640px]:order-3 min-[640px]:ml-0">
+                        <form method="post">
+                          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                          <input type="hidden" name="tinjau" value="1" />
+                          <input type="hidden" name="aksi" value="geser-pelajaran" />
+                          <input type="hidden" name="arah" value="naik" />
+                          <input type="hidden" name="lessonId" value={lesson.id} />
+                          <button class="flex size-8 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta disabled:opacity-30" type="submit" aria-label={`Naikkan pelajaran ${lesson.title}`} disabled={lessonIndex === 0}>
+                            <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                            </svg>
+                          </button>
+                        </form>
+                        <form method="post">
+                          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                          <input type="hidden" name="tinjau" value="1" />
+                          <input type="hidden" name="aksi" value="geser-pelajaran" />
+                          <input type="hidden" name="arah" value="turun" />
+                          <input type="hidden" name="lessonId" value={lesson.id} />
+                          <button class="flex size-8 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta disabled:opacity-30" type="submit" aria-label={`Turunkan pelajaran ${lesson.title}`} disabled={lessonIndex === chapter.lessons.length - 1}>
+                            <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                        </form>
+                        <form method="post" onsubmit="return confirm('Hapus pelajaran ini?')">
+                          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                          <input type="hidden" name="tinjau" value="1" />
+                          <input type="hidden" name="aksi" value="hapus-pelajaran" />
+                          <input type="hidden" name="konfirmasi" value="ya" />
+                          <input type="hidden" name="lessonId" value={lesson.id} />
+                          <button class="flex size-8 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-bahaya/10 hover:text-bahaya disabled:opacity-30" type="submit" aria-label={`Hapus pelajaran ${lesson.title}`} disabled={chapter.lessons.length <= 1}>
+                            <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </form>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <form class="mt-3 pl-9" method="post">
+                  <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                  <input type="hidden" name="tinjau" value="1" />
+                  <input type="hidden" name="aksi" value="tambah" />
+                  <input type="hidden" name="chapterId" value={chapter.id} />
+                  <button class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-dashed border-garis bg-kartu px-3 text-sm font-medium text-tinta-lembut transition-colors hover:border-jalur/40 hover:text-jalur" type="submit">
+                    <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Tambah pelajaran
+                  </button>
+                </form>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {isReady && (
+          <section class="mt-6 border-t border-garis pt-5">
+            <h3 class="text-[11px] font-bold uppercase tracking-[0.08em] text-tinta-lembut">Judul jalur</h3>
+            <form class="mt-2" method="post">
+              <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+              <input type="hidden" name="tinjau" value="1" />
+              <input type="hidden" name="aksi" value="judul" />
+              <label class="sr-only" for="tinjau-judul-jalur">Judul jalur</label>
+              <div class="flex flex-wrap items-center gap-2">
+                <input class="min-h-10 min-w-0 flex-1 rounded-kontrol border border-garis bg-kartu px-3 text-sm" id="tinjau-judul-jalur" name="title" value={String(detail.title ?? '')} />
+                <button class="min-h-10 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium transition-colors hover:bg-kertas" type="submit">Simpan judul</button>
+              </div>
+            </form>
+          </section>
+        )}
+      </div>
+
+      <footer class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-garis bg-kartu px-5 py-3 min-[640px]:px-6 min-[640px]:py-4">
+        <p class="mr-auto hidden text-xs text-tinta-lembut min-[640px]:block">Perubahan langsung diterapkan ke jalur ini.</p>
+        <button class="min-h-10 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:bg-kertas" type="button" data-close-tinjau>Nanti dulu</button>
+        {isReady && !isActive && (
+          <form class="w-full min-[640px]:w-auto" method="post">
+            <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+            <input type="hidden" name="aksi" value="aktif" />
+            <button class="min-h-10 w-full rounded-kontrol bg-tinta px-4 text-sm font-semibold text-white transition-all hover:brightness-110" type="submit">Jadikan aktif</button>
+          </form>
+        )}
+        {isReady && isActive && (
+          <button class="min-h-10 rounded-kontrol bg-tinta px-4 text-sm font-semibold text-white transition-all hover:brightness-110" type="button" data-close-tinjau>Selesai meninjau</button>
+        )}
+      </footer>
+    </div>
+  </dialog>
+
+  <script>
+    const sheet = document.getElementById('tinjau-sheet');
+    if (sheet instanceof HTMLDialogElement) {
+      const scroller = sheet.querySelector('[data-tinjau-scroll]');
+      const openers = document.querySelectorAll('[data-open-tinjau]');
+      for (const opener of openers) {
+        opener.addEventListener('click', () => sheet.showModal());
+      }
+      const closers = sheet.querySelectorAll('[data-close-tinjau]');
+      for (const closer of closers) {
+        closer.addEventListener('click', () => sheet.close());
+      }
+      sheet.addEventListener('click', (event) => {
+        if (event.target === sheet) sheet.close();
+      });
+      for (const form of sheet.querySelectorAll('form')) {
+        form.addEventListener('submit', () => {
+          if (!(scroller instanceof HTMLElement)) return;
+          try {
+            sessionStorage.setItem('tinjau-scroll', String(scroller.scrollTop));
+          } catch {
+            // Storage can be unavailable; the sheet still works without it.
+          }
+        });
+      }
+      if (sheet.dataset.open === 'true') {
+        sheet.showModal();
+        if (scroller instanceof HTMLElement) {
+          try {
+            const saved = sessionStorage.getItem('tinjau-scroll');
+            if (saved !== null) {
+              scroller.scrollTop = Number(saved);
+              sessionStorage.removeItem('tinjau-scroll');
+            }
+          } catch {
+            // Ignore storage failures.
+          }
+        }
+      }
+    }
+  </script>
+
+  {!isReady && (
+    <script define:vars={{ pathId }}>
+      const timer = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/paths/${pathId}`, {
+            headers: { accept: 'application/json' },
+          });
+          if (!response.ok) return;
+          const data = await response.json();
+          if (data.status && data.status !== 'draft') {
+            clearInterval(timer);
+            location.reload();
+          }
+        } catch {
+          // Keep polling while the connection recovers.
+        }
+      }, 4000);
+    </script>
+  )}
 </Shell>

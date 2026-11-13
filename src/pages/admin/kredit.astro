@@ -1,0 +1,86 @@
+---
+import { env } from 'cloudflare:workers';
+import AdminPagination from '../../components/AdminPagination.astro';
+import AdminShell from '../../components/AdminShell.astro';
+import { ledgerReasonLabels } from '../../domain/admin-labels';
+import { formatIdr, formatWhen } from '../../domain/format';
+import { isRecord } from '../../domain/guard';
+import { requireAdmin } from '../../server/admin-guard';
+import { callApi } from '../../server/call';
+
+const auth = await requireAdmin(Astro.request);
+if ('redirect' in auth) return Astro.redirect(auth.redirect);
+
+const offset = Number(Astro.url.searchParams.get('offset') ?? 0);
+const limit = Number(Astro.url.searchParams.get('limit') ?? 20);
+
+const ledgerResult = await callApi(
+  Astro.request,
+  env,
+  `/api/admin/ledger?limit=${limit}&offset=${offset}`,
+);
+const entries =
+  isRecord(ledgerResult.data) && Array.isArray(ledgerResult.data.entries)
+    ? ledgerResult.data.entries.filter(isRecord)
+    : [];
+
+const ordersResult = await callApi(
+  Astro.request,
+  env,
+  `/api/admin/orders?limit=${limit}&offset=${offset}`,
+);
+const orders =
+  isRecord(ordersResult.data) && Array.isArray(ordersResult.data.orders)
+    ? ordersResult.data.orders.filter(isRecord)
+    : [];
+---
+<AdminShell title="Kredit" section="kredit" balance={auth.balance} superadmin={auth.superadmin}>
+  <h1 class="judul">Kredit & pesanan</h1>
+
+  <section class="mt-8">
+    <h2 class="text-lg font-semibold">Buku kredit global</h2>
+    {entries.length === 0 ? (
+      <p class="mt-3 text-sm text-tinta-lembut">Belum ada baris.</p>
+    ) : (
+      <ul class="mt-3 space-y-2 text-sm">
+        {entries.map((entry) => (
+          <li class="rounded-kartu border border-garis bg-kartu p-3">
+            <a class="font-medium text-jalur hover:underline" href={`/admin/pengguna/${String(entry.userId)}`}>
+              {entry.userName}
+            </a>
+            <span class="text-tinta-lembut"> · {entry.userEmail}</span>
+            <p class="mt-1">
+              {ledgerReasonLabels[String(entry.reason)] ?? entry.reason}
+              {' · '}
+              <span class="tabular-nums font-medium">{entry.amount}</span>
+              {entry.note && <span class="text-tinta-lembut"> · {entry.note}</span>}
+            </p>
+            <p class="text-xs text-tinta-lembut">{formatWhen(String(entry.createdAt ?? ''))}</p>
+          </li>
+        ))}
+      </ul>
+    )}
+    <AdminPagination offset={offset} limit={limit} count={entries.length} baseUrl="/admin/kredit" />
+  </section>
+
+  <section class="mt-12">
+    <h2 class="text-lg font-semibold">Pesanan kredit</h2>
+    {orders.length === 0 ? (
+      <p class="mt-3 text-sm text-tinta-lembut">Belum ada pesanan.</p>
+    ) : (
+      <ul class="mt-3 space-y-2 text-sm">
+        {orders.map((order) => (
+          <li class="rounded-kartu border border-garis bg-kartu p-3">
+            <span class="font-medium">{order.status}</span>
+            {' · '}
+            {order.credits} kredit · {formatIdr(Number(order.amountIdr ?? 0))}
+            <p class="mt-1 text-tinta-lembut">
+              <a class="text-jalur hover:underline" href={`/admin/pengguna/${String(order.userId)}`}>{order.userEmail}</a>
+            </p>
+            <p class="text-xs text-tinta-lembut">{formatWhen(String(order.createdAt ?? ''))}</p>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+</AdminShell>

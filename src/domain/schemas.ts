@@ -46,6 +46,7 @@ export const pageSchema = z.strictObject({
   offset: z.coerce.number().int().min(0).max(10_000).default(0),
   email: z.email().optional(),
   userId: z.uuid().optional(),
+  q: z.string().trim().min(1).max(120).optional(),
 });
 
 export const adminUserSchema = z

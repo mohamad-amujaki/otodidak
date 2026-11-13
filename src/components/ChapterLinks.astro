@@ -34,9 +34,8 @@ const { pathId, chapters, currentLessonId, onPath = false } = Astro.props;
             
             <div class="min-w-0 flex-1">
               <p class="font-semibold text-tinta">{chapter.title}</p>
-              <!-- Progress Fraction -->
               <p class="text-xs text-tinta-lembut">
-                0/{chapter.lessons.length}
+                {chapter.lessons.length} pelajaran
               </p>
             </div>
           </div>

@@ -1,0 +1,146 @@
+---
+import { env } from 'cloudflare:workers';
+import AdminShell from '../../../components/AdminShell.astro';
+import { ledgerReasonLabels } from '../../../domain/admin-labels';
+import { formatWhen } from '../../../domain/format';
+import { isRecord, record } from '../../../domain/guard';
+import { roleLabel, statusLabel, runAdminAction } from '../../../server/admin-actions';
+import { requireAdmin } from '../../../server/admin-guard';
+import { callApi } from '../../../server/call';
+
+const auth = await requireAdmin(Astro.request);
+if ('redirect' in auth) return Astro.redirect(auth.redirect);
+
+const { userId } = Astro.params;
+if (!userId) return Astro.redirect('/admin/pengguna');
+
+let message = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+    message = 'Muat ulang halaman, lalu kirim lagi.';
+  else message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
+}
+
+const detailResult = await callApi(Astro.request, env, `/api/admin/users/${userId}`);
+if (detailResult.status === 404) return Astro.redirect('/admin/pengguna');
+const detail = record(detailResult.data);
+const profile = record(detail.user);
+const ledger = Array.isArray(detail.ledger) ? detail.ledger.filter(isRecord) : [];
+const orders = Array.isArray(detail.orders) ? detail.orders.filter(isRecord) : [];
+const activeJob = isRecord(detail.activeJob) ? detail.activeJob : null;
+const pathCount = Number(detail.pathCount ?? 0);
+---
+<AdminShell title="Detail pengguna" section="pengguna-detail" balance={auth.balance} superadmin={auth.superadmin}>
+  <p><a class="text-sm text-tinta-lembut hover:text-jalur" href="/admin/pengguna">← Kembali ke daftar</a></p>
+  <h1 class="judul mt-2">{profile.name}</h1>
+  <p class="text-sm break-all text-tinta-lembut">{profile.email}</p>
+  {message && <p class="mt-3 text-sm">{message}</p>}
+
+  <div class="mt-6 grid gap-4 min-[768px]:grid-cols-3">
+    <div class="rounded-kartu border border-garis bg-kartu p-4">
+      <p class="text-2xl font-bold tabular-nums">{profile.balance}</p>
+      <p class="text-sm text-tinta-lembut">Saldo kredit</p>
+    </div>
+    <div class="rounded-kartu border border-garis bg-kartu p-4">
+      <p class="text-2xl font-bold tabular-nums">{pathCount}</p>
+      <p class="text-sm text-tinta-lembut">Jalur</p>
+    </div>
+    <div class="rounded-kartu border border-garis bg-kartu p-4">
+      <p class="text-sm font-medium">{roleLabel(profile.role)} · {statusLabel(profile.status)}</p>
+      <p class="mt-1 text-xs text-tinta-lembut">Daftar {formatWhen(String(profile.createdAt ?? ''))}</p>
+    </div>
+  </div>
+
+  {profile.deletionRequestedAt && (
+    <div class="mt-6 rounded-lg border border-bahaya/30 bg-bahaya/5 p-4">
+      <p class="text-sm font-medium text-bahaya">Pengguna meminta penghapusan materi belajar</p>
+      <form class="mt-3" method="post">
+        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        <input type="hidden" name="aksi" value="hapus" />
+        <input type="hidden" name="userId" value={userId} />
+        <button class="rounded-kontrol border border-bahaya/40 bg-white px-4 py-2 text-sm text-bahaya hover:bg-bahaya/10" type="submit">
+          Hapus materi belajar
+        </button>
+      </form>
+    </div>
+  )}
+
+  {activeJob && (
+    <p class="mt-4 text-sm text-tinta-lembut">
+      Job aktif: {activeJob.kind} ({activeJob.status})
+    </p>
+  )}
+
+  <section class="mt-8">
+    <h2 class="text-lg font-semibold">Peran & status</h2>
+    <form class="mt-3 grid gap-2 max-w-lg min-[768px]:grid-cols-2" method="post">
+      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+      <input type="hidden" name="aksi" value="pengguna" />
+      <input type="hidden" name="userId" value={userId} />
+      {profile.role === 'admin' && !auth.superadmin ? (
+        <input type="hidden" name="role" value="admin" />
+        <p class="min-h-11 flex items-center text-sm text-tinta-lembut min-[768px]:col-span-2">Peran Admin (hanya superadmin yang bisa mengubah)</p>
+      ) : (
+        <select class="min-h-11 rounded-kontrol border border-garis bg-kartu px-2" name="role">
+          <option value="learner" selected={profile.role === 'learner'}>Pelajar</option>
+          {auth.superadmin && (
+            <option value="admin" selected={profile.role === 'admin'}>Admin</option>
+          )}
+        </select>
+      )}
+      <select class="min-h-11 rounded-kontrol border border-garis bg-kartu px-2" name="status">
+        <option value="active" selected={profile.status === 'active'}>Aktif</option>
+        <option value="suspended" selected={profile.status === 'suspended'}>Ditahan</option>
+      </select>
+      <button class="min-h-11 rounded-kontrol bg-jalur px-4 text-white min-[768px]:col-span-2 min-[768px]:w-fit" type="submit">Simpan</button>
+    </form>
+    {!auth.superadmin && profile.role === 'learner' && (
+      <p class="mt-2 text-xs text-tinta-lembut">Hanya superadmin yang bisa menaikkan peran ke Admin.</p>
+    )}
+  </section>
+
+  <section class="mt-8">
+    <h2 class="text-lg font-semibold">Sesuaikan kredit</h2>
+    <form class="mt-3 grid gap-2 max-w-lg min-[768px]:grid-cols-[6rem_minmax(0,1fr)_auto]" method="post">
+      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+      <input type="hidden" name="aksi" value="sesuaikan" />
+      <input type="hidden" name="userId" value={userId} />
+      <input class="min-h-11 rounded-kontrol border border-garis bg-kartu px-3" name="amount" type="number" required aria-label="Jumlah" />
+      <input class="min-h-11 rounded-kontrol border border-garis bg-kartu px-3" name="note" minlength="3" required placeholder="Catatan wajib" />
+      <button class="min-h-11 rounded-kontrol border border-garis bg-kartu px-4" type="submit">Terapkan</button>
+    </form>
+  </section>
+
+  <section class="mt-10">
+    <h2 class="text-lg font-semibold">Riwayat kredit</h2>
+    {ledger.length === 0 ? (
+      <p class="mt-2 text-sm text-tinta-lembut">Belum ada baris.</p>
+    ) : (
+      <ul class="mt-3 space-y-2 text-sm">
+        {ledger.map((entry) => (
+          <li class="rounded-kontrol border border-garis bg-kartu p-3">
+            <span class="font-medium">{ledgerReasonLabels[String(entry.reason)] ?? entry.reason}</span>
+            {' · '}
+            <span class="tabular-nums">{entry.amount}</span>
+            {entry.note && <span class="text-tinta-lembut"> · {entry.note}</span>}
+            <span class="block text-xs text-tinta-lembut">{formatWhen(String(entry.createdAt ?? ''))}</span>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+
+  {orders.length > 0 && (
+    <section class="mt-10">
+      <h2 class="text-lg font-semibold">Pesanan</h2>
+      <ul class="mt-3 space-y-2 text-sm">
+        {orders.map((order) => (
+          <li class="rounded-kontrol border border-garis bg-kartu p-3">
+            {order.status} · {order.credits} kredit · {order.amountIdr} IDR
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+</AdminShell>

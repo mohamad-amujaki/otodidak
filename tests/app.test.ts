@@ -251,6 +251,27 @@ describe('putaran belajar', () => {
     const response = await api('/api/admin/users', { cookie });
     expect(response.status).toBe(403);
   });
+
+  it('admin melihat ringkasan operasi', async () => {
+    const cookie = await signIn('admin@example.com', 'Admin');
+    const response = await api('/api/admin/stats', { cookie });
+    expect(response.status).toBe(200);
+    const body = await jsonBody<{ users: number }>(response);
+    expect(body.users).toBeGreaterThanOrEqual(1);
+  });
+
+  it('admin biasa ditolak dari paket platform', async () => {
+    await signIn('admin-kedua@example.com', 'Admin Kedua');
+    const cookie = await signIn('admin@example.com', 'Admin');
+    await api(`/api/admin/users/${await userIdFor('admin-kedua@example.com')}`, {
+      cookie,
+      method: 'PATCH',
+      json: { role: 'admin' },
+    });
+    const other = await signIn('admin-kedua@example.com', 'Admin Kedua');
+    const response = await api('/api/admin/packs', { cookie: other });
+    expect(response.status).toBe(403);
+  });
 });
 
 describe('webhook pembayaran', () => {

@@ -1,0 +1,35 @@
+---
+interface Props {
+  offset: number;
+  limit: number;
+  count: number;
+  baseUrl: string;
+  extraParams?: Record<string, string>;
+}
+
+const { offset, limit, count, baseUrl, extraParams = {} } = Astro.props;
+const prev = Math.max(0, offset - limit);
+const next = offset + limit;
+const hasPrev = offset > 0;
+const hasNext = count >= limit;
+
+function href(off: number): string {
+  const params = new URLSearchParams({ ...extraParams, offset: String(off), limit: String(limit) });
+  return `${baseUrl}?${params}`;
+}
+---
+{(hasPrev || hasNext) && (
+  <nav class="mt-4 flex items-center justify-between gap-2 text-sm" aria-label="Paginasi">
+    {hasPrev ? (
+      <a class="inline-flex min-h-10 items-center rounded-kontrol border border-garis bg-kartu px-3" href={href(prev)}>← Sebelumnya</a>
+    ) : (
+      <span class="text-tinta-lembut">← Sebelumnya</span>
+    )}
+    <span class="text-tinta-lembut tabular-nums">Offset {offset}</span>
+    {hasNext ? (
+      <a class="inline-flex min-h-10 items-center rounded-kontrol border border-garis bg-kartu px-3" href={href(next)}>Berikutnya →</a>
+    ) : (
+      <span class="text-tinta-lembut">Berikutnya →</span>
+    )}
+  </nav>
+)}
