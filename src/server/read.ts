@@ -19,33 +19,35 @@ import { jakartaDate } from '../domain/time';
 import { balanceOf, loadConfig } from './account';
 
 export async function mePayload(db: Database, user: UserRow) {
-  const balance = await balanceOf(db, user.id);
-  const config = await loadConfig(db);
   const today = jakartaDate(new Date());
-  const active = await db
-    .select()
-    .from(paths)
-    .where(
-      and(
-        eq(paths.userId, user.id),
-        eq(paths.isActive, 1),
-        eq(paths.status, 'ready'),
-      ),
-    )
-    .limit(1);
+  const [balance, config, active, jobs, completed] = await Promise.all([
+    balanceOf(db, user.id),
+    loadConfig(db),
+    db
+      .select()
+      .from(paths)
+      .where(
+        and(
+          eq(paths.userId, user.id),
+          eq(paths.isActive, 1),
+          eq(paths.status, 'ready'),
+        ),
+      )
+      .limit(1),
+    db
+      .select()
+      .from(generationJobs)
+      .where(eq(generationJobs.userId, user.id))
+      .orderBy(desc(generationJobs.createdAt))
+      .limit(5),
+    completedDates(db, user.id),
+  ]);
   const path = active[0] ?? null;
   const next = path ? await nextLesson(db, path.id) : null;
-  const jobs = await db
-    .select()
-    .from(generationJobs)
-    .where(eq(generationJobs.userId, user.id))
-    .orderBy(desc(generationJobs.createdAt))
-    .limit(5);
   const activeJob =
     jobs.find((job) => job.status === 'queued' || job.status === 'running') ??
     null;
   const failedJob = jobs.find((job) => job.status === 'failed') ?? null;
-  const completed = await completedDates(db, user.id);
   const earlier = completed.some((date) => date < today);
   return {
     user: {

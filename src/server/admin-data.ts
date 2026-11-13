@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { balanceOf, balancesByUserIds } from '../billing/ledger';
 import type { Database } from '../db/client';
 import {
@@ -231,22 +231,47 @@ export async function getPromptForTask(db: Database, task: TaskName) {
   return rows[0];
 }
 
+const activeModelSelect = {
+  task: aiModels.task,
+  modelName: aiModels.modelName,
+  maxOutputTokens: aiModels.maxOutputTokens,
+  timeoutMs: aiModels.timeoutMs,
+  baseUrl: aiProviders.baseUrl,
+  secretName: aiProviders.secretName,
+  authKind: aiProviders.authKind,
+} as const;
+
 export async function getActiveModelForTask(db: Database, task: TaskName) {
   const rows = await db
-    .select({
-      modelName: aiModels.modelName,
-      maxOutputTokens: aiModels.maxOutputTokens,
-      timeoutMs: aiModels.timeoutMs,
-      baseUrl: aiProviders.baseUrl,
-      secretName: aiProviders.secretName,
-      authKind: aiProviders.authKind,
-    })
+    .select(activeModelSelect)
     .from(aiModels)
     .innerJoin(aiProviders, eq(aiModels.providerId, aiProviders.id))
     .where(and(eq(aiModels.task, task), eq(aiModels.active, 1)))
     .limit(1);
   if (!rows[0]) throw new AppError('not_found');
-  return rows[0];
+  const { task: _task, ...rest } = rows[0];
+  return rest;
+}
+
+export async function listActiveModelsForTasks(
+  db: Database,
+  tasks: TaskName[],
+): Promise<Map<TaskName, Awaited<ReturnType<typeof getActiveModelForTask>>>> {
+  if (tasks.length === 0) return new Map();
+  const rows = await db
+    .select(activeModelSelect)
+    .from(aiModels)
+    .innerJoin(aiProviders, eq(aiModels.providerId, aiProviders.id))
+    .where(and(inArray(aiModels.task, tasks), eq(aiModels.active, 1)));
+  const map = new Map<
+    TaskName,
+    Awaited<ReturnType<typeof getActiveModelForTask>>
+  >();
+  for (const row of rows) {
+    const { task, ...rest } = row;
+    map.set(task, rest);
+  }
+  return map;
 }
 
 export { loadConfig };

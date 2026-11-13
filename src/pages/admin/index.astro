@@ -5,7 +5,7 @@ import { aiTaskLabels, aiTasks } from '../../domain/admin-labels';
 import { isRecord, record } from '../../domain/guard';
 import {
   fetchAdminStats,
-  getActiveModelForTask,
+  listActiveModelsForTasks,
   listAdminUsers,
   listAllPacks,
 } from '../../server/admin-data';
@@ -112,10 +112,11 @@ const platformModels: PlatformModel[] = [];
 if (auth.superadmin) {
   const packs = await listAllPacks(auth.session.db);
   platformActivePacks = packs.filter((p) => p.active === 1).length;
+  const modelByTask = await listActiveModelsForTasks(auth.session.db, [
+    ...aiTasks,
+  ]);
   for (const task of aiTasks) {
-    const row = await getActiveModelForTask(auth.session.db, task).catch(
-      () => null,
-    );
+    const row = modelByTask.get(task);
     if (row) {
       platformModels.push({
         task,
