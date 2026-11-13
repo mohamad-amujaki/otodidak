@@ -1,0 +1,41 @@
+---
+import { env } from 'cloudflare:workers';
+import { activePublishableKey, clerkHost } from '../domain/guard';
+import { devLogoutCookie } from '../server/profile-actions';
+import '../styles/global.css';
+
+const publishableKey = activePublishableKey(
+  env.PUBLIC_CLERK_PUBLISHABLE_KEY,
+  import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY,
+  env.CLERK_PUBLISHABLE_KEY,
+);
+const host = clerkHost(publishableKey);
+const logoutCookie = devLogoutCookie(Astro.request);
+if (!host) {
+  const headers = new Headers({ Location: '/' });
+  headers.append('set-cookie', logoutCookie);
+  return new Response(null, { status: 303, headers });
+}
+Astro.response.headers.append('set-cookie', logoutCookie);
+---
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="refresh" content="3;url=/" />
+    <meta name="clerk-key" content={publishableKey} />
+    <meta name="clerk-host" content={host} />
+    <title>Keluar</title>
+  </head>
+  <body class="min-h-screen bg-kertas text-tinta">
+    <main class="bingkai flex min-h-screen flex-col items-center justify-center gap-3 py-8">
+      <p class="text-lg font-semibold text-tinta">Sedang keluar…</p>
+      <p class="text-sm text-tinta-lembut">
+        Sebentar lagi kamu diarahkan ke beranda.
+      </p>
+      <a class="btn-jalur" href="/">Ke beranda</a>
+    </main>
+    <script type="module" src="/scripts/keluar.js"></script>
+  </body>
+</html>

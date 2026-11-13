@@ -1,9 +1,22 @@
 ---
-export const prerender = true;
-
+import { env } from 'cloudflare:workers';
+import AuthButton from '../components/AuthButton.astro';
 import PathMark from '../components/PathMark.astro';
 import Shell from '../components/Shell.astro';
 import { SEED_CONFIG } from '../domain/defaults';
+import { activePublishableKey, clerkHost } from '../domain/guard';
+import { pageSession } from '../server/ssr';
+
+const existing = await pageSession(Astro.request, env);
+if (existing) return Astro.redirect('/dasbor');
+const mock = env.CLERK_SECRET_KEY === 'mock';
+const publishableKey = activePublishableKey(
+  env.PUBLIC_CLERK_PUBLISHABLE_KEY,
+  import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY,
+  env.CLERK_PUBLISHABLE_KEY,
+);
+const host = clerkHost(publishableKey);
+const realAuth = !mock && Boolean(host);
 
 const contoh = [
   {
@@ -54,6 +67,12 @@ const features = [
 ];
 ---
 <Shell title="Otodidak">
+  {realAuth && (
+    <>
+      <meta name="clerk-key" content={publishableKey} />
+      <meta name="clerk-host" content={host} />
+    </>
+  )}
   <!-- Hero Section -->
   <section class="mx-auto max-w-4xl">
     <div class="text-center">
@@ -67,12 +86,11 @@ const features = [
       <!-- CTA -->
       <div class="mt-8 flex flex-col items-stretch gap-3 min-[768px]:items-center">
         <div class="flex w-full flex-col items-stretch gap-3 min-[768px]:w-auto min-[768px]:flex-row min-[768px]:justify-center">
-          <a class="btn-jalur w-full min-[768px]:w-auto min-[768px]:px-8" href="/masuk">
-            <svg class="size-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
-            </svg>
-            Masuk dengan Google
-          </a>
+          <AuthButton
+            class="btn-jalur w-full min-[768px]:w-auto min-[768px]:px-8"
+            label="Masuk dengan Google"
+            real={realAuth}
+          />
           <a
             class="inline-flex min-h-12 w-full items-center justify-center rounded-kontrol border border-garis bg-kartu px-8 text-base font-semibold text-tinta shadow-sm transition-colors hover:border-jalur/40 min-[768px]:w-auto"
             href="#cara-kerja"
@@ -170,15 +188,11 @@ const features = [
       <p class="mx-auto mt-4 max-w-2xl text-lg text-tinta-lembut">
         Platform pembelajaran yang fleksibel dan transparan, dirancang untuk mendukung gaya belajar mandirimu.
       </p>
-      <a 
-        class="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-kontrol bg-jalur px-8 text-base font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:brightness-110 focus-visible:ring-2 focus-visible:ring-jalur focus-visible:ring-offset-2" 
-        href="/masuk"
-      >
-        <svg class="size-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
-        </svg>
-        Mulai Sekarang
-      </a>
+      <AuthButton
+        class="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-kontrol bg-jalur px-8 text-base font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:brightness-110 focus-visible:ring-2 focus-visible:ring-jalur focus-visible:ring-offset-2"
+        label="Mulai Sekarang"
+        real={realAuth}
+      />
     </div>
   </section>
 
@@ -187,6 +201,7 @@ const features = [
     role="region"
     aria-label="Mulai belajar"
   >
-    <a class="btn-jalur w-full" href="/masuk">Masuk dengan Google</a>
+    <AuthButton class="btn-jalur w-full" label="Masuk dengan Google" real={realAuth} icon={false} />
   </div>
+  {realAuth && <script type="module" src="/scripts/auth.js"></script>}
 </Shell>

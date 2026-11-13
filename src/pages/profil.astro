@@ -4,7 +4,6 @@ import Shell from '../components/Shell.astro';
 import { AppError } from '../domain/errors';
 import { isRecord, record } from '../domain/guard';
 import {
-  devLogoutCookie,
   requestAccountDeletion,
   setStreakEnabled,
 } from '../server/profile-actions';
@@ -22,9 +21,10 @@ if (Astro.request.method === 'POST') {
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
   else if (String(form.get('aksi') ?? '') === 'keluar') {
-    const headers = new Headers({ Location: '/masuk?keluar=1' });
-    headers.append('set-cookie', devLogoutCookie(Astro.request));
-    return new Response(null, { status: 303, headers });
+    return new Response(null, {
+      status: 303,
+      headers: { Location: '/keluar' },
+    });
   } else if (String(form.get('aksi') ?? '') === 'hapus') {
     try {
       await requestAccountDeletion(session.db, session.user.id);

@@ -9,9 +9,8 @@ import { signInDevSession } from '../server/profile-actions';
 import { pageSession } from '../server/ssr';
 
 const mock = env.CLERK_SECRET_KEY === 'mock';
-const keluar = Astro.url.searchParams.get('keluar') === '1';
 const existing = await pageSession(Astro.request, env);
-if (existing && !keluar) return Astro.redirect('/dasbor');
+if (existing) return Astro.redirect('/dasbor');
 
 let message = '';
 if (Astro.request.method === 'POST') {
