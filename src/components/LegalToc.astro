@@ -1,0 +1,65 @@
+---
+export interface LegalSection {
+  id: string;
+  title: string;
+}
+
+interface Props {
+  sections: LegalSection[];
+  variant: 'aside' | 'mobile';
+}
+
+const { sections, variant } = Astro.props;
+const linkClass =
+  'toc-legal-link flex items-center gap-2 rounded-kontrol px-3 py-2 text-sm text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jalur';
+---
+{variant === 'aside' ? (
+  <aside class="hidden min-[1024px]:block">
+    <div class="sticky top-20">
+      <nav class="rounded-kartu border border-garis bg-kartu p-4" aria-label="Daftar isi">
+        <p class="mb-3 text-sm font-semibold text-tinta">Daftar Isi</p>
+        <ul class="space-y-1">
+          {sections.map((section) => (
+            <li>
+              <a class={linkClass} href={`#${section.id}`}>
+                <span class="size-1.5 shrink-0 rounded-full bg-jalur" aria-hidden="true" />
+                <span>{section.title}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </div>
+  </aside>
+) : (
+  <>
+    <details class="daftar legal-toc-mobile mb-6 rounded-kartu border border-garis bg-kartu p-4 min-[1024px]:hidden">
+      <summary class="flex items-center justify-between gap-3 font-medium text-tinta">
+        <span>Daftar Isi</span>
+        <svg class="size-5 shrink-0 text-tinta-lembut" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </summary>
+      <nav class="mt-4" aria-label="Daftar isi">
+        <ul class="space-y-2">
+          {sections.map((section) => (
+            <li>
+              <a class={linkClass} href={`#${section.id}`}>
+                <span class="size-1.5 shrink-0 rounded-full bg-jalur" aria-hidden="true" />
+                <span>{section.title}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </details>
+    <script>
+      document.querySelectorAll('.legal-toc-mobile a[href^="#"]').forEach((anchor) => {
+        anchor.addEventListener('click', () => {
+          const details = anchor.closest('.legal-toc-mobile');
+          if (details instanceof HTMLDetailsElement) details.open = false;
+        });
+      });
+    </script>
+  </>
+)}

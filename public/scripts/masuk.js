@@ -1,5 +1,12 @@
-const button = document.querySelector('#google');
-if (button instanceof HTMLButtonElement) {
+const signInButtons = () => document.querySelectorAll('.js-google-signin');
+
+function primarySignInButton() {
+  const first = signInButtons()[0];
+  return first instanceof HTMLButtonElement ? first : null;
+}
+
+const button = primarySignInButton();
+if (button) {
   const key = document.querySelector('meta[name="clerk-key"]')?.content ?? '';
   const host = document.querySelector('meta[name="clerk-host"]')?.content ?? '';
   const returning = [
@@ -20,7 +27,9 @@ if (button instanceof HTMLButtonElement) {
       if (signOut) {
         await clerk.signOut({ redirectUrl: '/masuk' });
         window.history.replaceState({}, '', '/masuk');
-        button?.removeAttribute('disabled');
+        signInButtons().forEach((el) => {
+          if (el instanceof HTMLButtonElement) el.removeAttribute('disabled');
+        });
         return;
       }
       if (signedIn(clerk)) {
@@ -32,7 +41,7 @@ if (button instanceof HTMLButtonElement) {
         if (signedIn(clerk)) window.location.assign('/dasbor');
         return;
       }
-      button.addEventListener('click', () => {
+      const onClick = () => {
         void clerk.client.signIn
           .authenticateWithRedirect({
             strategy: 'oauth_google',
@@ -40,13 +49,18 @@ if (button instanceof HTMLButtonElement) {
             redirectUrlComplete: '/dasbor',
           })
           .catch(showError);
+      };
+      signInButtons().forEach((el) => {
+        if (el instanceof HTMLButtonElement) {
+          el.addEventListener('click', onClick);
+        }
       });
     })
     .catch(showError);
 }
 
 function showError(error) {
-  const button = document.querySelector('#google');
+  const anchor = primarySignInButton();
   const detail =
     error?.errors?.[0]?.longMessage ??
     error?.errors?.[0]?.message ??
@@ -58,7 +72,7 @@ function showError(error) {
     box.id = 'masuk-galat';
     box.setAttribute('role', 'alert');
     box.className = 'mt-3 text-sm text-bahaya';
-    button?.after(box);
+    anchor?.after(box);
   }
   box.textContent = detail;
   console.error('[masuk]', error);

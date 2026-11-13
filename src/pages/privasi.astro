@@ -1,6 +1,7 @@
 ---
 export const prerender = true;
 
+import LegalToc from '../components/LegalToc.astro';
 import Shell from '../components/Shell.astro';
 
 const sections = [
@@ -13,27 +14,7 @@ const sections = [
 <Shell title="Privasi">
   <div class="mx-auto max-w-6xl">
     <div class="grid gap-8 min-[1024px]:grid-cols-[240px_1fr]">
-      <!-- Sidebar TOC (Desktop) -->
-      <aside class="hidden min-[1024px]:block">
-        <div class="sticky top-20">
-          <nav class="rounded-kartu border border-garis bg-kartu p-4" aria-label="Daftar isi">
-            <p class="mb-3 text-sm font-semibold text-tinta">Daftar Isi</p>
-            <ul class="space-y-1">
-              {sections.map((section) => (
-                <li>
-                  <a 
-                    class="flex items-center gap-2 rounded-kontrol px-3 py-2 text-sm text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta" 
-                    href={`#${section.id}`}
-                  >
-                    <span class="size-1.5 rounded-full bg-jalur"></span>
-                    <span>{section.title}</span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </div>
-      </aside>
+      <LegalToc sections={sections} variant="aside" />
 
       <!-- Main Content -->
       <article class="min-w-0">
@@ -52,30 +33,7 @@ const sections = [
           </div>
         </header>
 
-        <!-- Mobile TOC -->
-        <details class="daftar mb-6 rounded-kartu border border-garis bg-kartu p-4 min-[1024px]:hidden">
-          <summary class="flex items-center justify-between gap-3 font-medium text-tinta">
-            <span>Daftar Isi</span>
-            <svg class="size-5 shrink-0 text-tinta-lembut" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-            </svg>
-          </summary>
-          <nav class="mt-4" aria-label="Daftar isi">
-            <ul class="space-y-2">
-              {sections.map((section) => (
-                <li>
-                  <a 
-                    class="flex items-center gap-2 rounded-kontrol px-3 py-2 text-sm text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta" 
-                    href={`#${section.id}`}
-                  >
-                    <span class="size-1.5 rounded-full bg-jalur"></span>
-                    <span>{section.title}</span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </details>
+        <LegalToc sections={sections} variant="mobile" />
 
         <!-- Intro -->
         <div class="prose mb-8 rounded-kartu border border-jalur/20 bg-jalur-lembut/30 p-6">
@@ -86,7 +44,7 @@ const sections = [
 
         <!-- Sections -->
         <div class="space-y-8">
-          <section id="yang-disimpan" class="scroll-mt-6 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+          <section id="yang-disimpan" class="scroll-mt-24 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
             <div class="mb-4 flex items-start gap-3">
               <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
                 <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -114,7 +72,7 @@ const sections = [
             </div>
           </section>
 
-          <section id="pembayaran" class="scroll-mt-6 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+          <section id="pembayaran" class="scroll-mt-24 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
             <div class="mb-4 flex items-start gap-3">
               <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
                 <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -132,7 +90,7 @@ const sections = [
             </div>
           </section>
 
-          <section id="penghapusan" class="scroll-mt-6 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+          <section id="penghapusan" class="scroll-mt-24 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
             <div class="mb-4 flex items-start gap-3">
               <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
                 <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -150,7 +108,7 @@ const sections = [
             </div>
           </section>
 
-          <section id="catatan-teknis" class="scroll-mt-6 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+          <section id="catatan-teknis" class="scroll-mt-24 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
             <div class="mb-4 flex items-start gap-3">
               <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
                 <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
