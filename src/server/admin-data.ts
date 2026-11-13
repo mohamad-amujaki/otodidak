@@ -11,8 +11,16 @@ import {
   promptTemplates,
   users,
 } from '../db/schema';
+import {
+  type AdminTrendDay,
+  adminTrendAxisLabel,
+  jakartaDayKeysLast7,
+  jakartaDayStartIso,
+  mergeTrendRows,
+} from '../domain/admin-trend';
 import { AppError } from '../domain/errors';
 import type { TaskName } from '../domain/schemas';
+import { jakartaDate } from '../domain/time';
 import { activePacks, ledgerPage, loadConfig, ordersFor } from './account';
 import {
   adminJobsTotal,
@@ -24,6 +32,42 @@ import {
   readAdminQuery,
   userFiltersWhere,
 } from './admin-list';
+
+export type { AdminTrendDay };
+
+export async function fetchAdminTrend7d(
+  db: Database,
+): Promise<AdminTrendDay[]> {
+  const keys = jakartaDayKeysLast7();
+  const startIso = jakartaDayStartIso(keys[0] ?? jakartaDate(new Date()));
+
+  const signupRows = await db.all<{ day: string; total: number }>(sql`
+    select date(datetime(created_at, '+7 hours')) as day, count(*) as total
+    from user
+    where created_at >= ${startIso}
+    group by day
+  `);
+  const revenueRows = await db.all<{ day: string; total: number }>(sql`
+    select date(datetime(coalesce(paid_at, created_at), '+7 hours')) as day,
+           coalesce(sum(amount_idr), 0) as total
+    from credit_order
+    where status = 'paid'
+      and coalesce(paid_at, created_at) >= ${startIso}
+    group by day
+  `);
+
+  const signupsByDay = new Map(
+    signupRows.map((row) => [String(row.day), Number(row.total ?? 0)]),
+  );
+  const revenueByDay = new Map(
+    revenueRows.map((row) => [String(row.day), Number(row.total ?? 0)]),
+  );
+  const merged = mergeTrendRows(keys, signupsByDay, revenueByDay);
+  return merged.map((row) => ({
+    ...row,
+    label: adminTrendAxisLabel(row.day),
+  }));
+}
 
 export async function fetchAdminStats(db: Database) {
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();

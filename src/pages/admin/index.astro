@@ -3,10 +3,12 @@ import { env } from 'cloudflare:workers';
 import AdminShell from '../../components/AdminShell.astro';
 import AdminBadge from '../../components/admin/AdminBadge.astro';
 import AdminStatCard from '../../components/admin/AdminStatCard.astro';
+import AdminTrend7d from '../../components/admin/AdminTrend7d.astro';
 import { aiTaskLabels, aiTasks } from '../../domain/admin-labels';
 import { isRecord, record } from '../../domain/guard';
 import {
   fetchAdminStats,
+  fetchAdminTrend7d,
   listActiveModelsForTasks,
   listAdminUsers,
   listAllPacks,
@@ -28,6 +30,7 @@ const auth = await requireAdmin(Astro.request);
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
 
 const stats = await fetchAdminStats(auth.session.db);
+const trend7d = await fetchAdminTrend7d(auth.session.db);
 const usersListUrl = new URL('/admin/pengguna', Astro.url);
 usersListUrl.searchParams.set('limit', '5');
 const { users: recentUsersRaw } = await listAdminUsers(
@@ -166,6 +169,8 @@ if (auth.superadmin) {
       />
     ))}
   </div>
+
+  <AdminTrend7d days={trend7d} />
 
   {auth.superadmin && platformModels.length > 0 && (
     <section class="mt-8 rounded-kartu border border-garis bg-kartu p-4" aria-label="Status platform">

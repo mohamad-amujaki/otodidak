@@ -45,6 +45,7 @@ import { isSuperadmin } from './admin-access';
 import {
   adminUserDetail,
   fetchAdminStats,
+  fetchAdminTrend7d,
   getActiveModelForTask,
   getPromptForTask,
   listAdminJobs,
@@ -398,6 +399,10 @@ export function createApp() {
 
   app.get('/api/admin/stats', async (c) =>
     c.json(await fetchAdminStats(await database(c.env))),
+  );
+
+  app.get('/api/admin/trend7d', async (c) =>
+    c.json(await fetchAdminTrend7d(await database(c.env))),
   );
 
   app.get('/api/admin/users', async (c) =>
