@@ -1,6 +1,7 @@
 ---
 import { env } from 'cloudflare:workers';
 import LedgerRows from '../components/credit/LedgerRows.astro';
+import LedgerSummaryStrip from '../components/credit/LedgerSummaryStrip.astro';
 import OrderRows from '../components/credit/OrderRows.astro';
 import Shell from '../components/Shell.astro';
 import { formatIdr } from '../domain/format';
@@ -68,6 +69,12 @@ const pendingTotal =
   typeof credit.pendingOrdersTotal === 'number'
     ? credit.pendingOrdersTotal
     : pendingOrders.length;
+const summaryBlock = isRecord(credit.summary30d) ? credit.summary30d : {};
+const summary = {
+  added: Number(summaryBlock.added ?? 0),
+  used: Number(summaryBlock.used ?? 0),
+  net: Number(summaryBlock.net ?? 0),
+};
 ---
 <Shell title="Kredit" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
   <div class="mb-6">
@@ -192,6 +199,12 @@ const pendingTotal =
     </div>
   </section>
 
+  {(summary.added > 0 || summary.used < 0) && (
+    <div class="mb-8 max-w-3xl">
+      <LedgerSummaryStrip summary={summary} compact />
+    </div>
+  )}
+
   <section class="mb-12 max-w-3xl">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-xl font-bold text-tinta">Buku Besar</h2>
@@ -208,7 +221,7 @@ const pendingTotal =
       </div>
     ) : (
       <div class="mt-4">
-        <LedgerRows entries={entries} compact />
+        <LedgerRows entries={entries} compact linkable />
         {entriesTotal > SNIPPET_ENTRIES && (
           <a
             class="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-jalur hover:underline"

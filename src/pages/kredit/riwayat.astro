@@ -1,6 +1,7 @@
 ---
 import { env } from 'cloudflare:workers';
-import LedgerRows from '../../components/credit/LedgerRows.astro';
+import LedgerGrouped from '../../components/credit/LedgerGrouped.astro';
+import LedgerSummaryStrip from '../../components/credit/LedgerSummaryStrip.astro';
 import PageRange from '../../components/credit/PageRange.astro';
 import PaginationNav from '../../components/credit/PaginationNav.astro';
 import Shell from '../../components/Shell.astro';
@@ -38,6 +39,15 @@ const entriesTotal =
     : entries.length;
 const extraQuery: Record<string, string> = {};
 if (reason) extraQuery.reason = reason;
+const summaryBlock = isRecord(credit.summary30d) ? credit.summary30d : {};
+const summary = {
+  added: Number(summaryBlock.added ?? 0),
+  used: Number(summaryBlock.used ?? 0),
+  net: Number(summaryBlock.net ?? 0),
+};
+const exportHref = reason
+  ? `/api/credits/ledger/export?reason=${encodeURIComponent(reason)}`
+  : '/api/credits/ledger/export';
 ---
 <Shell
   title="Riwayat kredit"
@@ -51,6 +61,10 @@ if (reason) extraQuery.reason = reason;
       <h1 class="judul mt-2">Buku besar</h1>
     </div>
     <PageRange offset={offset} limit={LIMIT} total={entriesTotal} noun="transaksi" />
+  </div>
+
+  <div class="mb-6">
+    <LedgerSummaryStrip summary={summary} />
   </div>
 
   <form class="mb-6 flex flex-wrap items-end gap-3" method="get" action="/kredit/riwayat">
@@ -73,6 +87,12 @@ if (reason) extraQuery.reason = reason;
     >
       Terapkan
     </button>
+    <a
+      class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-5 text-sm font-medium text-tinta transition-colors hover:bg-kertas"
+      href={exportHref}
+    >
+      Unduh CSV
+    </a>
   </form>
 
   {entries.length === 0 ? (
@@ -83,7 +103,7 @@ if (reason) extraQuery.reason = reason;
       </p>
     </div>
   ) : (
-    <LedgerRows entries={entries} compact />
+    <LedgerGrouped entries={entries} compact />
   )}
 
   <PaginationNav

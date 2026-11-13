@@ -71,6 +71,11 @@ import {
   startRoadmap,
   suggestChapterLesson,
 } from './generation';
+import {
+  enrichLedgerEntries,
+  ledgerExportCsv,
+  ledgerSummary30d,
+} from './ledger-enrich';
 import { logEvent } from './log';
 import { requestAppOrigin } from './origin';
 import { saveOutline } from './outline-save';
@@ -402,17 +407,34 @@ export function createApp() {
     const user = c.get('user');
     const reason = query.reason || undefined;
     const status = query.status || undefined;
-    const [balance, entries, entriesTotal, orders, ordersTotal, pendingOrders] =
-      await Promise.all([
-        balanceOf(db, user.id),
-        ledgerPage(db, user.id, query.limit, query.offset, reason),
-        ledgerCount(db, user.id, reason),
-        ordersPage(db, user.id, query.ordersLimit, query.ordersOffset, status),
-        ordersCount(db, user.id, status),
-        query.includePending
-          ? pendingOrdersFor(db, user.id)
-          : Promise.resolve([]),
-      ]);
+    const rawEntries = await ledgerPage(
+      db,
+      user.id,
+      query.limit,
+      query.offset,
+      reason,
+    );
+    const [
+      balance,
+      entries,
+      entriesTotal,
+      orders,
+      ordersTotal,
+      pendingOrders,
+      summary30d,
+    ] = await Promise.all([
+      balanceOf(db, user.id),
+      query.limit > 0
+        ? enrichLedgerEntries(db, user.id, rawEntries)
+        : Promise.resolve([]),
+      ledgerCount(db, user.id, reason),
+      ordersPage(db, user.id, query.ordersLimit, query.ordersOffset, status),
+      ordersCount(db, user.id, status),
+      query.includePending
+        ? pendingOrdersFor(db, user.id)
+        : Promise.resolve([]),
+      ledgerSummary30d(db, user.id),
+    ]);
     return c.json({
       balance,
       entries,
@@ -421,6 +443,20 @@ export function createApp() {
       ordersTotal,
       pendingOrders,
       pendingOrdersTotal: pendingOrders.length,
+      summary30d,
+    });
+  });
+
+  app.get('/api/credits/ledger/export', async (c) => {
+    const query = readCreditsQuery(c.req.url);
+    const db = await database(c.env);
+    const user = c.get('user');
+    const csv = await ledgerExportCsv(db, user.id, query.reason || undefined);
+    return new Response(csv, {
+      headers: {
+        'content-type': 'text/csv; charset=utf-8',
+        'content-disposition': 'attachment; filename="buku-besar-otodidak.csv"',
+      },
     });
   });
 

@@ -7,9 +7,10 @@ import LedgerIcon from './LedgerIcon.astro';
 interface Props {
   entries: unknown[];
   compact?: boolean;
+  linkable?: boolean;
 }
 
-const { entries, compact = false } = Astro.props;
+const { entries, compact = false, linkable = false } = Astro.props;
 const rows = entries.filter(isRecord);
 ---
 <ul class:list={['grid gap-3', compact && 'gap-2']}>
@@ -18,15 +19,18 @@ const rows = entries.filter(isRecord);
     const iconType = ledgerReasonIcons[reason] || 'circle';
     const amount = Number(entry.amount);
     const isPositive = amount > 0;
-    return (
-      <li
-        class:list={[
-          'flex items-center gap-4 border border-garis bg-kartu',
-          compact
-            ? 'rounded-kontrol px-3 py-2.5'
-            : 'rounded-kartu p-4 shadow-sm transition-all hover:shadow-md',
-        ]}
-      >
+    const href = linkable && typeof entry.href === 'string' ? entry.href : null;
+    const contextLabel =
+      typeof entry.contextLabel === 'string' ? entry.contextLabel : '';
+    const rowClass = [
+      'flex items-center gap-4 border border-garis bg-kartu',
+      compact
+        ? 'rounded-kontrol px-3 py-2.5'
+        : 'rounded-kartu p-4 shadow-sm transition-all hover:shadow-md',
+      href ? 'hover:border-jalur/30' : '',
+    ];
+    const inner = (
+      <>
         <div
           class:list={[
             'flex shrink-0 items-center justify-center rounded-kontrol',
@@ -40,6 +44,9 @@ const rows = entries.filter(isRecord);
           <p class:list={['font-medium text-tinta', compact && 'text-sm']}>
             {ledgerReasonLabels[reason] ?? reason}
           </p>
+          {contextLabel && (
+            <p class="truncate text-sm text-tinta-lembut">{contextLabel}</p>
+          )}
           <p class="text-sm text-tinta-lembut">{formatWhen(String(entry.createdAt))}</p>
         </div>
         <div class="text-right">
@@ -53,7 +60,21 @@ const rows = entries.filter(isRecord);
             {isPositive ? '+' : ''}{amount}
           </p>
         </div>
+        {href && (
+          <svg class="size-5 shrink-0 text-tinta-lembut" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        )}
+      </>
+    );
+    return href ? (
+      <li>
+        <a class:list={rowClass} href={href}>
+          {inner}
+        </a>
       </li>
+    ) : (
+      <li class:list={rowClass}>{inner}</li>
     );
   })}
 </ul>
