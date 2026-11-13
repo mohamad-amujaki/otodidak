@@ -938,6 +938,72 @@ async function clearStaleLock(
   await env.APP_KV.delete(lockKey(userId));
 }
 
+export async function adminRequeueGenerationJob(
+  env: Env,
+  db: Database,
+  jobId: string,
+): Promise<void> {
+  const rows = await db
+    .select()
+    .from(generationJobs)
+    .where(eq(generationJobs.id, jobId))
+    .limit(1);
+  const job = rows[0];
+  if (job?.status !== 'failed') throw new AppError('validation');
+  await clearStaleLock(env, db, job.userId);
+  await requireActiveJobClear(db, job.userId);
+
+  if (job.errorCode === 'refunded') {
+    const config = await loadConfig(db);
+    const cost =
+      job.kind === 'roadmap'
+        ? config.costRoadmap
+        : job.kind === 'lesson'
+          ? config.costLesson
+          : config.costQuiz;
+    const reason: 'roadmap' | 'lesson' | 'quiz' =
+      job.kind === 'roadmap'
+        ? 'roadmap'
+        : job.kind === 'lesson'
+          ? 'lesson'
+          : 'quiz';
+    const debited = await debitIfEnough(db, {
+      userId: job.userId,
+      amount: -cost,
+      reason,
+      refType: 'job',
+      refId: job.id,
+      idempotencyKey: `admin-requeue:${job.id}`,
+    });
+    if (debited === 'insufficient') throw new AppError('insufficient_credits');
+  }
+
+  await db
+    .update(generationJobs)
+    .set({
+      status: 'queued',
+      errorCode: null,
+      attempts: 0,
+      startedAt: null,
+      finishedAt: null,
+    })
+    .where(eq(generationJobs.id, job.id));
+  await env.APP_KV.put(lockKey(job.userId), job.id, {
+    expirationTtl: JOB_LOCK_TTL_SECONDS,
+  });
+  await enqueue(env, db, {
+    id: job.id,
+    userId: job.userId,
+    kind: job.kind,
+    refId: job.refId,
+  });
+  logEvent({
+    message: 'admin_job_requeued',
+    jobId: job.id,
+    userId: job.userId,
+  });
+}
+
 function lockKey(userId: string): string {
   return `lock:job:${userId}`;
 }

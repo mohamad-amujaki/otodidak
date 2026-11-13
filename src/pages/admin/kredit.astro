@@ -33,11 +33,9 @@ const ordersParams = new URLSearchParams({
 if (orderStatus) ordersParams.set('orderStatus', orderStatus);
 
 const ledgerListUrl = new URL('/admin/kredit', Astro.url);
-ledgerListUrl.searchParams.set('tab', 'buku');
 for (const [key, value] of ledgerParams.entries())
   ledgerListUrl.searchParams.set(key, value);
 const ordersListUrl = new URL('/admin/kredit', Astro.url);
-ordersListUrl.searchParams.set('tab', 'pesanan');
 for (const [key, value] of ordersParams.entries())
   ordersListUrl.searchParams.set(key, value);
 

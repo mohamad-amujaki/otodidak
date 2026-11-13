@@ -9,6 +9,7 @@ import {
   updateModelForTask,
   updatePromptTemplate,
 } from './admin-mutations';
+import { adminRequeueGenerationJob } from './generation';
 import { pageSession } from './ssr';
 
 const seededPromptTasks = ['roadmap', 'lesson', 'quiz'] as const;
@@ -142,6 +143,14 @@ export async function runAdminAction(
         ],
       });
       return 'Paket diperbarui.';
+    }
+    if (action === 'job-ulang') {
+      await adminRequeueGenerationJob(
+        bindings,
+        db,
+        String(form.get('jobId') ?? ''),
+      );
+      return 'Job dimasukkan lagi ke antrean.';
     }
   } catch (error) {
     return appErrorToMessage(error);

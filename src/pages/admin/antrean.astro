@@ -2,16 +2,27 @@
 import { env } from 'cloudflare:workers';
 import AdminPagination from '../../components/AdminPagination.astro';
 import AdminShell from '../../components/AdminShell.astro';
+import AdminAlert from '../../components/admin/AdminAlert.astro';
 import AdminBadge from '../../components/admin/AdminBadge.astro';
 import AdminEmptyState from '../../components/admin/AdminEmptyState.astro';
 import { jobKindLabels, jobStatusLabels } from '../../domain/admin-labels';
 import { formatWhenShort } from '../../domain/format';
 import { isRecord } from '../../domain/guard';
+import { runAdminAction } from '../../server/admin-actions';
 import { listAdminJobs } from '../../server/admin-data';
 import { requireAdmin } from '../../server/admin-guard';
 
 const auth = await requireAdmin(Astro.request, { nav: true });
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
+
+let message = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+    message = 'Muat ulang halaman, lalu kirim lagi.';
+  else
+    message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
+}
 
 const offset = Number(Astro.url.searchParams.get('offset') ?? 0);
 const limit = Number(Astro.url.searchParams.get('limit') ?? 20);
@@ -44,6 +55,12 @@ function jobStatusTone(status: string) {
 <AdminShell title="Antrean" section="antrean" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav}>
   <h1 class="judul">Antrean generasi</h1>
   <p class="mt-2 text-sm text-tinta-lembut">Job roadmap, pelajaran, dan kuis · {total} total</p>
+  {message && (
+    <AdminAlert
+      tone={message.includes('gagal') || message.includes('habis') || message.includes('valid') ? 'danger' : 'success'}
+      message={message}
+    />
+  )}
 
   <nav class="mt-4 flex flex-wrap gap-2" aria-label="Filter cepat">
     <a
@@ -119,7 +136,7 @@ function jobStatusTone(status: string) {
           return (
             <li
               class:list={[
-                'grid gap-2 px-4 py-3 min-[900px]:grid-cols-[5rem_5rem_minmax(0,1fr)_4rem_7rem]',
+                'grid gap-2 px-4 py-3 min-[900px]:grid-cols-[5rem_5rem_minmax(0,1fr)_4rem_7rem_auto]',
                 status === 'failed' && 'bg-bahaya/5',
               ]}
             >
@@ -133,6 +150,19 @@ function jobStatusTone(status: string) {
               </div>
               <span class="tabular-nums text-tinta-lembut">{job.attempts}×</span>
               <span class="text-xs text-tinta-lembut">{formatWhenShort(String(job.createdAt ?? ''))}</span>
+              {status === 'failed' && (
+                <form method="post" class="min-[900px]:justify-self-end">
+                  <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                  <input type="hidden" name="aksi" value="job-ulang" />
+                  <input type="hidden" name="jobId" value={String(job.id)} />
+                  <button
+                    class="min-h-9 rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium hover:bg-kertas"
+                    type="submit"
+                  >
+                    Antrekan lagi
+                  </button>
+                </form>
+              )}
             </li>
           );
         })}
