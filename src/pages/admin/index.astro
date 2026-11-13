@@ -5,6 +5,17 @@ import { isRecord } from '../../domain/guard';
 import { requireAdmin } from '../../server/admin-guard';
 import { callApi } from '../../server/call';
 
+const bagian = Astro.url.searchParams.get('bagian');
+const legacy: Record<string, string> = {
+  pengguna: '/admin/pengguna',
+  buku: '/admin/kredit',
+  batas: '/admin/konfigurasi',
+  prompt: '/admin/ai',
+  model: '/admin/ai',
+  paket: '/admin/paket',
+};
+if (bagian && legacy[bagian]) return Astro.redirect(legacy[bagian]);
+
 const auth = await requireAdmin(Astro.request);
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
 
