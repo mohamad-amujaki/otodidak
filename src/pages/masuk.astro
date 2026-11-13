@@ -5,8 +5,9 @@ import { activePublishableKey, clerkHost } from '../domain/guard';
 import { callApi, errorOf } from '../server/call';
 
 const mock = env.CLERK_SECRET_KEY === 'mock';
+const keluar = Astro.url.searchParams.get('keluar') === '1';
 const session = await callApi(Astro.request, env, '/api/me');
-if (session.status === 200) return Astro.redirect('/dasbor');
+if (session.status === 200 && !keluar) return Astro.redirect('/dasbor');
 
 let message = '';
 if (Astro.request.method === 'POST') {

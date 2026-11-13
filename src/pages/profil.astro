@@ -19,9 +19,7 @@ if (Astro.request.method === 'POST') {
       json: {},
       csrf: Astro.locals.csrf,
     });
-    const headers = new Headers({
-      Location: env.CLERK_SECRET_KEY === 'mock' ? '/masuk' : '/masuk?keluar=1',
-    });
+    const headers = new Headers({ Location: '/masuk?keluar=1' });
     for (const cookie of result.setCookie) headers.append('set-cookie', cookie);
     return new Response(null, { status: 303, headers });
   } else if (String(form.get('aksi') ?? '') === 'hapus') {

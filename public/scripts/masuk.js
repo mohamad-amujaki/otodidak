@@ -18,8 +18,10 @@ if (button instanceof HTMLButtonElement) {
       const signOut =
         new URLSearchParams(window.location.search).get('keluar') === '1';
       if (signOut) {
-        await clerk.signOut();
+        await clerk.signOut({ redirectUrl: '/masuk' });
         window.history.replaceState({}, '', '/masuk');
+        button?.removeAttribute('disabled');
+        return;
       }
       if (signedIn(clerk)) {
         window.location.assign('/dasbor');
