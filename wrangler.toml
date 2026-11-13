@@ -17,16 +17,18 @@ enabled = true
 
 [assets]
 binding = "ASSETS"
+directory = "./dist/client"
 run_worker_first = true
 
-# Ganti sebelum produksi. Nilai lokal ditimpa .dev.vars.
+# Kunci publishable Clerk di bawah masih instance TEST (aman dipublikasikan).
+# Ganti ke instance produksi + set secret CLERK_SECRET_KEY yang cocok sebelum go-live.
 [vars]
-CLERK_PUBLISHABLE_KEY = "pk_test_mock"
+CLERK_PUBLISHABLE_KEY = "pk_test_bGl2aW5nLWRvdmUtNTE1LmNsZXJrLmFjY291bnRzLmRldiQ"
 # Astro reads this name. An empty value stays out of the way until .dev.vars overrides it.
 PUBLIC_CLERK_PUBLISHABLE_KEY = ""
-APP_ORIGIN = "http://localhost:8787"
-ENVIRONMENT = "development"
-SUPERADMIN_EMAILS = ""
+APP_ORIGIN = "https://otodidak.web.id"
+ENVIRONMENT = "production"
+SUPERADMIN_EMAILS = "mohamad.amujaki@gmail.com"
 
 [secrets]
 required = [
@@ -42,12 +44,12 @@ required = [
 [[d1_databases]]
 binding = "DB"
 database_name = "otodidak"
-database_id = "a3c1e8b0-7d4f-4e2a-9b6c-1f0d8e7a6b51"
+database_id = "fd1acffd-2888-43a4-b689-b2e4ad33de26"
 migrations_dir = "migrations"
 
 [[kv_namespaces]]
 binding = "APP_KV"
-id = "b7e2c4d1-8a5f-4c3b-9d0e-2a1b3c4d5e6f"
+id = "96eb38579d7f482f861ac51ba3bd6e08"
 
 [[queues.producers]]
 binding = "GENERATION_QUEUE"
