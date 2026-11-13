@@ -2,7 +2,9 @@
 import { env } from 'cloudflare:workers';
 import AdminPagination from '../../components/AdminPagination.astro';
 import AdminShell from '../../components/AdminShell.astro';
-import { formatWhen } from '../../domain/format';
+import AdminBadge from '../../components/admin/AdminBadge.astro';
+import { jobKindLabels, jobStatusLabels } from '../../domain/admin-labels';
+import { formatWhenShort } from '../../domain/format';
 import { isRecord } from '../../domain/guard';
 import { requireAdmin } from '../../server/admin-guard';
 import { callApi } from '../../server/call';
@@ -12,44 +14,97 @@ if ('redirect' in auth) return Astro.redirect(auth.redirect);
 
 const offset = Number(Astro.url.searchParams.get('offset') ?? 0);
 const limit = Number(Astro.url.searchParams.get('limit') ?? 20);
+const jobStatus = Astro.url.searchParams.get('jobStatus') ?? '';
+const jobKind = Astro.url.searchParams.get('jobKind') ?? '';
+const params = new URLSearchParams({
+  limit: String(limit),
+  offset: String(offset),
+});
+if (jobStatus) params.set('jobStatus', jobStatus);
+if (jobKind) params.set('jobKind', jobKind);
 
 const jobsResult = await callApi(
   Astro.request,
   env,
-  `/api/admin/jobs?limit=${limit}&offset=${offset}`,
+  `/api/admin/jobs?${params}`,
 );
-const jobs =
-  isRecord(jobsResult.data) && Array.isArray(jobsResult.data.jobs)
-    ? jobsResult.data.jobs.filter(isRecord)
-    : [];
+const jobsData = isRecord(jobsResult.data) ? jobsResult.data : {};
+const jobs = Array.isArray(jobsData.jobs) ? jobsData.jobs.filter(isRecord) : [];
+const total = typeof jobsData.total === 'number' ? jobsData.total : jobs.length;
+const extraParams: Record<string, string> = {};
+if (jobStatus) extraParams.jobStatus = jobStatus;
+if (jobKind) extraParams.jobKind = jobKind;
+
+function jobStatusTone(status: string) {
+  if (status === 'failed') return 'danger';
+  if (status === 'running' || status === 'queued') return 'warning';
+  if (status === 'succeeded') return 'success';
+  return 'neutral';
+}
 ---
 <AdminShell title="Antrean" section="antrean" balance={auth.balance} superadmin={auth.superadmin}>
   <h1 class="judul">Antrean generasi</h1>
-  <p class="mt-2 text-sm text-tinta-lembut">Job roadmap, pelajaran, dan kuis.</p>
+  <p class="mt-2 text-sm text-tinta-lembut">Job roadmap, pelajaran, dan kuis · {total} total</p>
+
+  <form method="get" class="mt-6 flex flex-wrap items-end gap-2">
+    <label class="text-sm">
+      <span class="font-medium">Status</span>
+      <select class="mt-1 min-h-10 rounded-kontrol border border-garis bg-kartu px-2" name="jobStatus">
+        <option value="">Semua</option>
+        {Object.entries(jobStatusLabels).map(([value, label]) => (
+          <option value={value} selected={jobStatus === value}>{label}</option>
+        ))}
+      </select>
+    </label>
+    <label class="text-sm">
+      <span class="font-medium">Jenis</span>
+      <select class="mt-1 min-h-10 rounded-kontrol border border-garis bg-kartu px-2" name="jobKind">
+        <option value="">Semua</option>
+        {Object.entries(jobKindLabels).map(([value, label]) => (
+          <option value={value} selected={jobKind === value}>{label}</option>
+        ))}
+      </select>
+    </label>
+    <button class="min-h-10 rounded-kontrol border border-garis bg-kartu px-4 text-sm" type="submit">Terapkan</button>
+  </form>
 
   {jobs.length === 0 ? (
-    <p class="mt-8 text-tinta-lembut">Tidak ada job.</p>
+    <p class="mt-8 text-tinta-lembut">Tidak ada job untuk filter ini.</p>
   ) : (
-    <ul class="mt-6 space-y-2 text-sm">
-      {jobs.map((job) => (
-        <li class:list={[
-          'rounded-kartu border p-3',
-          job.status === 'failed' ? 'border-bahaya/30 bg-bahaya/5' : 'border-garis bg-kartu',
-        ]}>
-          <p class="font-medium">
-            {job.kind}
-            <span class="text-tinta-lembut"> · {job.status}</span>
-            {job.errorCode && <span class="text-bahaya"> · {job.errorCode}</span>}
-          </p>
-          <p class="mt-1 text-tinta-lembut">
-            <a class="text-jalur hover:underline" href={`/admin/pengguna/${String(job.userId)}`}>{job.userEmail}</a>
-            {' · '}percobaan {job.attempts}
-          </p>
-          <p class="text-xs text-tinta-lembut">{formatWhen(String(job.createdAt ?? ''))}</p>
-        </li>
-      ))}
-    </ul>
+    <div class="mt-6 overflow-hidden rounded-kartu border border-garis bg-kartu">
+      <ul class="divide-y divide-garis text-sm">
+        {jobs.map((job) => {
+          const status = String(job.status);
+          return (
+            <li
+              class:list={[
+                'grid gap-2 px-4 py-3 min-[900px]:grid-cols-[5rem_5rem_minmax(0,1fr)_4rem_7rem]',
+                status === 'failed' && 'bg-bahaya/5',
+              ]}
+            >
+              <AdminBadge tone={jobStatusTone(status)}>{jobStatusLabels[status] ?? status}</AdminBadge>
+              <span class="text-tinta-lembut">{jobKindLabels[String(job.kind)] ?? job.kind}</span>
+              <div>
+                <a class="font-medium text-jalur hover:underline" href={`/admin/pengguna/${String(job.userId)}`}>
+                  {job.userEmail}
+                </a>
+                {job.errorCode && <p class="text-xs text-bahaya">{job.errorCode}</p>}
+              </div>
+              <span class="tabular-nums text-tinta-lembut">{job.attempts}×</span>
+              <span class="text-xs text-tinta-lembut">{formatWhenShort(String(job.createdAt ?? ''))}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   )}
 
-  <AdminPagination offset={offset} limit={limit} count={jobs.length} baseUrl="/admin/antrean" />
+  <AdminPagination
+    offset={offset}
+    limit={limit}
+    count={jobs.length}
+    total={total}
+    baseUrl="/admin/antrean"
+    extraParams={extraParams}
+  />
 </AdminShell>

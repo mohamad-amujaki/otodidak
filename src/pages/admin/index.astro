@@ -31,48 +31,106 @@ const recentUsers =
     ? usersResult.data.users.filter(isRecord)
     : [];
 
+const pendingOrders = Number(stats.pendingOrders ?? 0);
+const jobsFailed = Number(stats.jobsFailed ?? 0);
+const deletionRequests = Number(stats.deletionRequests ?? 0);
+const actionItems = [
+  pendingOrders > 0 && {
+    label: `${pendingOrders} pesanan menunggu bayar`,
+    href: '/admin/kredit?tab=pesanan&orderStatus=pending',
+    tone: 'warning',
+  },
+  jobsFailed > 0 && {
+    label: `${jobsFailed} job generasi gagal`,
+    href: '/admin/antrean?jobStatus=failed',
+    tone: 'danger',
+  },
+  deletionRequests > 0 && {
+    label: `${deletionRequests} permintaan hapus data`,
+    href: '/admin/pengguna?deletion=1',
+    tone: 'danger',
+  },
+].filter(Boolean) as { label: string; href: string; tone: string }[];
+
 const cards = [
   {
     label: 'Total pengguna',
     value: Number(stats.users ?? 0),
     href: '/admin/pengguna',
+    tone: 'neutral',
   },
   {
     label: 'Baru (7 hari)',
     value: Number(stats.newUsers ?? 0),
     href: '/admin/pengguna',
+    tone: 'neutral',
   },
   {
     label: 'Minta hapus data',
-    value: Number(stats.deletionRequests ?? 0),
-    href: '/admin/pengguna',
+    value: deletionRequests,
+    href: '/admin/pengguna?deletion=1',
+    tone: deletionRequests > 0 ? 'danger' : 'neutral',
   },
   {
     label: 'Pesanan pending',
-    value: Number(stats.pendingOrders ?? 0),
-    href: '/admin/kredit',
+    value: pendingOrders,
+    href: '/admin/kredit?tab=pesanan&orderStatus=pending',
+    tone: pendingOrders > 0 ? 'warning' : 'neutral',
   },
   {
     label: 'Antrean aktif',
     value: Number(stats.jobsQueued ?? 0),
     href: '/admin/antrean',
+    tone: 'neutral',
   },
   {
     label: 'Job gagal',
-    value: Number(stats.jobsFailed ?? 0),
-    href: '/admin/antrean',
+    value: jobsFailed,
+    href: '/admin/antrean?jobStatus=failed',
+    tone: jobsFailed > 0 ? 'danger' : 'neutral',
   },
-];
+] as const;
+
+const cardClass: Record<string, string> = {
+  neutral: 'border-garis hover:border-jalur/40',
+  warning: 'border-hangat/40 bg-hangat-lembut/30 hover:border-hangat/60',
+  danger: 'border-bahaya/30 bg-bahaya/5 hover:border-bahaya/50',
+};
 ---
 <AdminShell title="Admin" section="ringkasan" balance={auth.balance} superadmin={auth.superadmin}>
   <h1 class="judul">Ringkasan</h1>
   <p class="mt-2 text-sm text-tinta-lembut">Operasi platform Otodidak</p>
 
+  {actionItems.length > 0 && (
+    <section class="mt-8 rounded-kartu border border-hangat/30 bg-hangat-lembut/20 p-4" aria-label="Perlu tindakan">
+      <h2 class="text-sm font-semibold text-tinta">Perlu tindakan</h2>
+      <ul class="mt-3 space-y-2">
+        {actionItems.map((item) => (
+          <li>
+            <a
+              class:list={[
+                'flex min-h-10 items-center justify-between gap-2 rounded-kontrol border bg-kartu px-3 text-sm font-medium transition-colors hover:bg-kertas',
+                item.tone === 'danger' ? 'border-bahaya/30 text-bahaya' : 'border-hangat/30 text-hangat',
+              ]}
+              href={item.href}
+            >
+              {item.label}
+              <span aria-hidden="true">→</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+
   <div class="mt-8 grid gap-4 min-[768px]:grid-cols-2 min-[1100px]:grid-cols-3">
     {cards.map((card) => (
       <a
         href={card.href}
-        class="rounded-xl border-2 border-garis bg-gradient-to-br from-white to-kertas p-5 shadow-sm transition-all hover:border-jalur/40 hover:shadow-md"
+        class:list={[
+          'rounded-xl border-2 bg-gradient-to-br from-white to-kertas p-5 shadow-sm transition-all hover:shadow-md',
+          cardClass[card.tone],
+        ]}
       >
         <p class="text-3xl font-bold tabular-nums text-tinta">{card.value}</p>
         <p class="mt-1 text-sm text-tinta-lembut">{card.label}</p>
@@ -83,11 +141,11 @@ const cards = [
   {recentUsers.length > 0 && (
     <section class="mt-10">
       <h2 class="text-lg font-semibold text-tinta">Pengguna terbaru</h2>
-      <ul class="mt-3 space-y-2">
+      <ul class="mt-3 divide-y divide-garis overflow-hidden rounded-kartu border border-garis bg-kartu">
         {recentUsers.map((item) => (
           <li>
             <a
-              class="flex flex-wrap items-center justify-between gap-2 rounded-kontrol border border-garis bg-kartu px-4 py-3 text-sm hover:border-jalur/40"
+              class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm hover:bg-kertas/60"
               href={`/admin/pengguna/${String(item.id)}`}
             >
               <span class="font-medium">{item.name}</span>

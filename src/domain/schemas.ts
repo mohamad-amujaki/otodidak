@@ -66,6 +66,23 @@ const orderStatus = z.enum(['pending', 'paid', 'failed', 'expired']);
 const emptyToUndefined = (value: unknown) =>
   value === '' || value === undefined ? undefined : value;
 
+const adminUserRole = z.enum(['learner', 'admin']);
+const adminUserStatus = z.enum(['active', 'suspended']);
+const adminJobStatus = z.enum(['queued', 'running', 'succeeded', 'failed']);
+const adminJobKind = z.enum(['roadmap', 'lesson', 'quiz']);
+
+export const adminPageSchema = pageSchema.extend({
+  role: z.preprocess(emptyToUndefined, adminUserRole.optional()),
+  status: z.preprocess(emptyToUndefined, adminUserStatus.optional()),
+  orderStatus: z.preprocess(emptyToUndefined, orderStatus.optional()),
+  jobStatus: z.preprocess(emptyToUndefined, adminJobStatus.optional()),
+  jobKind: z.preprocess(emptyToUndefined, adminJobKind.optional()),
+  deletion: z
+    .union([z.literal('1'), z.literal('true'), z.literal('')])
+    .optional()
+    .transform((v) => v === '1' || v === 'true'),
+});
+
 export const creditsQuerySchema = z.strictObject({
   limit: z.coerce.number().int().min(0).max(50).default(20),
   offset: z.coerce.number().int().min(0).max(10_000).default(0),

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, like, or, type SQL, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { z } from 'zod';
 import { debitIfEnough } from '../billing/ledger';
@@ -63,6 +63,16 @@ import {
   pendingOrdersFor,
 } from './account';
 import { isSuperadmin } from './admin-access';
+import {
+  adminJobsTotal,
+  adminLedgerTotal,
+  adminOrdersTotal,
+  adminUsersTotal,
+  jobFiltersWhere,
+  orderFiltersWhere,
+  readAdminQuery,
+  userFiltersWhere,
+} from './admin-list';
 import { DEV_COOKIE, devIdentityFor, identify, signDevSession } from './auth';
 import { cookieHeader, readCookie, timingSafeEqual } from './crypto';
 import {
@@ -667,21 +677,19 @@ export function createApp() {
   });
 
   app.get('/api/admin/users', async (c) => {
-    const query = readQuery(c.req.url);
+    const query = readAdminQuery(c.req.url);
     const db = await database(c.env);
-    let filters: SQL | undefined;
-    if (query.email) filters = eq(users.email, query.email);
-    else if (query.q) {
-      const needle = `%${query.q.replace(/%/g, '')}%`;
-      filters = or(like(users.email, needle), like(users.name, needle));
-    }
-    const rows = await db
-      .select()
-      .from(users)
-      .where(filters)
-      .orderBy(desc(users.createdAt))
-      .limit(query.limit)
-      .offset(query.offset);
+    const filters = userFiltersWhere(query);
+    const [rows, total] = await Promise.all([
+      db
+        .select()
+        .from(users)
+        .where(filters)
+        .orderBy(desc(users.createdAt))
+        .limit(query.limit)
+        .offset(query.offset),
+      adminUsersTotal(db, query),
+    ]);
     const list = [];
     for (const user of rows)
       list.push({
@@ -693,7 +701,7 @@ export function createApp() {
         balance: await balanceOf(db, user.id),
         deletionRequestedAt: user.deletionRequestedAt,
       });
-    return c.json({ users: list });
+    return c.json({ users: list, total });
   });
 
   app.get('/api/admin/users/:id', async (c) => {
@@ -794,79 +802,92 @@ export function createApp() {
   });
 
   app.get('/api/admin/ledger', async (c) => {
-    const query = readQuery(c.req.url);
+    const query = readAdminQuery(c.req.url);
     const db = await database(c.env);
     const filters = query.userId
       ? eq(creditLedger.userId, query.userId)
       : undefined;
-    const entries = await db
-      .select({
-        id: creditLedger.id,
-        userId: creditLedger.userId,
-        amount: creditLedger.amount,
-        reason: creditLedger.reason,
-        note: creditLedger.note,
-        createdAt: creditLedger.createdAt,
-        userEmail: users.email,
-        userName: users.name,
-      })
-      .from(creditLedger)
-      .innerJoin(users, eq(creditLedger.userId, users.id))
-      .where(filters)
-      .orderBy(desc(creditLedger.createdAt))
-      .limit(query.limit)
-      .offset(query.offset);
-    return c.json({ entries });
+    const [entries, total] = await Promise.all([
+      db
+        .select({
+          id: creditLedger.id,
+          userId: creditLedger.userId,
+          amount: creditLedger.amount,
+          reason: creditLedger.reason,
+          note: creditLedger.note,
+          createdAt: creditLedger.createdAt,
+          userEmail: users.email,
+          userName: users.name,
+        })
+        .from(creditLedger)
+        .innerJoin(users, eq(creditLedger.userId, users.id))
+        .where(filters)
+        .orderBy(desc(creditLedger.createdAt))
+        .limit(query.limit)
+        .offset(query.offset),
+      adminLedgerTotal(db, query),
+    ]);
+    return c.json({ entries, total });
   });
 
   app.get('/api/admin/orders', async (c) => {
-    const query = readQuery(c.req.url);
+    const query = readAdminQuery(c.req.url);
     const db = await database(c.env);
-    const orders = await db
-      .select({
-        id: creditOrders.id,
-        userId: creditOrders.userId,
-        packId: creditOrders.packId,
-        orderId: creditOrders.orderId,
-        amountIdr: creditOrders.amountIdr,
-        credits: creditOrders.credits,
-        status: creditOrders.status,
-        createdAt: creditOrders.createdAt,
-        paidAt: creditOrders.paidAt,
-        userEmail: users.email,
-        userName: users.name,
-      })
-      .from(creditOrders)
-      .innerJoin(users, eq(creditOrders.userId, users.id))
-      .orderBy(desc(creditOrders.createdAt))
-      .limit(query.limit)
-      .offset(query.offset);
-    return c.json({ orders });
+    const where = orderFiltersWhere(query);
+    const [orders, total] = await Promise.all([
+      db
+        .select({
+          id: creditOrders.id,
+          userId: creditOrders.userId,
+          packId: creditOrders.packId,
+          orderId: creditOrders.orderId,
+          amountIdr: creditOrders.amountIdr,
+          credits: creditOrders.credits,
+          status: creditOrders.status,
+          createdAt: creditOrders.createdAt,
+          paidAt: creditOrders.paidAt,
+          userEmail: users.email,
+          userName: users.name,
+        })
+        .from(creditOrders)
+        .innerJoin(users, eq(creditOrders.userId, users.id))
+        .where(where)
+        .orderBy(desc(creditOrders.createdAt))
+        .limit(query.limit)
+        .offset(query.offset),
+      adminOrdersTotal(db, query),
+    ]);
+    return c.json({ orders, total });
   });
 
   app.get('/api/admin/jobs', async (c) => {
-    const query = readQuery(c.req.url);
+    const query = readAdminQuery(c.req.url);
     const db = await database(c.env);
-    const jobs = await db
-      .select({
-        id: generationJobs.id,
-        userId: generationJobs.userId,
-        kind: generationJobs.kind,
-        refId: generationJobs.refId,
-        status: generationJobs.status,
-        errorCode: generationJobs.errorCode,
-        attempts: generationJobs.attempts,
-        createdAt: generationJobs.createdAt,
-        finishedAt: generationJobs.finishedAt,
-        userEmail: users.email,
-        userName: users.name,
-      })
-      .from(generationJobs)
-      .innerJoin(users, eq(generationJobs.userId, users.id))
-      .orderBy(desc(generationJobs.createdAt))
-      .limit(query.limit)
-      .offset(query.offset);
-    return c.json({ jobs });
+    const where = jobFiltersWhere(query);
+    const [jobs, total] = await Promise.all([
+      db
+        .select({
+          id: generationJobs.id,
+          userId: generationJobs.userId,
+          kind: generationJobs.kind,
+          refId: generationJobs.refId,
+          status: generationJobs.status,
+          errorCode: generationJobs.errorCode,
+          attempts: generationJobs.attempts,
+          createdAt: generationJobs.createdAt,
+          finishedAt: generationJobs.finishedAt,
+          userEmail: users.email,
+          userName: users.name,
+        })
+        .from(generationJobs)
+        .innerJoin(users, eq(generationJobs.userId, users.id))
+        .where(where)
+        .orderBy(desc(generationJobs.createdAt))
+        .limit(query.limit)
+        .offset(query.offset),
+      adminJobsTotal(db, query),
+    ]);
+    return c.json({ jobs, total });
   });
 
   app.post('/api/admin/users/:id/ledger', async (c) => {
@@ -1200,14 +1221,6 @@ async function handleWebhook(
       and(eq(creditOrders.id, order.id), eq(creditOrders.status, 'pending')),
     );
   return Response.json({ ok: true });
-}
-
-function readQuery(url: string) {
-  const parsed = pageSchema.safeParse(
-    Object.fromEntries(new URL(url).searchParams),
-  );
-  if (!parsed.success) throw new AppError('validation');
-  return parsed.data;
 }
 
 function readCreditsQuery(url: string) {

@@ -1,7 +1,13 @@
 ---
 import { env } from 'cloudflare:workers';
 import AdminShell from '../../components/AdminShell.astro';
-import { configFieldHints, configFieldLabels } from '../../domain/admin-labels';
+import AdminAlert from '../../components/admin/AdminAlert.astro';
+import {
+  configFieldGroups,
+  configFieldHints,
+  configFieldLabels,
+  configGroupTitles,
+} from '../../domain/admin-labels';
 import { isRecord, record } from '../../domain/guard';
 import { runAdminAction } from '../../server/admin-actions';
 import { requireAdmin } from '../../server/admin-guard';
@@ -21,41 +27,43 @@ if (Astro.request.method === 'POST') {
 
 const configResult = await callApi(Astro.request, env, '/api/admin/config');
 const config = record(configResult.data);
-
-const fields = [
-  'maxChapters',
-  'maxLessonsPerChapter',
-  'quizQuestionCount',
-  'quizPassPercent',
-  'costRoadmap',
-  'costLesson',
-  'costQuiz',
-  'signupCredits',
-  'lessonMinuteLabel',
-] as const;
+const groupKeys = Object.keys(
+  configFieldGroups,
+) as (keyof typeof configFieldGroups)[];
 ---
 <AdminShell title="Konfigurasi" section="konfigurasi" balance={auth.balance} superadmin={auth.superadmin}>
   <h1 class="judul">Konfigurasi produk</h1>
-  <p class="mt-2 text-sm text-tinta-lembut">Batas dan biaya kredit untuk semua pengguna.</p>
-  {message && <p class="mt-3 text-sm">{message}</p>}
+  <p class="mt-2 text-sm text-tinta-lembut">Batas konten, biaya kredit, dan onboarding untuk semua pengguna.</p>
+  {message && <AdminAlert message={message} tone="success" />}
 
-  <form class="mt-8 grid max-w-lg gap-4" method="post">
+  <form class="mt-8 grid gap-6 min-[900px]:grid-cols-2" method="post">
     <input type="hidden" name="csrf" value={Astro.locals.csrf} />
     <input type="hidden" name="aksi" value="konfigurasi" />
-    {fields.map((field) => (
-      <label class="block text-sm">
-        <span class="font-medium">{configFieldLabels[field]}</span>
-        {configFieldHints[field] && (
-          <span class="mt-0.5 block text-xs text-tinta-lembut">{configFieldHints[field]}</span>
-        )}
-        <input
-          class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-3"
-          name={field}
-          type="number"
-          value={String(config[field] ?? '')}
-        />
-      </label>
+    {groupKeys.map((group) => (
+      <section class="rounded-kartu border border-garis bg-kartu p-5 shadow-sm">
+        <h2 class="text-lg font-semibold text-tinta">{configGroupTitles[group]}</h2>
+        <div class="mt-4 grid gap-4">
+          {configFieldGroups[group].map((field) => (
+            <label class="block text-sm">
+              <span class="font-medium">{configFieldLabels[field]}</span>
+              {configFieldHints[field] && (
+                <span class="mt-0.5 block text-xs text-tinta-lembut">{configFieldHints[field]}</span>
+              )}
+              <input
+                class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-3"
+                name={field}
+                type="number"
+                value={String(config[field] ?? '')}
+              />
+            </label>
+          ))}
+        </div>
+      </section>
     ))}
-    <button class="min-h-11 rounded-kontrol bg-jalur px-4 text-white w-fit" type="submit">Simpan</button>
+    <div class="min-[900px]:col-span-2">
+      <button class="min-h-11 rounded-kontrol bg-jalur px-6 text-sm font-semibold text-white" type="submit">
+        Simpan konfigurasi
+      </button>
+    </div>
   </form>
 </AdminShell>
