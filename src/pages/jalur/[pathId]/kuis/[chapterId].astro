@@ -1,6 +1,7 @@
 ---
 import { env } from 'cloudflare:workers';
 import Shell from '../../../../components/Shell.astro';
+import { quizStatusLabel } from '../../../../domain/format';
 import { isRecord, record } from '../../../../domain/guard';
 import { callApi, errorOf } from '../../../../server/call';
 
@@ -60,52 +61,102 @@ const explanations =
         (item) => isRecord(item) && typeof item.explanation === 'string',
       )
     : [];
+const outcome =
+  result?.quizStatus === 'understood' || result?.quizStatus === 'retry'
+    ? result.quizStatus
+    : null;
 ---
 <Shell title="Kuis" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
-  <p class="text-sm"><a href={`/jalur/${pathId}`}>Kembali ke jalur</a></p>
-  <h1 class="mt-2 text-[1.75rem] leading-[1.25]">{chapter ? chapter.title : 'Kuis'}</h1>
-  {message && <p class="mt-3 text-sm text-bahaya">{message}</p>}
-  {!quiz && <p class="mt-4">Kuis belum disusun.</p>}
-  {quiz && questions.length === 0 && <p class="mt-4">Menyusun kuis.</p>}
-  {result && (
-    <p class="mt-4 text-lg tabular-nums">{String(result.scorePercent)} dari 100. Batas paham {pass}.</p>
-  )}
-  {quiz && questions.length > 0 && (
-    <form class="mt-6 space-y-5" method="post">
-      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-      {questions.map((question, index) => {
-        const choices = Array.isArray(question.choices) ? question.choices : [];
-        return (
-          <fieldset class="space-y-2">
-            <legend>{index + 1}. {question.stem}</legend>
-            {choices.map((choice, choiceIndex) => (
-              <label class="flex min-h-11 items-center gap-2">
-                <input type="radio" name={`jawaban-${index}`} value={choiceIndex} required />
-                <span>{choice}</span>
-              </label>
-            ))}
-          </fieldset>
-        );
-      })}
-      <button class="inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-white" type="submit">Kirim jawaban</button>
-      <p class="text-sm text-tinta-lembut">Mengulang jawaban yang sama tidak memakai kredit.</p>
-    </form>
-  )}
-  {explanations.length > 0 && (
-    <section class="mt-6 space-y-3">
-      <h2 class="text-xl">Yang perlu dicek</h2>
-      {explanations.map((item) => (
-        <p>{item.explanation}</p>
-      ))}
-    </section>
-  )}
-  {quiz && (
-    <form class="mt-6" method="post">
-      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-      <input type="hidden" name="aksi" value="ulang" />
-      <button class="inline-flex min-h-11 items-center rounded-kontrol border border-garis px-3" type="submit">Susun kuis baru</button>
-      <p class="text-sm text-tinta-lembut">Memakai {cost} kredit</p>
-    </form>
-  )}
+  <div class="max-w-[65ch]">
+    <p><a class="inline-flex min-h-11 items-center text-sm text-tinta-lembut" href={`/jalur/${pathId}`}>Kembali ke jalur</a></p>
+    <h1 class="judul mt-2">{chapter ? chapter.title : 'Kuis'}</h1>
+    {message && <p class="mt-3 text-sm text-bahaya">{message}</p>}
+    {!quiz && <p class="mt-4">Kuis belum disusun.</p>}
+    {quiz && questions.length === 0 && <p class="mt-4">Menyusun kuis.</p>}
+    {result && (
+      <div class="mt-4">
+        {outcome && <p class="text-lg">{quizStatusLabel(outcome)}</p>}
+        <p class="text-sm leading-[1.4] text-tinta-lembut">Pelajaran berikutnya tetap terbuka.</p>
+        <p class="mt-1 tabular-nums">{String(result.scorePercent)} dari 100. Batas paham {pass}.</p>
+      </div>
+    )}
+    {quiz && questions.length > 0 && (
+      <form class="mt-6 space-y-5" method="post" data-kuis>
+        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        {questions.map((question, index) => {
+          const choices = Array.isArray(question.choices) ? question.choices : [];
+          return (
+            <fieldset class="grid gap-2">
+              <legend class="text-base" tabindex="-1">{index + 1}. {question.stem}</legend>
+              {choices.map((choice, choiceIndex) => (
+                <label class="w-full cursor-pointer rounded-kontrol border border-garis bg-kartu px-3 has-checked:border-jalur has-checked:bg-jalur-lembut">
+                  <input type="radio" name={`jawaban-${index}`} value={choiceIndex} required />
+                  <span>{choice}</span>
+                </label>
+              ))}
+            </fieldset>
+          );
+        })}
+        {questions.length > 1 && !result && (
+          <button class="w-full rounded-kontrol border border-garis bg-kartu min-[768px]:w-auto" type="button" data-lanjut hidden>Berikutnya</button>
+        )}
+        <button class="w-full rounded-kontrol bg-jalur px-4 text-white min-[768px]:w-auto" type="submit" data-kirim>Kirim jawaban</button>
+        <p class="text-sm leading-[1.4] text-tinta-lembut">Mengulang jawaban yang sama tidak memakai kredit.</p>
+      </form>
+    )}
+    {quiz && questions.length > 1 && !result && (
+      <script is:inline>
+        (function () {
+          var form = document.querySelector("[data-kuis]");
+          if (!form) return;
+          var sets = Array.prototype.filter.call(form.querySelectorAll("fieldset"), function (node) {
+            return node instanceof HTMLFieldSetElement;
+          });
+          if (sets.length < 2) return;
+          var next = form.querySelector("[data-lanjut]");
+          var send = form.querySelector("[data-kirim]");
+          var index = 0;
+          function paint() {
+            sets.forEach(function (set, item) {
+              set.hidden = item !== index;
+            });
+            if (next) next.hidden = index >= sets.length - 1;
+            if (send) send.hidden = index < sets.length - 1;
+          }
+          if (next) {
+            next.addEventListener("click", function () {
+              var picked = sets[index].querySelector("input:checked");
+              if (!picked) {
+                var first = sets[index].querySelector("input");
+                if (first) first.focus();
+                return;
+              }
+              index += 1;
+              paint();
+              var legend = sets[index] && sets[index].querySelector("legend");
+              if (legend) legend.focus();
+            });
+          }
+          paint();
+        })();
+      </script>
+    )}
+    {explanations.length > 0 && (
+      <section class="mt-6 space-y-3">
+        <h2 class="text-xl">Yang perlu dicek</h2>
+        {explanations.map((item) => (
+          <p>{item.explanation}</p>
+        ))}
+      </section>
+    )}
+    {quiz && (
+      <form class="mt-6" method="post">
+        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        <input type="hidden" name="aksi" value="ulang" />
+        <button class="w-full rounded-kontrol border border-garis bg-kartu min-[768px]:w-auto" type="submit">Susun kuis baru</button>
+        <p class="mt-2 text-sm leading-[1.4] text-tinta-lembut">Memakai {cost} kredit</p>
+      </form>
+    )}
+  </div>
   {quiz && questions.length === 0 && <meta http-equiv="refresh" content="4" />}
 </Shell>

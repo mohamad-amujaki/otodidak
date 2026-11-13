@@ -1,4 +1,7 @@
+import { clerkMiddleware } from '@clerk/astro/server';
+import { env } from 'cloudflare:workers';
 import { defineMiddleware } from 'astro:middleware';
+import { activePublishableKey, clerkHost } from './domain/guard';
 import { cookieHeader, readCookie } from './server/crypto';
 import { isSecure } from './server/security';
 
@@ -9,7 +12,18 @@ export const onRequest = defineMiddleware(async (context, next) => {
   );
   const token = existing ?? crypto.randomUUID();
   context.locals.csrf = token;
-  const response = await next();
+  const publishableKey = activePublishableKey(
+    env.PUBLIC_CLERK_PUBLISHABLE_KEY,
+    env.CLERK_PUBLISHABLE_KEY,
+  );
+  const useClerk =
+    env.CLERK_SECRET_KEY.startsWith('sk_') && Boolean(clerkHost(publishableKey));
+  const response = useClerk
+    ? await clerkMiddleware({ secretKey: env.CLERK_SECRET_KEY, publishableKey })(
+        context,
+        next,
+      )
+    : await next();
   if (!existing) {
     response.headers.append(
       'set-cookie',

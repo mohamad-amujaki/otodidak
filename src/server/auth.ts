@@ -1,4 +1,5 @@
 import { createClerkClient } from '@clerk/backend';
+import { activePublishableKey } from '../domain/guard';
 import {
   decodeBase64Url,
   encodeBase64Url,
@@ -82,22 +83,42 @@ async function readDevSession(
   }
 }
 
+function clerkEmail(user: {
+  primaryEmailAddress: { emailAddress: string } | null;
+  emailAddresses: Array<{ emailAddress: string }>;
+  externalAccounts: Array<{ emailAddress: string; provider: string }>;
+}): string | null {
+  const google = user.externalAccounts.find(
+    (account) => account.provider.includes('google') && account.emailAddress,
+  );
+  return (
+    user.primaryEmailAddress?.emailAddress ||
+    user.emailAddresses.find((item) => item.emailAddress)?.emailAddress ||
+    google?.emailAddress ||
+    user.externalAccounts.find((account) => account.emailAddress)
+      ?.emailAddress ||
+    null
+  );
+}
+
 async function readClerk(request: Request, env: Env): Promise<Identity | null> {
+  const publishableKey = activePublishableKey(
+    env.PUBLIC_CLERK_PUBLISHABLE_KEY,
+    env.CLERK_PUBLISHABLE_KEY,
+  );
   const client = createClerkClient({
     secretKey: env.CLERK_SECRET_KEY,
-    publishableKey: env.CLERK_PUBLISHABLE_KEY,
+    publishableKey,
   });
   const state = await client.authenticateRequest(request, {
     secretKey: env.CLERK_SECRET_KEY,
-    publishableKey: env.CLERK_PUBLISHABLE_KEY,
+    publishableKey,
   });
   if (!state.isAuthenticated) return null;
   const userId = state.toAuth().userId;
   if (!userId) return null;
   const user = await client.users.getUser(userId);
-  const email =
-    user.primaryEmailAddress?.emailAddress ??
-    user.emailAddresses[0]?.emailAddress;
+  const email = clerkEmail(user);
   if (!email) return null;
   const name = user.fullName || user.firstName || email;
   return { clerkUserId: userId, email, name };

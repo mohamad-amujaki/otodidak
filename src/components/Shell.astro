@@ -14,34 +14,89 @@ const { title, balance = null, role = null, suspended = false } = Astro.props;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Platform pembelajaran yang menyusun roadmap belajar otomatis dan menghasilkan konten pelajaran sesuai kebutuhanmu." />
     <title>{title}</title>
   </head>
   <body class="min-h-screen bg-kertas text-tinta">
-    <header class="sticky top-0 z-10 border-b border-garis bg-kertas">
-      <div class="mx-auto flex max-w-5xl items-center gap-2 px-4 py-2">
-        <a class="min-h-11 content-center px-1 text-lg font-semibold" href={role ? '/dasbor' : '/'}>Otodidak</a>
+    <a class="lewati" href="#isi">Langsung ke isi</a>
+    <header class="sticky top-0 z-20 border-b border-garis bg-kertas/95 backdrop-blur-sm">
+      <div class="bingkai relative flex items-center gap-2 py-3">
+        <a class="inline-flex min-h-11 shrink-0 items-center gap-2 px-1 text-xl font-bold text-jalur" href={role ? '/dasbor' : '/'}>
+          <svg class="size-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+          <span>Otodidak</span>
+        </a>
         <div class="ml-auto flex items-center gap-2">
           {balance !== null && (
-            <a class="min-h-11 content-center px-2 text-sm tabular-nums text-tinta-lembut" href="/kredit">{balance} kredit</a>
+            <a class="inline-flex min-h-11 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium tabular-nums whitespace-nowrap shadow-sm transition-all hover:shadow-md hover:border-jalur/30" href="/kredit">
+              <svg class="size-4 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+              </svg>
+              <span class="text-tinta">{balance}</span>
+            </a>
           )}
-          <details class="relative">
-            <summary class="min-h-11 min-w-11 cursor-pointer content-center rounded-kontrol px-3 text-center">Menu</summary>
-            <nav class="absolute right-0 mt-2 flex w-52 flex-col gap-2 rounded-kartu border border-garis bg-kartu p-2">
+          <details class="menu">
+            <summary class="rounded-kontrol border border-garis bg-kartu transition-colors hover:bg-kertas">
+              <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+              <span class="sr-only">Menu</span>
+            </summary>
+            <nav class="menu-lembar rounded-kartu border border-garis bg-kartu shadow-lg" aria-label="Menu">
               {role ? (
                 <>
-                  <a class="min-h-11 content-center rounded-kontrol px-3" href="/dasbor">Dasbor</a>
-                  <a class="min-h-11 content-center rounded-kontrol px-3" href="/pustaka">Pustaka</a>
-                  <a class="min-h-11 content-center rounded-kontrol px-3" href="/kredit">Kredit</a>
-                  <a class="min-h-11 content-center rounded-kontrol px-3" href="/profil">Profil</a>
-                  {role === 'admin' && <a class="min-h-11 content-center rounded-kontrol px-3" href="/admin">Admin</a>}
+                  <a class="group" href="/dasbor">
+                    <svg class="size-5 text-tinta-lembut group-hover:text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                    </svg>
+                    <span>Dasbor</span>
+                  </a>
+                  <a class="group" href="/pustaka">
+                    <svg class="size-5 text-tinta-lembut group-hover:text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+                    </svg>
+                    <span>Pustaka</span>
+                  </a>
+                  <a class="group" href="/kredit">
+                    <svg class="size-5 text-tinta-lembut group-hover:text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                    </svg>
+                    <span>Kredit</span>
+                  </a>
+                  <a class="group" href="/profil">
+                    <svg class="size-5 text-tinta-lembut group-hover:text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    <span>Profil</span>
+                  </a>
+                  {role === 'admin' && (
+                    <a class="group" href="/admin">
+                      <svg class="size-5 text-tinta-lembut group-hover:text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                      </svg>
+                      <span>Admin</span>
+                    </a>
+                  )}
+                  <hr class="border-garis" />
                   <form method="post" action="/profil">
                     <input type="hidden" name="aksi" value="keluar" />
                     <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-                    <button class="min-h-11 w-full rounded-kontrol px-3 text-left" type="submit">Keluar</button>
+                    <button class="group" type="submit">
+                      <svg class="size-5 text-tinta-lembut group-hover:text-bahaya" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      <span>Keluar</span>
+                    </button>
                   </form>
                 </>
               ) : (
-                <a class="min-h-11 content-center rounded-kontrol px-3" href="/masuk">Masuk</a>
+                <a class="group" href="/masuk">
+                  <svg class="size-5 text-tinta-lembut group-hover:text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                  </svg>
+                  <span>Masuk</span>
+                </a>
               )}
             </nav>
           </details>
@@ -49,14 +104,102 @@ const { title, balance = null, role = null, suspended = false } = Astro.props;
       </div>
     </header>
     {suspended && (
-      <p class="mx-auto max-w-5xl px-4 pt-4 text-bahaya">Akun ini ditahan. Materi yang sudah ada tetap bisa dibaca.</p>
+      <div class="bingkai pt-4">
+        <div class="rounded-kontrol border border-bahaya/30 bg-bahaya/10 p-4">
+          <div class="flex items-start gap-3">
+            <svg class="size-5 shrink-0 text-bahaya" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p class="text-sm text-bahaya">Akun ini ditahan. Materi yang sudah ada tetap bisa dibaca.</p>
+          </div>
+        </div>
+      </div>
     )}
-    <main class="mx-auto max-w-5xl px-4 py-6">
+    <main id="isi" class="bingkai min-w-0 py-8 min-[1100px]:py-12">
       <slot />
     </main>
-    <footer class="mx-auto flex max-w-5xl gap-4 px-4 py-8 text-sm text-tinta-lembut">
-      <a class="min-h-11 content-center" href="/privasi">Privasi</a>
-      <a class="min-h-11 content-center" href="/ketentuan">Ketentuan</a>
+    <footer class="border-t border-garis bg-kartu">
+      <div class="bingkai py-8 min-[768px]:py-12">
+        <div class="grid gap-8 min-[768px]:grid-cols-3">
+          <!-- About -->
+          <div>
+            <div class="flex items-center gap-2 text-xl font-bold text-jalur">
+              <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+              <span>Otodidak</span>
+            </div>
+            <p class="mt-3 text-sm leading-relaxed text-tinta-lembut">
+              Platform pembelajaran yang menyusun roadmap belajar otomatis dan menghasilkan konten sesuai kebutuhanmu.
+            </p>
+          </div>
+
+          <!-- Quick Links -->
+          <div>
+            <h3 class="text-sm font-semibold text-tinta">Tautan Cepat</h3>
+            <ul class="mt-3 space-y-2">
+              <li>
+                <a class="inline-flex items-center gap-2 text-sm text-tinta-lembut transition-colors hover:text-jalur" href="/">
+                  <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                  <span>Beranda</span>
+                </a>
+              </li>
+              {role && (
+                <>
+                  <li>
+                    <a class="inline-flex items-center gap-2 text-sm text-tinta-lembut transition-colors hover:text-jalur" href="/dasbor">
+                      <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                      </svg>
+                      <span>Dasbor</span>
+                    </a>
+                  </li>
+                  <li>
+                    <a class="inline-flex items-center gap-2 text-sm text-tinta-lembut transition-colors hover:text-jalur" href="/pustaka">
+                      <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                      </svg>
+                      <span>Pustaka</span>
+                    </a>
+                  </li>
+                </>
+              )}
+            </ul>
+          </div>
+
+          <!-- Legal -->
+          <div>
+            <h3 class="text-sm font-semibold text-tinta">Legal</h3>
+            <ul class="mt-3 space-y-2">
+              <li>
+                <a class="inline-flex items-center gap-2 text-sm text-tinta-lembut transition-colors hover:text-jalur" href="/privasi">
+                  <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                  <span>Privasi</span>
+                </a>
+              </li>
+              <li>
+                <a class="inline-flex items-center gap-2 text-sm text-tinta-lembut transition-colors hover:text-jalur" href="/ketentuan">
+                  <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                  <span>Ketentuan</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <hr class="my-8 border-garis" />
+
+        <div class="flex flex-col items-center justify-between gap-4 text-center text-sm text-tinta-lembut min-[768px]:flex-row min-[768px]:text-left">
+          <p>&copy; {new Date().getFullYear()} Otodidak. Semua hak dilindungi.</p>
+          <p>Dibuat dengan ❤️ untuk pembelajaran mandiri</p>
+        </div>
+      </div>
     </footer>
   </body>
 </html>

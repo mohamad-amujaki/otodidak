@@ -53,29 +53,141 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 ---
 <Shell title="Profil" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
-  <h1 class="text-[1.75rem] leading-[1.25]">Profil</h1>
-  <p class="mt-2">{user.name}</p>
-  <p class="text-sm text-tinta-lembut">{user.email}</p>
-  {message && <p class="mt-3 text-sm">{message}</p>}
-  <form class="mt-6" method="post">
-    <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-    <input type="hidden" name="aksi" value="runtun" />
-    <input type="hidden" name="enabled" value={enabled ? '0' : '1'} />
-    <button class="inline-flex min-h-11 items-center rounded-kontrol border border-garis px-3" type="submit">{enabled ? 'Matikan hitungan hari' : 'Nyalakan hitungan hari'}</button>
-  </form>
-  <p class="mt-2 text-sm text-tinta-lembut">Hitungan yang dimatikan tidak berubah dan tidak ditampilkan.</p>
-  {user.deletionRequestedAt ? (
-    <p class="mt-6 text-sm">Permintaan penghapusan sudah dikirim.</p>
-  ) : (
-    <form class="mt-6" method="post">
-      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-      <input type="hidden" name="aksi" value="hapus" />
-      <button class="inline-flex min-h-11 items-center rounded-kontrol border border-garis px-3" type="submit">Minta hapus materi belajar</button>
-    </form>
-  )}
-  <form class="mt-6" method="post">
-    <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-    <input type="hidden" name="aksi" value="keluar" />
-    <button class="inline-flex min-h-11 items-center rounded-kontrol px-3" type="submit">Keluar</button>
-  </form>
+  <div class="mx-auto max-w-3xl">
+    <h1 class="judul">Profil</h1>
+    <p class="mt-2 text-tinta-lembut">Kelola informasi akun dan preferensi belajarmu</p>
+
+    {message && (
+      <div class="mt-6 rounded-kontrol border border-jalur/30 bg-jalur-lembut p-4">
+        <div class="flex gap-3">
+          <svg class="size-5 shrink-0 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p class="text-sm text-tinta">{message}</p>
+        </div>
+      </div>
+    )}
+
+    <!-- Account Information Card -->
+    <section class="mt-6 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+      <div class="flex items-start gap-4">
+        <div class="flex size-16 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-2xl font-bold text-jalur">
+          {user.name.charAt(0).toUpperCase()}
+        </div>
+        <div class="min-w-0 flex-1">
+          <h2 class="text-xl font-bold text-tinta">{user.name}</h2>
+          <p class="mt-1 break-all text-sm text-tinta-lembut">{user.email}</p>
+          <div class="mt-3 flex items-center gap-2">
+            <svg class="size-4 text-jalur" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
+            </svg>
+            <span class="text-sm text-tinta-lembut">Terhubung dengan Google</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Learning Preferences Card -->
+    <section class="mt-6 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+      <div class="mb-4 flex items-start gap-3">
+        <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+          <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-lg font-bold text-tinta">Preferensi Belajar</h2>
+          <p class="mt-1 text-sm text-tinta-lembut">Atur cara kamu ingin melacak progres belajar</p>
+        </div>
+      </div>
+
+      <form method="post">
+        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        <input type="hidden" name="aksi" value="runtun" />
+        <input type="hidden" name="enabled" value={enabled ? '0' : '1'} />
+        <button class="flex w-full items-center justify-between gap-3 rounded-kontrol border border-garis bg-kertas/50 p-4 text-left transition-colors hover:bg-kertas" type="submit">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <svg class="size-5 text-hangat" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
+              </svg>
+              <span class="font-medium text-tinta">Hitung hari belajar</span>
+            </div>
+            <p class="mt-1 text-sm text-tinta-lembut">Lacak runtun belajar harianmu untuk motivasi</p>
+          </div>
+          <div class="flex shrink-0 items-center gap-3">
+            <span class="text-sm font-medium text-tinta">{enabled ? 'Nyala' : 'Mati'}</span>
+            <span class:list={["relative h-7 w-12 shrink-0 rounded-full border-2 transition-colors", enabled ? "border-jalur bg-jalur" : "border-garis bg-kertas"]}>
+              <span class:list={["absolute top-1/2 size-5 -translate-y-1/2 rounded-full bg-kartu shadow-sm transition-all", enabled ? "right-0.5" : "left-0.5"]}></span>
+            </span>
+          </div>
+        </button>
+      </form>
+      <p class="mt-3 text-sm leading-relaxed text-tinta-lembut">Hitungan yang dimatikan tidak berubah dan tidak ditampilkan di dashboard.</p>
+    </section>
+
+    <!-- Account Actions Card -->
+    <section class="mt-6 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+      <div class="mb-4 flex items-start gap-3">
+        <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-bahaya/10 text-bahaya">
+          <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-lg font-bold text-tinta">Aksi Akun</h2>
+          <p class="mt-1 text-sm text-tinta-lembut">Kelola akun dan data akunmu</p>
+        </div>
+      </div>
+
+      {user.deletionRequestedAt ? (
+        <div class="rounded-kontrol border border-bahaya/30 bg-bahaya/10 p-4">
+          <div class="flex items-start gap-3">
+            <svg class="size-5 shrink-0 text-bahaya" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <p class="font-medium text-bahaya">Permintaan Penghapusan Terkirim</p>
+              <p class="mt-1 text-sm text-bahaya/80">Admin akan memproses permintaanmu segera.</p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <form method="post">
+          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+          <input type="hidden" name="aksi" value="hapus" />
+          <button 
+            class="inline-flex min-h-11 items-center gap-2 rounded-kontrol border border-bahaya/30 bg-bahaya/5 px-6 font-medium text-bahaya transition-all hover:bg-bahaya/10 hover:border-bahaya" 
+            type="submit"
+          >
+            <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            <span>Minta Hapus Akun</span>
+          </button>
+          <p class="mt-3 text-sm leading-relaxed text-tinta-lembut">
+            Jalur dihapus setelah admin memproses. Catatan pembayaran tetap disimpan sesuai regulasi.
+          </p>
+        </form>
+      )}
+
+      <hr class="my-6 border-garis" />
+
+      <form method="post">
+        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        <input type="hidden" name="aksi" value="keluar" />
+        <button 
+          class="inline-flex min-h-11 items-center gap-2 rounded-kontrol border border-garis bg-kartu px-6 font-medium text-tinta transition-all hover:bg-kertas hover:border-tinta-lembut" 
+          type="submit"
+        >
+          <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          <span>Keluar</span>
+        </button>
+      </form>
+    </section>
+  </div>
 </Shell>

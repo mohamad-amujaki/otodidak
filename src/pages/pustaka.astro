@@ -32,29 +32,165 @@ const paths =
     : [];
 ---
 <Shell title="Pustaka" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
-  <h1 class="text-[1.75rem] leading-[1.25]">Pustaka</h1>
-  {message && <p class="mt-3 text-sm text-bahaya">{message}</p>}
+  <!-- Header Section -->
+  <div class="mb-6 flex flex-col gap-4 min-[768px]:flex-row min-[768px]:items-center min-[768px]:justify-between">
+    <div>
+      <h1 class="judul">Pustaka</h1>
+      <p class="mt-1 text-tinta-lembut">
+        {paths.length === 0 ? 'Koleksi jalur pembelajaran kosong' : `${paths.length} jalur pembelajaran`}
+      </p>
+    </div>
+    <a 
+      class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110 min-[768px]:w-auto" 
+      href="/dasbor?baru=1"
+    >
+      <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+      </svg>
+      Jalur Baru
+    </a>
+  </div>
+
+  {message && (
+    <div class="mb-6 rounded-kontrol border border-bahaya/30 bg-bahaya/10 p-4">
+      <div class="flex gap-3">
+        <svg class="size-5 shrink-0 text-bahaya" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p class="text-sm text-bahaya">{message}</p>
+      </div>
+    </div>
+  )}
+
   {paths.length === 0 ? (
-    <p class="mt-4">Belum ada jalur. Tulis satu hal yang ingin kamu kuasai.</p>
+    <!-- Empty State -->
+    <div class="rounded-kartu border border-garis bg-kartu p-8 text-center shadow-sm min-[768px]:p-12">
+      <div class="mx-auto flex size-16 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+        <svg class="size-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+        </svg>
+      </div>
+      <h2 class="mt-4 text-xl font-bold text-tinta">Belum Ada Jalur Belajar</h2>
+      <p class="mx-auto mt-2 max-w-md text-tinta-lembut">
+        Mulai perjalanan belajarmu dengan membuat jalur pertama. Tulis topik yang ingin kamu kuasai dan kami akan menyusun roadmap untukmu.
+      </p>
+      <a 
+        class="mt-6 inline-flex min-h-11 items-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110" 
+        href="/dasbor?baru=1"
+      >
+        <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        Buat Jalur Pertama
+      </a>
+    </div>
   ) : (
-    <ul class="mt-4 space-y-3">
+    <!-- Path Cards Grid -->
+    <ul class="grid gap-4 min-[768px]:grid-cols-2 min-[1100px]:grid-cols-3">
       {paths.map((path) => {
         const progress = record(path.progress);
+        const done = Number(progress.done ?? 0);
+        const total = Number(progress.total ?? 0);
+        const percentage = total > 0 ? Math.round((done / total) * 100) : 0;
+        const isActive = path.isActive === true;
+        const isComplete = done === total && total > 0;
+        
+        let progressColor = 'bg-bahaya';
+        if (percentage > 70) progressColor = 'bg-jalur';
+        else if (percentage > 30) progressColor = 'bg-hangat';
+        
+        const headerBg = isActive 
+          ? 'bg-gradient-to-br from-jalur-lembut to-jalur/20' 
+          : 'bg-gradient-to-br from-kertas to-garis/20';
+        const iconStyle = isActive ? 'bg-jalur text-white' : 'bg-kartu text-jalur';
+        
         return (
-          <li class="rounded-kartu border border-garis bg-kartu p-4">
-            <a class="text-lg" href={`/jalur/${String(path.id)}`}>{String(path.title)}</a>
-            <p class="text-sm text-tinta-lembut">{String(progress.done ?? 0)} dari {String(progress.total ?? 0)} pelajaran selesai</p>
-            {path.isActive === true ? <p class="text-sm text-jalur">Jalur aktif</p> : (
-              <form method="post" class="mt-2">
-                <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-                <input type="hidden" name="pathId" value={String(path.id)} />
-                <button class="inline-flex min-h-11 items-center rounded-kontrol border border-garis px-3" type="submit">Aktifkan</button>
-              </form>
-            )}
+          <li class="group flex flex-col overflow-hidden rounded-kartu border border-garis bg-kartu shadow-sm transition-all hover:shadow-md hover:border-jalur/30">
+            <div class={`relative flex h-32 items-center justify-center ${headerBg}`}>
+              <div class={`flex size-16 items-center justify-center rounded-kontrol ${iconStyle} shadow-md`}>
+                <svg class="size-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                </svg>
+              </div>
+              {isActive && (
+                <div class="absolute right-3 top-3">
+                  <div class="flex items-center gap-1 rounded-kontrol bg-jalur px-2 py-1 text-xs font-semibold text-white shadow-md">
+                    <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Aktif
+                  </div>
+                </div>
+              )}
+              {isComplete && !isActive && (
+                <div class="absolute right-3 top-3">
+                  <div class="flex items-center gap-1 rounded-kontrol bg-jalur px-2 py-1 text-xs font-semibold text-white shadow-md">
+                    <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Selesai
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div class="flex flex-1 flex-col p-4">
+              <a class="inline-flex items-start text-lg font-semibold text-tinta transition-colors hover:text-jalur" href={`/jalur/${String(path.id)}`}>
+                {String(path.title)}
+              </a>
+
+              <div class="mt-3">
+                <div class="flex items-center justify-between text-sm">
+                  <span class="text-tinta-lembut">Progress</span>
+                  <span class="font-semibold tabular-nums text-tinta">{percentage}%</span>
+                </div>
+                <div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-kertas">
+                  <div 
+                    class={`h-full transition-all ${progressColor}`}
+                    style={`width: ${percentage}%`}
+                  ></div>
+                </div>
+                <p class="mt-2 text-sm text-tinta-lembut">
+                  {done} dari {total} pelajaran selesai
+                </p>
+              </div>
+
+              <div class="mt-4">
+                {isActive ? (
+                  <a 
+                    class="flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-4 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110" 
+                    href={`/jalur/${String(path.id)}`}
+                  >
+                    <span>Lanjutkan</span>
+                    <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                  </a>
+                ) : (
+                  <div class="flex gap-2">
+                    <a 
+                      class="flex min-h-11 flex-1 items-center justify-center rounded-kontrol border border-garis bg-kartu font-medium text-tinta transition-all hover:bg-kertas" 
+                      href={`/jalur/${String(path.id)}`}
+                    >
+                      Lihat Detail
+                    </a>
+                    <form method="post" class="flex-1">
+                      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                      <input type="hidden" name="pathId" value={String(path.id)} />
+                      <button 
+                        class="w-full min-h-11 rounded-kontrol border border-jalur bg-jalur-lembut font-medium text-jalur transition-all hover:bg-jalur hover:text-white" 
+                        type="submit"
+                      >
+                        Aktifkan
+                      </button>
+                    </form>
+                  </div>
+                )}
+              </div>
+            </div>
           </li>
         );
       })}
     </ul>
   )}
-  <p class="mt-6"><a class="inline-flex min-h-11 items-center text-jalur" href="/dasbor?baru=1">Jalur baru</a></p>
 </Shell>

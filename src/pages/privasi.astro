@@ -2,19 +2,193 @@
 export const prerender = true;
 
 import Shell from '../components/Shell.astro';
+
+const sections = [
+  { id: 'yang-disimpan', title: 'Yang disimpan', icon: 'database' },
+  { id: 'pembayaran', title: 'Pembayaran', icon: 'credit-card' },
+  { id: 'penghapusan', title: 'Penghapusan', icon: 'trash' },
+  { id: 'catatan-teknis', title: 'Catatan teknis', icon: 'code' },
+];
 ---
 <Shell title="Privasi">
-  <article class="max-w-2xl space-y-4">
-    <h1 class="text-[1.75rem] leading-[1.25]">Privasi</h1>
-    <p>Otodidak menyimpan akun, jalur, pelajaran, kuis, dan buku kredit supaya kamu bisa melanjutkan belajar di perangkat lain.</p>
-    <h2 class="text-xl">Yang disimpan</h2>
-    <p>Masuk memakai Google lewat Clerk. Kami menyimpan identitas Clerk, nama, dan email. Topik yang kamu tulis, kerangka jalur, isi pelajaran, sumber yang dipakai, jawaban kuis, dan mutasi kredit disimpan di basis data aplikasi.</p>
-    <p>Kunci penyedia model, pencarian, dan pembayaran tidak disimpan di basis data. Kunci itu ada di secret Worker.</p>
-    <h2 class="text-xl">Pembayaran</h2>
-    <p>Pembelian kredit memakai QRIS lewat Sumopod. Kami menyimpan nomor pesanan, jumlah rupiah, jumlah kredit, dan status. Kode bayar tidak disimpan.</p>
-    <h2 class="text-xl">Penghapusan</h2>
-    <p>Kamu bisa meminta penghapusan materi belajar dari halaman profil. Admin menghapus jalur, pelajaran, kuis, dan pekerjaan penyusunan. Buku kredit dan pesanan tetap ada karena itu catatan pembayaran. Akun tidak otomatis ditahan.</p>
-    <h2 class="text-xl">Catatan teknis</h2>
-    <p>Catatan operasional boleh memuat id pekerjaan, id pengguna, status, dan kode kesalahan. Isi pelajaran, klaim, URL sumber, prompt, kunci, dan isi webhook mentah tidak ditulis ke log.</p>
-  </article>
+  <div class="mx-auto max-w-6xl">
+    <div class="grid gap-8 min-[1024px]:grid-cols-[240px_1fr]">
+      <!-- Sidebar TOC (Desktop) -->
+      <aside class="hidden min-[1024px]:block">
+        <div class="sticky top-20">
+          <nav class="rounded-kartu border border-garis bg-kartu p-4" aria-label="Daftar isi">
+            <p class="mb-3 text-sm font-semibold text-tinta">Daftar Isi</p>
+            <ul class="space-y-1">
+              {sections.map((section) => (
+                <li>
+                  <a 
+                    class="flex items-center gap-2 rounded-kontrol px-3 py-2 text-sm text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta" 
+                    href={`#${section.id}`}
+                  >
+                    <span class="size-1.5 rounded-full bg-jalur"></span>
+                    <span>{section.title}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <article class="min-w-0">
+        <!-- Header -->
+        <header class="mb-8">
+          <div class="flex items-start gap-4">
+            <div class="flex size-14 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+              <svg class="size-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <div class="min-w-0 flex-1">
+              <h1 class="judul">Privasi</h1>
+              <p class="mt-2 text-lg text-tinta-lembut">Terakhir diperbarui: 13 November 2026</p>
+            </div>
+          </div>
+        </header>
+
+        <!-- Mobile TOC -->
+        <details class="daftar mb-6 rounded-kartu border border-garis bg-kartu p-4 min-[1024px]:hidden">
+          <summary class="flex items-center justify-between gap-3 font-medium text-tinta">
+            <span>Daftar Isi</span>
+            <svg class="size-5 shrink-0 text-tinta-lembut" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </summary>
+          <nav class="mt-4" aria-label="Daftar isi">
+            <ul class="space-y-2">
+              {sections.map((section) => (
+                <li>
+                  <a 
+                    class="flex items-center gap-2 rounded-kontrol px-3 py-2 text-sm text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta" 
+                    href={`#${section.id}`}
+                  >
+                    <span class="size-1.5 rounded-full bg-jalur"></span>
+                    <span>{section.title}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </details>
+
+        <!-- Intro -->
+        <div class="prose mb-8 rounded-kartu border border-jalur/20 bg-jalur-lembut/30 p-6">
+          <p class="text-lg leading-relaxed text-tinta">
+            Otodidak menyimpan akun, jalur, pelajaran, kuis, dan buku kredit supaya kamu bisa melanjutkan belajar di perangkat lain. Dokumen ini menjelaskan data apa saja yang kami simpan dan bagaimana kami mengelolanya.
+          </p>
+        </div>
+
+        <!-- Sections -->
+        <div class="space-y-8">
+          <section id="yang-disimpan" class="scroll-mt-6 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+            <div class="mb-4 flex items-start gap-3">
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+                <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                </svg>
+              </div>
+              <div>
+                <h2 class="text-2xl font-bold text-tinta">Yang disimpan</h2>
+              </div>
+            </div>
+            <div class="prose max-w-none space-y-4">
+              <p class="text-base leading-relaxed text-tinta">
+                Masuk memakai Google lewat Clerk. Kami menyimpan identitas Clerk, nama, dan email. Topik yang kamu tulis, kerangka jalur, isi pelajaran, sumber yang dipakai, jawaban kuis, dan mutasi kredit disimpan di basis data aplikasi.
+              </p>
+              <div class="rounded-kontrol border border-garis bg-kertas/50 p-4">
+                <div class="flex items-start gap-3">
+                  <svg class="size-5 shrink-0 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p class="text-sm leading-relaxed text-tinta-lembut">
+                    Kunci penyedia model, pencarian, dan pembayaran tidak disimpan di basis data. Kunci itu ada di secret Worker.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="pembayaran" class="scroll-mt-6 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+            <div class="mb-4 flex items-start gap-3">
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+                <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+              </div>
+              <div>
+                <h2 class="text-2xl font-bold text-tinta">Pembayaran</h2>
+              </div>
+            </div>
+            <div class="prose max-w-none space-y-4">
+              <p class="text-base leading-relaxed text-tinta">
+                Pembelian kredit memakai QRIS lewat Sumopod. Kami menyimpan nomor pesanan, jumlah rupiah, jumlah kredit, dan status. Kode bayar tidak disimpan.
+              </p>
+            </div>
+          </section>
+
+          <section id="penghapusan" class="scroll-mt-6 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+            <div class="mb-4 flex items-start gap-3">
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+                <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <div>
+                <h2 class="text-2xl font-bold text-tinta">Penghapusan</h2>
+              </div>
+            </div>
+            <div class="prose max-w-none space-y-4">
+              <p class="text-base leading-relaxed text-tinta">
+                Kamu bisa meminta penghapusan materi belajar dari halaman profil. Admin menghapus jalur, pelajaran, kuis, dan pekerjaan penyusunan. Buku kredit dan pesanan tetap ada karena itu catatan pembayaran. Akun tidak otomatis ditahan.
+              </p>
+            </div>
+          </section>
+
+          <section id="catatan-teknis" class="scroll-mt-6 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+            <div class="mb-4 flex items-start gap-3">
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+                <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                </svg>
+              </div>
+              <div>
+                <h2 class="text-2xl font-bold text-tinta">Catatan teknis</h2>
+              </div>
+            </div>
+            <div class="prose max-w-none space-y-4">
+              <p class="text-base leading-relaxed text-tinta">
+                Catatan operasional boleh memuat id pekerjaan, id pengguna, status, dan kode kesalahan. Isi pelajaran, klaim, URL sumber, prompt, kunci, dan isi webhook mentah tidak ditulis ke log.
+              </p>
+            </div>
+          </section>
+        </div>
+
+        <!-- Contact Section -->
+        <div class="mt-8 rounded-kartu border border-garis bg-gradient-to-br from-jalur-lembut/50 to-kartu p-6 text-center">
+          <h3 class="text-lg font-bold text-tinta">Ada pertanyaan tentang privasi?</h3>
+          <p class="mt-2 text-sm text-tinta-lembut">Hubungi kami melalui halaman profil atau support.</p>
+        </div>
+      </article>
+    </div>
+  </div>
 </Shell>
+
+<style>
+  .prose {
+    max-width: 100%;
+  }
+
+  @media (min-width: 1024px) {
+    aside nav a.active {
+      background: var(--color-kertas);
+      color: var(--color-tinta);
+      font-weight: 500;
+    }
+  }
+</style>

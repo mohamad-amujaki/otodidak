@@ -1,0 +1,46 @@
+---
+import PathMark from './PathMark.astro';
+
+interface LessonLink {
+  id: string;
+  title: string;
+}
+interface ChapterLink {
+  id: string;
+  title: string;
+  lessons: LessonLink[];
+}
+interface Props {
+  pathId: string;
+  chapters: ChapterLink[];
+  currentLessonId?: string;
+  onPath?: boolean;
+}
+const { pathId, chapters, currentLessonId, onPath = false } = Astro.props;
+---
+<ol>
+  {chapters.map((chapter, index) => (
+    <li class="flex gap-3">
+      <PathMark last={index === chapters.length - 1} />
+      <div class:list={["min-w-0", index < chapters.length - 1 && "pb-4"]}>
+        <a class="flex min-h-11 min-w-0 items-center break-words py-1 font-medium" href={onPath ? `#bab-${chapter.id}` : `/jalur/${pathId}#bab-${chapter.id}`}>{chapter.title}</a>
+        {chapter.lessons.length > 0 && (
+          <ul>
+            {chapter.lessons.map((lesson) => (
+              <li>
+                <a
+                  class:list={[
+                    "flex min-h-11 min-w-0 items-center break-words py-1 text-sm leading-[1.4]",
+                    lesson.id === currentLessonId ? "font-medium text-tinta" : "text-tinta-lembut",
+                  ]}
+                  href={`/jalur/${pathId}/pelajaran/${lesson.id}`}
+                  aria-current={lesson.id === currentLessonId ? "page" : undefined}
+                >{lesson.title}</a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </li>
+  ))}
+</ol>

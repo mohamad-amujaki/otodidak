@@ -6,6 +6,16 @@ export function record(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
 }
 
+export function activePublishableKey(
+  ...candidates: Array<string | undefined>
+): string {
+  return (
+    candidates.find((key) => Boolean(key && clerkHost(key))) ??
+    candidates.find((key) => Boolean(key)) ??
+    ''
+  );
+}
+
 export function clerkHost(publishableKey: string): string | null {
   const prefix = publishableKey.startsWith('pk_live_')
     ? 'pk_live_'

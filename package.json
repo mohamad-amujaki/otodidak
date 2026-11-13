@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.4.7",
+    "@clerk/astro": "^4.1.23",
     "@clerk/backend": "^3.28.0",
     "@tailwindcss/vite": "^4.3.5",
     "astro": "^7.4.11",
@@ -35,5 +36,8 @@
     "typescript": "^7.0.2",
     "vitest": "^5.1.0",
     "wrangler": "^4.161.0"
+  },
+  "allowScripts": {
+    "puppeteer@25.17.0": true
   }
 }

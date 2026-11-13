@@ -41,36 +41,217 @@ const cost = typeof config.costRoadmap === 'number' ? config.costRoadmap : 6;
 const showForm = !activePath || Astro.url.searchParams.has('baru');
 ---
 <Shell title="Dasbor" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
-  <h1 class="text-[1.75rem] leading-[1.25] min-[1100px]:text-[2.25rem] min-[1100px]:leading-[1.2]">Dasbor</h1>
-  {activeJob && <p class="mt-4">Menyusun jalur.</p>}
-  {activePath && nextLesson ? (
-    <article class="mt-4 flex gap-3 rounded-kartu border border-garis bg-kartu p-4">
-      <span class="w-1 shrink-0 rounded-full bg-hangat-lembut"></span>
-      <div>
-        <p class="text-sm text-hangat">{String(activePath.title)}</p>
-        <h2 class="text-xl">{String(nextLesson.title)}</h2>
-        <p class="text-sm text-tinta-lembut">{minuteLabel(minutes)}</p>
-        <a class="mt-3 inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-white" href={`/jalur/${String(activePath.id)}/pelajaran/${String(nextLesson.id)}`}>Lanjut</a>
+  <!-- Header -->
+  <div class="mb-6">
+    <h1 class="judul">Dasbor</h1>
+    <p class="mt-2 text-tinta-lembut">Selamat datang kembali, {user.name}</p>
+  </div>
+
+  {message && (
+    <div class="mb-6 rounded-kontrol border border-bahaya/30 bg-bahaya/10 p-4">
+      <div class="flex gap-3">
+        <svg class="size-5 shrink-0 text-bahaya" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p class="text-sm text-bahaya">{message}</p>
+      </div>
+    </div>
+  )}
+
+  {activeJob && (
+    <div class="mb-6 rounded-kartu border border-jalur/30 bg-jalur-lembut p-6 shadow-sm">
+      <div class="flex items-start gap-4">
+        <div class="flex size-12 shrink-0 items-center justify-center rounded-kontrol bg-kartu">
+          <svg class="size-6 animate-spin text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-lg font-semibold text-tinta">Menyusun jalur</h2>
+          <p class="mt-1 text-sm text-tinta-lembut">Tunggu sebentar, kami sedang membuat roadmap belajarmu...</p>
+        </div>
+      </div>
+    </div>
+  )}
+
+  <!-- Active Learning Card -->
+  {activePath && nextLesson && (
+    <article class="mb-6 overflow-hidden rounded-kartu border border-garis bg-gradient-to-br from-kartu to-jalur-lembut/30 shadow-sm transition-shadow hover:shadow-md">
+      <div class="border-l-4 border-l-jalur p-6">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <svg class="size-5 shrink-0 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span class="text-sm font-medium text-jalur">Jalur Aktif</span>
+            </div>
+            <h2 class="mt-2 text-xl font-bold text-tinta">{String(activePath.title)}</h2>
+            <h3 class="mt-3 text-lg font-semibold text-tinta">Lanjutkan: {String(nextLesson.title)}</h3>
+            <div class="mt-2 flex items-center gap-2 text-sm text-tinta-lembut">
+              <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{minuteLabel(minutes)}</span>
+            </div>
+          </div>
+        </div>
+        <a 
+          class="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110 min-[768px]:w-auto" 
+          href={`/jalur/${String(activePath.id)}/pelajaran/${String(nextLesson.id)}`}
+        >
+          <span>Lanjut Belajar</span>
+          <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          </svg>
+        </a>
       </div>
     </article>
-  ) : !activeJob && (
-    <p class="mt-4">Belum ada jalur. Tulis satu hal yang ingin kamu kuasai.</p>
   )}
-  {streak && (
-    <p class="mt-4 text-sm text-tinta-lembut">{lines.join(' ')}</p>
+
+  <!-- Empty State -->
+  {!activePath && !activeJob && (
+    <div class="mb-6 rounded-kartu border border-garis bg-kartu p-8 text-center shadow-sm">
+      <div class="mx-auto flex size-16 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+        <svg class="size-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+      </div>
+      <h2 class="mt-4 text-xl font-bold text-tinta">Belum ada jalur belajar</h2>
+      <p class="mt-2 text-tinta-lembut">Tulis satu hal yang ingin kamu kuasai dan mulai perjalanan belajarmu.</p>
+    </div>
   )}
-  <p class="mt-4"><a class="text-jalur" href="/kredit">Isi kredit</a></p>
-  {message && <p class="mt-3 text-sm text-bahaya">{message}</p>}
+
+  <!-- Streak Display -->
+  {streak && lines.length > 0 && (
+    <div class="mb-6 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+      <div class="flex items-start gap-3">
+        <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-hangat-lembut text-hangat">
+          <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
+          </svg>
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="font-medium text-tinta">Runtun Belajar</p>
+          <p class="mt-1 text-sm leading-relaxed text-tinta-lembut">{lines.join(' ')}</p>
+        </div>
+      </div>
+    </div>
+  )}
+
+  <!-- Quick Actions -->
+  <div class="mb-6 grid gap-4 min-[768px]:grid-cols-2">
+    <a 
+      class="flex items-center gap-4 rounded-kartu border border-garis bg-kartu p-4 shadow-sm transition-all hover:shadow-md hover:border-jalur/30" 
+      href="/kredit"
+    >
+      <div class="flex size-12 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+        <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+        </svg>
+      </div>
+      <div class="min-w-0 flex-1">
+        <p class="font-semibold text-tinta">Isi Kredit</p>
+        <p class="text-sm text-tinta-lembut">Beli lebih banyak kredit</p>
+      </div>
+      <svg class="size-5 shrink-0 text-tinta-lembut" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+      </svg>
+    </a>
+
+    <a 
+      class="flex items-center gap-4 rounded-kartu border border-garis bg-kartu p-4 shadow-sm transition-all hover:shadow-md hover:border-jalur/30" 
+      href="/pustaka"
+    >
+      <div class="flex size-12 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+        <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+        </svg>
+      </div>
+      <div class="min-w-0 flex-1">
+        <p class="font-semibold text-tinta">Pustaka</p>
+        <p class="text-sm text-tinta-lembut">Lihat semua jalur belajar</p>
+      </div>
+      <svg class="size-5 shrink-0 text-tinta-lembut" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+      </svg>
+    </a>
+  </div>
+
+  <!-- New Path Form -->
   {showForm && (
-    <form class="mt-6 max-w-xl" method="post">
-      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-      <label class="block" for="topic">Apa yang ingin kamu pelajari?</label>
-      <p class="text-sm text-tinta-lembut" id="topic-help">Satu kalimat cukup.</p>
-      <textarea class="mt-2 min-h-28 w-full rounded-kontrol border border-garis bg-kartu px-3 py-2" id="topic" name="topic" maxlength="280" required aria-describedby="topic-help"></textarea>
-      <button class="mt-3 inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-white disabled:opacity-60" type="submit" disabled={Boolean(activeJob)}>Susun jalur</button>
-      <p class="mt-2 text-sm text-tinta-lembut">Memakai {cost} kredit</p>
-    </form>
+    <div class="rounded-kartu border border-garis bg-kartu p-6 shadow-sm min-[768px]:p-8">
+      <div class="mb-4 flex items-start gap-3">
+        <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+          <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-lg font-bold text-tinta">Buat Jalur Baru</h2>
+          <p class="mt-1 text-sm text-tinta-lembut">Ceritakan topik yang ingin kamu pelajari</p>
+        </div>
+      </div>
+      <form class="mt-6" method="post">
+        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        <label class="block text-sm font-medium text-tinta" for="topic">Apa yang ingin kamu pelajari?</label>
+        <p class="mt-1 text-sm text-tinta-lembut" id="topic-help">Satu kalimat cukup. Contoh: "Cara menanam kopi di rumah"</p>
+        <textarea 
+          class="mt-3 min-h-28 rounded-kontrol border border-garis bg-kartu py-3 px-4 text-base transition-colors focus:border-jalur focus:ring-2 focus:ring-jalur/20" 
+          id="topic" 
+          name="topic" 
+          maxlength="280" 
+          required 
+          aria-describedby="topic-help"
+          placeholder="Tulis topik yang ingin kamu pelajari..."
+        ></textarea>
+        <div class="mt-4 flex flex-col items-start gap-3 min-[768px]:flex-row min-[768px]:items-center min-[768px]:justify-between">
+          <div class="flex items-center gap-2 text-sm text-tinta-lembut">
+            <svg class="size-5 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>Memakai <strong class="font-semibold text-tinta">{cost} kredit</strong></span>
+          </div>
+          <button 
+            class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed min-[768px]:w-auto" 
+            type="submit" 
+            disabled={Boolean(activeJob)}
+          >
+            {activeJob ? (
+              <>
+                <svg class="size-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Menyusun...</span>
+              </>
+            ) : (
+              <>
+                <span>Susun Jalur</span>
+                <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
   )}
-  {activePath && !showForm && <p class="mt-6"><a class="inline-flex min-h-11 items-center" href="/dasbor?baru=1">Jalur baru</a></p>}
+
+  {activePath && !showForm && (
+    <div class="text-center">
+      <a 
+        class="inline-flex min-h-11 items-center gap-2 rounded-kontrol border border-garis bg-kartu px-6 font-medium text-jalur shadow-sm transition-all hover:shadow-md hover:border-jalur" 
+        href="/dasbor?baru=1"
+      >
+        <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        <span>Buat Jalur Baru</span>
+      </a>
+    </div>
+  )}
+
   {activeJob && <meta http-equiv="refresh" content="4" />}
 </Shell>

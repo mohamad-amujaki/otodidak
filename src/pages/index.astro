@@ -4,36 +4,145 @@ export const prerender = true;
 import PathMark from '../components/PathMark.astro';
 import Shell from '../components/Shell.astro';
 import { SEED_CONFIG } from '../domain/defaults';
+
+const contoh = [
+  {
+    judul: 'Menyiapkan media',
+    isi: 'Pot, tanah, dan air untuk tanaman kopi di rumah.',
+  },
+  {
+    judul: 'Cahaya dan siram',
+    isi: 'Ritme singkat yang bisa diulang tiap pagi.',
+  },
+  {
+    judul: 'Membaca daun',
+    isi: 'Tanda yang perlu dicek sebelum mengganti kebiasaan.',
+  },
+];
+
+const features = [
+  {
+    icon: 'map',
+    judul: 'Roadmap Otomatis',
+    isi: 'Roadmap disusun lebih dulu dari topik yang kamu tulis, sebelum isi pelajaran dibuat.',
+  },
+  {
+    icon: 'sparkles',
+    judul: 'Konten On-Demand',
+    isi: 'Pelajaran dibuat saat kamu membukanya, disesuaikan dengan kebutuhan belajarmu.',
+  },
+  {
+    icon: 'link',
+    judul: 'Sumber Transparan',
+    isi: 'Sumber tampil di halaman. Klaim tanpa tautan ditandai untuk transparansi penuh.',
+  },
+];
 ---
 <Shell title="Otodidak">
-  <section class="max-w-xl">
-    <h1 class="text-[1.75rem] leading-[1.25] min-[1100px]:text-[2.25rem] min-[1100px]:leading-[1.2]">Susun jalur belajarmu dari satu topik.</h1>
-    <div class="mt-4 space-y-3 text-tinta-lembut">
-      <p>Roadmap disusun lebih dulu, sebelum isi pelajaran ditulis.</p>
-      <p>Pelajaran dibuat saat kamu membukanya.</p>
-      <p>Sumber tampil di halaman. Klaim tanpa tautan ditandai.</p>
+  <!-- Hero Section -->
+  <section class="mx-auto max-w-4xl">
+    <div class="text-center">
+      <h1 class="text-4xl font-bold leading-tight tracking-tight text-tinta min-[768px]:text-5xl min-[1100px]:text-6xl">
+        Susun jalur belajarmu dari satu topik
+      </h1>
+      <p class="mx-auto mt-6 max-w-2xl text-lg text-tinta-lembut min-[768px]:text-xl">
+        Platform pembelajaran yang menyusun roadmap belajar otomatis dan menghasilkan konten pelajaran sesuai kebutuhanmu.
+      </p>
+      
+      <!-- CTA -->
+      <div class="mt-8 flex flex-col items-center gap-4 min-[768px]:flex-row min-[768px]:justify-center">
+        <a 
+          class="group inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 text-base font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:brightness-110 focus-visible:ring-2 focus-visible:ring-jalur focus-visible:ring-offset-2 min-[768px]:w-auto min-[768px]:px-8" 
+          href="/masuk"
+        >
+          <svg class="size-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
+          </svg>
+          Masuk dengan Google
+        </a>
+        <div class="flex items-center gap-2 text-sm text-tinta-lembut">
+          <svg class="size-5 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+          </svg>
+          <span class="font-medium tabular-nums">{SEED_CONFIG.signupCredits} kredit awal, tanpa kartu</span>
+        </div>
+      </div>
     </div>
-    <p class="mt-6 text-lg tabular-nums">{SEED_CONFIG.signupCredits} kredit awal, tanpa kartu.</p>
-    <a class="mt-4 inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-white" href="/masuk">Masuk dengan Google</a>
   </section>
-  <section class="mt-10 max-w-xl" aria-label="Contoh kerangka">
-    <p class="text-sm text-tinta-lembut">Contoh kerangka, bukan jalur sungguhan.</p>
-    <div class="mt-3 flex gap-3">
-      <PathMark />
-      <ol class="space-y-4">
-        <li>
-          <p class="font-medium">Menyiapkan media</p>
-          <p class="text-sm text-tinta-lembut">Pot, tanah, dan air untuk tanaman kopi di rumah.</p>
-        </li>
-        <li>
-          <p class="font-medium">Cahaya dan siram</p>
-          <p class="text-sm text-tinta-lembut">Ritme singkat yang bisa diulang tiap pagi.</p>
-        </li>
-        <li>
-          <p class="font-medium">Membaca daun</p>
-          <p class="text-sm text-tinta-lembut">Tanda yang perlu dicek sebelum mengganti kebiasaan.</p>
-        </li>
+
+  <!-- Features Section -->
+  <section class="mx-auto mt-16 max-w-5xl min-[768px]:mt-20 min-[1100px]:mt-24">
+    <h2 class="text-center text-2xl font-bold text-tinta min-[768px]:text-3xl">Bagaimana Otodidak Bekerja</h2>
+    <div class="mt-10 grid gap-6 min-[768px]:grid-cols-3 min-[768px]:gap-8">
+      {features.map((feature) => (
+        <div class="group rounded-kartu border border-garis bg-kartu p-6 shadow-sm transition-all hover:shadow-md hover:border-jalur/30">
+          <div class="inline-flex size-12 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+            {feature.icon === 'map' && (
+              <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              </svg>
+            )}
+            {feature.icon === 'sparkles' && (
+              <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+              </svg>
+            )}
+            {feature.icon === 'link' && (
+              <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+            )}
+          </div>
+          <h3 class="mt-4 text-lg font-semibold text-tinta">{feature.judul}</h3>
+          <p class="mt-2 text-sm leading-relaxed text-tinta-lembut">{feature.isi}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Example Section -->
+  <section class="mx-auto mt-16 max-w-3xl min-[768px]:mt-20 min-[1100px]:mt-24" aria-label="Contoh kerangka">
+    <div class="rounded-kartu border border-garis bg-kartu p-6 shadow-sm min-[768px]:p-8">
+      <div class="flex items-start gap-3">
+        <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+          <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium leading-[1.4] text-tinta-lembut">Contoh kerangka, bukan jalur sungguhan</p>
+        </div>
+      </div>
+      <ol class="mt-6">
+        {contoh.map((bab, index) => (
+          <li class="flex gap-3">
+            <PathMark last={index === contoh.length - 1} />
+            <div class:list={[index < contoh.length - 1 && "pb-4"]}>
+              <p class="font-semibold text-tinta">{bab.judul}</p>
+              <p class="mt-1 text-sm leading-[1.4] text-tinta-lembut">{bab.isi}</p>
+            </div>
+          </li>
+        ))}
       </ol>
+    </div>
+  </section>
+
+  <!-- Social Proof / Stats Section -->
+  <section class="mx-auto mt-16 max-w-5xl min-[768px]:mt-20 min-[1100px]:mt-24">
+    <div class="rounded-kartu border border-garis bg-gradient-to-br from-jalur-lembut to-kartu p-8 text-center shadow-sm min-[768px]:p-12">
+      <h2 class="text-2xl font-bold text-tinta min-[768px]:text-3xl">Mulai Perjalanan Belajarmu</h2>
+      <p class="mx-auto mt-4 max-w-2xl text-lg text-tinta-lembut">
+        Platform pembelajaran yang fleksibel dan transparan, dirancang untuk mendukung gaya belajar mandirimu.
+      </p>
+      <a 
+        class="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-kontrol bg-jalur px-8 text-base font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:brightness-110 focus-visible:ring-2 focus-visible:ring-jalur focus-visible:ring-offset-2" 
+        href="/masuk"
+      >
+        <svg class="size-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
+        </svg>
+        Mulai Sekarang
+      </a>
     </div>
   </section>
 </Shell>

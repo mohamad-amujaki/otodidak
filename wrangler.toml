@@ -22,6 +22,8 @@ run_worker_first = true
 # Ganti sebelum produksi. Nilai lokal ditimpa .dev.vars.
 [vars]
 CLERK_PUBLISHABLE_KEY = "pk_test_mock"
+# Astro reads this name. An empty value stays out of the way until .dev.vars overrides it.
+PUBLIC_CLERK_PUBLISHABLE_KEY = ""
 APP_ORIGIN = "http://localhost:8787"
 
 [secrets]
