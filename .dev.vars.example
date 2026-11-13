@@ -1,6 +1,7 @@
 CLERK_SECRET_KEY=mock
 BOOTSTRAP_ADMIN_EMAIL=admin@example.com
-# Opsional: email dipisah koma. Kosong = hanya BOOTSTRAP_ADMIN_EMAIL yang superadmin.
+# Email dipisah koma yang boleh akses /admin/ai, paket, dll. (superadmin).
+# Kosong = hanya BOOTSTRAP_ADMIN_EMAIL yang dianggap superadmin.
 SUPERADMIN_EMAILS=
 # Ganti mock dengan API key sandbox Sumopod untuk QRIS transfer nyata.
 SUMOPOD_API_KEY=mock

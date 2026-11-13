@@ -15,6 +15,12 @@ if (button instanceof HTMLButtonElement) {
   ready(key, host)
     .then(async (clerk) => {
       await clerk.load();
+      const signOut =
+        new URLSearchParams(window.location.search).get('keluar') === '1';
+      if (signOut) {
+        await clerk.signOut();
+        window.history.replaceState({}, '', '/masuk');
+      }
       if (signedIn(clerk)) {
         window.location.assign('/dasbor');
         return;
