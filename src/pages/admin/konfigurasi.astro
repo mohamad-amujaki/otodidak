@@ -33,7 +33,12 @@ const groupKeys = Object.keys(
 <AdminShell title="Konfigurasi" section="konfigurasi" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav}>
   <h1 class="judul">Konfigurasi produk</h1>
   <p class="mt-2 text-sm text-tinta-lembut">Batas konten, biaya kredit, dan onboarding untuk semua pengguna.</p>
-  {message && <AdminAlert message={message} tone="success" />}
+  {message && (
+    <AdminAlert
+      message={message}
+      tone={/gagal|invalid|tidak valid/i.test(message) ? 'danger' : 'success'}
+    />
+  )}
 
   <form class="mt-8 grid gap-6 min-[900px]:grid-cols-2" method="post">
     <input type="hidden" name="csrf" value={Astro.locals.csrf} />

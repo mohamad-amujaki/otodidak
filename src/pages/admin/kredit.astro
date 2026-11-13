@@ -3,6 +3,7 @@ import { env } from 'cloudflare:workers';
 import AdminPagination from '../../components/AdminPagination.astro';
 import AdminShell from '../../components/AdminShell.astro';
 import AdminBadge from '../../components/admin/AdminBadge.astro';
+import AdminEmptyState from '../../components/admin/AdminEmptyState.astro';
 import {
   ledgerReasonLabels,
   orderStatusLabels,
@@ -84,7 +85,11 @@ const ledgerExportHref = '/api/admin/ledger/export';
   <div class="flex flex-col gap-3 min-[768px]:flex-row min-[768px]:items-end min-[768px]:justify-between">
     <div>
       <h1 class="judul">Kredit & pesanan</h1>
-      <p class="mt-2 text-sm text-tinta-lembut">Buku besar global dan pesanan kredit.</p>
+      <p class="mt-2 text-sm text-tinta-lembut">
+        {tab === 'buku'
+          ? `Buku besar global · ${ledgerTotal} baris`
+          : `Pesanan kredit · ${ordersTotal} total`}
+      </p>
     </div>
     <a
       class="inline-flex min-h-10 items-center justify-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40 hover:bg-kertas"
@@ -133,7 +138,7 @@ const ledgerExportHref = '/api/admin/ledger/export';
 
   {tab === 'buku' && (
     entries.length === 0 ? (
-      <p class="mt-6 text-sm text-tinta-lembut">Belum ada baris.</p>
+      <AdminEmptyState message="Belum ada baris buku besar." resetHref="/admin/kredit?tab=buku" resetLabel="Muat ulang" />
     ) : (
       <div class="mt-6 overflow-hidden rounded-kartu border border-garis bg-kartu">
         <div class="hidden min-[900px]:grid min-[900px]:grid-cols-[7rem_minmax(0,1fr)_minmax(0,1.2fr)_5rem_auto] min-[900px]:gap-2 min-[900px]:border-b min-[900px]:border-garis min-[900px]:bg-kertas/50 min-[900px]:px-4 min-[900px]:py-2 min-[900px]:text-xs min-[900px]:font-medium min-[900px]:text-tinta-lembut">
@@ -170,7 +175,10 @@ const ledgerExportHref = '/api/admin/ledger/export';
 
   {tab === 'pesanan' && (
     orders.length === 0 ? (
-      <p class="mt-6 text-sm text-tinta-lembut">Belum ada pesanan.</p>
+      <AdminEmptyState
+        message={orderStatus ? 'Tidak ada pesanan untuk filter ini.' : 'Belum ada pesanan.'}
+        resetHref="/admin/kredit?tab=pesanan"
+      />
     ) : (
       <div class="mt-6 overflow-hidden rounded-kartu border border-garis bg-kartu">
         <ul class="divide-y divide-garis text-sm">

@@ -45,6 +45,48 @@ function jobStatusTone(status: string) {
   <h1 class="judul">Antrean generasi</h1>
   <p class="mt-2 text-sm text-tinta-lembut">Job roadmap, pelajaran, dan kuis · {total} total</p>
 
+  <nav class="mt-4 flex flex-wrap gap-2" aria-label="Filter cepat">
+    <a
+      class:list={[
+        'inline-flex min-h-9 items-center rounded-kontrol px-3 text-sm font-medium',
+        !jobStatus && !jobKind ? 'bg-jalur-lembut text-jalur' : 'border border-garis text-tinta-lembut hover:bg-kartu',
+      ]}
+      href="/admin/antrean"
+    >
+      Semua
+    </a>
+    <a
+      class:list={[
+        'inline-flex min-h-9 items-center gap-1.5 rounded-kontrol px-3 text-sm font-medium',
+        jobStatus === 'failed' ? 'border border-bahaya/40 bg-bahaya/10 text-bahaya' : 'border border-garis text-tinta hover:bg-kartu',
+      ]}
+      href="/admin/antrean?jobStatus=failed"
+    >
+      Gagal
+      {auth.nav.jobsFailed > 0 && (
+        <span class="rounded-full bg-bahaya/15 px-1.5 text-[11px] font-semibold tabular-nums">{auth.nav.jobsFailed}</span>
+      )}
+    </a>
+    <a
+      class:list={[
+        'inline-flex min-h-9 items-center rounded-kontrol px-3 text-sm font-medium',
+        jobStatus === 'queued' ? 'bg-hangat-lembut text-hangat' : 'border border-garis text-tinta-lembut hover:bg-kartu',
+      ]}
+      href="/admin/antrean?jobStatus=queued"
+    >
+      Antrean
+    </a>
+    <a
+      class:list={[
+        'inline-flex min-h-9 items-center rounded-kontrol px-3 text-sm font-medium',
+        jobStatus === 'running' ? 'bg-hangat-lembut text-hangat' : 'border border-garis text-tinta-lembut hover:bg-kartu',
+      ]}
+      href="/admin/antrean?jobStatus=running"
+    >
+      Berjalan
+    </a>
+  </nav>
+
   <form method="get" class="mt-6 flex flex-wrap items-end gap-2">
     <label class="text-sm">
       <span class="font-medium">Status</span>
