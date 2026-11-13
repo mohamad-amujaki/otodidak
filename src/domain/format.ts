@@ -14,6 +14,16 @@ export function formatWhen(iso: string): string {
   }).format(new Date(iso));
 }
 
+export function formatWhenShort(iso: string): string {
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Jakarta',
+  }).format(new Date(iso));
+}
+
 export function minuteLabel(minutes: number): string {
   return `Sekitar ${minutes} menit`;
 }
