@@ -2,20 +2,15 @@ import { and, asc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { z } from 'zod';
 import { debitIfEnough } from '../billing/ledger';
-import { createQrisPayment } from '../billing/sumopod';
-import { signSvix, verifySvix } from '../billing/webhook';
 import {
   aiModels,
   aiProviders,
   appConfig,
   chapters,
-  creditLedger,
-  creditOrders,
   creditPacks,
   generationJobs,
   lessons,
   paths,
-  paymentEvents,
   promptTemplates,
   quizAttempts,
   quizQuestions,
@@ -42,10 +37,8 @@ import {
   streakSchema,
   taskSchema,
   topicSchema,
-  webhookSchema,
 } from '../domain/schemas';
-import { applyStreak } from '../domain/streak';
-import { jakartaDate, nowIso } from '../domain/time';
+import { nowIso } from '../domain/time';
 import {
   balanceOf,
   database,
@@ -69,6 +62,11 @@ import {
 import { adminLedgerExportCsv, adminOrdersExportCsv } from './admin-export';
 import { readAdminQuery } from './admin-list';
 import { DEV_COOKIE, devIdentityFor, identify, signDevSession } from './auth';
+import {
+  createCreditPackOrder,
+  fetchUserCreditOrder,
+  simulateDevPaymentCompletion,
+} from './credit-orders-service';
 import { creditsPayload, readCreditsQuery } from './credits-page';
 import { cookieHeader, readCookie, timingSafeEqual } from './crypto';
 import {
@@ -78,10 +76,12 @@ import {
   suggestChapterLesson,
 } from './generation';
 import { ledgerExportCsv } from './ledger-enrich';
+import { completeLesson } from './lesson-actions';
 import { logEvent } from './log';
-import { requestAppOrigin } from './origin';
 import { saveOutline } from './outline-save';
-import { allowWebhookIp } from './rate';
+import { ownedLesson } from './owned';
+import { handlePaymentWebhook } from './payment-webhook';
+import { submitQuizAttempt } from './quiz-actions';
 import { lessonContent, library, mePayload, pathDetail } from './read';
 import { isSecure } from './security';
 
@@ -250,51 +250,15 @@ export function createApp() {
     return c.json(opened, 202);
   });
 
-  app.post('/api/lessons/:id/complete', async (c) => {
-    const db = await database(c.env);
-    const user = c.get('user');
-    const detail = await ownedLesson(db, user.id, c.req.param('id'));
-    if (!detail) throw new AppError('not_found');
-    if (detail.status !== 'ready' || !detail.body)
-      throw new AppError('validation', 'Pelajaran belum siap.');
-    if (detail.completedAt)
-      return c.json({
-        completedAt: detail.completedAt,
-        streakCount: user.streakCount,
-      });
-    const today = jakartaDate(new Date());
-    const streak = applyStreak(
-      {
-        enabled: user.streakEnabled === 1,
-        count: user.streakCount,
-        lastDate: user.streakLastDate,
-        freezeWeek: user.streakFreezeWeek,
-      },
-      today,
-    );
-    const completedAt = nowIso();
-    await db
-      .update(lessons)
-      .set({ completedAt })
-      .where(eq(lessons.id, detail.id));
-    if (streak.changed) {
-      await db
-        .update(users)
-        .set({
-          streakCount: streak.count,
-          streakLastDate: streak.lastDate,
-          streakFreezeWeek: streak.freezeWeek,
-          updatedAt: completedAt,
-        })
-        .where(eq(users.id, user.id));
-    }
-    return c.json({
-      completedAt,
-      streakCount: streak.count,
-      freezeUsedNow: streak.freezeUsedNow,
-      restarted: streak.restarted,
-    });
-  });
+  app.post('/api/lessons/:id/complete', async (c) =>
+    c.json(
+      await completeLesson(
+        await database(c.env),
+        c.get('user'),
+        c.req.param('id'),
+      ),
+    ),
+  );
 
   app.post('/api/chapters/:id/quiz', async (c) => {
     const started = await startQuiz(
@@ -318,66 +282,14 @@ export function createApp() {
 
   app.post('/api/quizzes/:id/attempts', async (c) => {
     const body = await readJson(c, attemptSchema);
-    const db = await database(c.env);
-    const user = c.get('user');
-    const quizRows = await db
-      .select()
-      .from(quizzes)
-      .where(eq(quizzes.id, c.req.param('id')))
-      .limit(1);
-    const quiz = quizRows[0];
-    if (!quiz) throw new AppError('not_found');
-    const chapterRows = await db
-      .select()
-      .from(chapters)
-      .where(eq(chapters.id, quiz.chapterId))
-      .limit(1);
-    const chapter = chapterRows[0];
-    if (!chapter) throw new AppError('not_found');
-    const pathRows = await db
-      .select()
-      .from(paths)
-      .where(and(eq(paths.id, chapter.pathId), eq(paths.userId, user.id)))
-      .limit(1);
-    if (!pathRows[0]) throw new AppError('not_found');
-    const questions = await db
-      .select()
-      .from(quizQuestions)
-      .where(eq(quizQuestions.quizId, quiz.id))
-      .orderBy(asc(quizQuestions.position));
-    if (body.answers.length !== questions.length)
-      throw new AppError('validation', 'Jumlah jawaban tidak sesuai.');
-    let correct = 0;
-    const review = questions.map((question, index) => {
-      const selected = body.answers[index] ?? 0;
-      const right = selected === question.correctIndex;
-      if (right) correct += 1;
-      return {
-        id: question.id,
-        stem: question.stem,
-        choices: parseChoices(question.choicesJson),
-        selected,
-        correctIndex: question.correctIndex,
-        explanation: right ? null : question.explanation,
-      };
-    });
-    const scorePercent = Math.round((correct / questions.length) * 100);
-    const config = await loadConfig(db);
-    const quizStatus =
-      scorePercent >= config.quizPassPercent ? 'understood' : 'retry';
-    await db.insert(quizAttempts).values({
-      id: crypto.randomUUID(),
-      quizId: quiz.id,
-      userId: user.id,
-      scorePercent,
-      answersJson: JSON.stringify(body.answers),
-      createdAt: nowIso(),
-    });
-    await db
-      .update(chapters)
-      .set({ quizStatus })
-      .where(eq(chapters.id, chapter.id));
-    return c.json({ scorePercent, quizStatus, review });
+    return c.json(
+      await submitQuizAttempt(
+        await database(c.env),
+        c.get('user'),
+        c.req.param('id'),
+        body.answers,
+      ),
+    );
   });
 
   app.get('/api/jobs/:id', async (c) => {
@@ -428,149 +340,41 @@ export function createApp() {
   app.post('/api/credit-orders', async (c) => {
     const body = await readJson(c, packOrderSchema);
     const db = await database(c.env);
-    const user = c.get('user');
-    if (user.status === 'suspended') throw new AppError('account_suspended');
-    const packs = await db
-      .select()
-      .from(creditPacks)
-      .where(and(eq(creditPacks.id, body.packId), eq(creditPacks.active, 1)))
-      .limit(1);
-    const pack = packs[0];
-    if (!pack) throw new AppError('not_found');
-    const id = crypto.randomUUID();
-    const orderId = `ord_${id.replaceAll('-', '')}`;
-    await db
-      .update(creditOrders)
-      .set({ status: 'expired' })
-      .where(
-        and(
-          eq(creditOrders.userId, user.id),
-          eq(creditOrders.status, 'pending'),
-        ),
-      );
-    await db.insert(creditOrders).values({
-      id,
-      userId: user.id,
-      packId: pack.id,
-      orderId,
-      amountIdr: pack.priceIdr,
-      credits: pack.credits,
-      status: 'pending',
-      sumopodPaymentId: null,
-      paymentLinkUrl: null,
-      createdAt: nowIso(),
-      paidAt: null,
-    });
-    const origin = requestAppOrigin(c.req.raw, c.env);
-    const returnUrl = `${origin}/kredit/pesanan/${id}`;
-    const qrPageUrl = `${origin}/kredit/pesanan/${id}/qris`;
-    try {
-      const payment = await createQrisPayment({
-        apiKey: c.env.SUMOPOD_API_KEY,
-        baseUrl: c.env.SUMOPOD_API_BASE,
-        orderId,
-        amount: pack.priceIdr,
-        returnUrl,
-        qrPageUrl,
-      });
-      const paymentLinkUrl = payment.paymentCode
-        ? qrPageUrl
-        : payment.paymentLinkUrl;
-      await db
-        .update(creditOrders)
-        .set({
-          sumopodPaymentId: payment.paymentId,
-          paymentLinkUrl,
-          paymentCode: payment.paymentCode,
-        })
-        .where(eq(creditOrders.id, id));
-      return c.json({
-        id,
-        orderId,
-        paymentLinkUrl,
-        paymentCode: payment.paymentCode,
-        mock: c.env.SUMOPOD_API_KEY === 'mock',
-      });
-    } catch {
-      await db
-        .update(creditOrders)
-        .set({ status: 'failed' })
-        .where(eq(creditOrders.id, id));
-      logEvent({
-        message: 'payment_create_failed',
-        userId: user.id,
-        errorCode: 'validation',
-      });
-      throw new AppError(
-        'validation',
-        'Pembayaran belum bisa dibuat. Coba lagi sebentar.',
-      );
-    }
+    return c.json(
+      await createCreditPackOrder(
+        c.env,
+        c.req.raw,
+        db,
+        c.get('user'),
+        body.packId,
+      ),
+    );
   });
 
-  app.get('/api/credit-orders/:id', async (c) => {
-    const db = await database(c.env);
-    const rows = await db
-      .select()
-      .from(creditOrders)
-      .where(
-        and(
-          eq(creditOrders.id, c.req.param('id')),
-          eq(creditOrders.userId, c.get('user').id),
-        ),
-      )
-      .limit(1);
-    const order = rows[0];
-    if (!order) throw new AppError('not_found');
-    return c.json({
-      ...publicOrder(order),
-      mock: c.env.SUMOPOD_API_KEY === 'mock',
-    });
-  });
+  app.get('/api/credit-orders/:id', async (c) =>
+    c.json(
+      await fetchUserCreditOrder(
+        await database(c.env),
+        c.get('user').id,
+        c.req.param('id'),
+        c.env,
+      ),
+    ),
+  );
 
   app.post('/api/dev/payments/:id/complete', async (c) => {
-    if (c.env.SUMOPOD_API_KEY !== 'mock') throw new AppError('not_found');
-    const db = await database(c.env);
-    const rows = await db
-      .select()
-      .from(creditOrders)
-      .where(
-        and(
-          eq(creditOrders.id, c.req.param('id')),
-          eq(creditOrders.userId, c.get('user').id),
-        ),
-      )
-      .limit(1);
-    const order = rows[0];
-    if (!order) throw new AppError('not_found');
-    const payload = JSON.stringify({
-      event_type: 'payment.completed',
-      data: {
-        payment_id: order.sumopodPaymentId ?? `pay_${order.orderId}`,
-        order_id: order.orderId,
-        amount: order.amountIdr,
-        status: 'completed',
-      },
-    });
-    const svixId = `dev_${crypto.randomUUID()}`;
-    const timestamp = Math.floor(Date.now() / 1000);
-    const signature = await signSvix(
-      payload,
-      c.env.SUMOPOD_WEBHOOK_SECRET,
-      svixId,
-      timestamp,
+    await simulateDevPaymentCompletion(
+      c.env,
+      c.req.raw,
+      c.get('user').id,
+      c.req.param('id'),
     );
-    const headers = new Headers({
-      'svix-id': svixId,
-      'svix-timestamp': String(timestamp),
-      'svix-signature': signature,
-    });
-    return handleWebhook(c.env, payload, headers, c.req.raw);
+    return c.json({ ok: true });
   });
 
   app.post('/api/webhooks/sumopod', async (c) => {
     const raw = await c.req.text();
-    return handleWebhook(c.env, raw, c.req.raw.headers, c.req.raw);
+    return handlePaymentWebhook(c.env, raw, c.req.raw.headers, c.req.raw);
   });
 
   app.post('/api/profile/streak', async (c) => {
@@ -864,164 +668,6 @@ export function createApp() {
   return app;
 }
 
-async function handleWebhook(
-  env: Env,
-  raw: string,
-  headers: Headers,
-  request: Request,
-): Promise<Response> {
-  if (!(await allowWebhookIp(env.APP_KV, request))) {
-    return Response.json(
-      { error: { code: 'rate_limited', message: errorMessage.rate_limited } },
-      { status: 429 },
-    );
-  }
-  const verified = await verifySvix(raw, headers, env.SUMOPOD_WEBHOOK_SECRET);
-  if (!verified)
-    return Response.json(
-      { error: { code: 'forbidden', message: errorMessage.forbidden } },
-      { status: 401 },
-    );
-  let json: unknown;
-  try {
-    json = JSON.parse(raw) as unknown;
-  } catch {
-    return Response.json(
-      { error: { code: 'validation', message: errorMessage.validation } },
-      { status: 400 },
-    );
-  }
-  const parsed = webhookSchema.safeParse(json);
-  if (!parsed.success)
-    return Response.json(
-      { error: { code: 'validation', message: errorMessage.validation } },
-      { status: 400 },
-    );
-  const svixId = headers.get('svix-id');
-  if (!svixId)
-    return Response.json(
-      { error: { code: 'forbidden', message: errorMessage.forbidden } },
-      { status: 401 },
-    );
-  const db = await database(env);
-  const seen = await db
-    .select()
-    .from(paymentEvents)
-    .where(eq(paymentEvents.svixId, svixId))
-    .limit(1);
-  if (seen[0]) return Response.json({ ok: true });
-  const event = parsed.data;
-  const orders = await db
-    .select()
-    .from(creditOrders)
-    .where(eq(creditOrders.orderId, event.data.order_id))
-    .limit(1);
-  const order = orders[0];
-  const createdAt = nowIso();
-  if (order?.status !== 'pending') {
-    await db
-      .insert(paymentEvents)
-      .values({
-        svixId,
-        orderId: event.data.order_id,
-        eventType: event.event_type,
-        paymentId: event.data.payment_id,
-        createdAt,
-      })
-      .onConflictDoNothing();
-    if (!order)
-      logEvent({ message: 'webhook_unknown_order', errorCode: 'not_found' });
-    return Response.json({ ok: true });
-  }
-  if (
-    event.event_type === 'payment.completed' &&
-    event.data.amount !== order.amountIdr
-  ) {
-    await db.insert(paymentEvents).values({
-      svixId,
-      orderId: order.orderId,
-      eventType: event.event_type,
-      paymentId: event.data.payment_id,
-      createdAt,
-    });
-    await db
-      .update(creditOrders)
-      .set({ status: 'failed' })
-      .where(
-        and(eq(creditOrders.id, order.id), eq(creditOrders.status, 'pending')),
-      );
-    logEvent({
-      message: 'webhook_amount_mismatch',
-      errorCode: 'validation',
-      userId: order.userId,
-    });
-    return Response.json({ ok: true });
-  }
-  if (event.event_type === 'payment.completed') {
-    try {
-      await db.batch([
-        db.insert(paymentEvents).values({
-          svixId,
-          orderId: order.orderId,
-          eventType: event.event_type,
-          paymentId: event.data.payment_id,
-          createdAt,
-        }),
-        db
-          .update(creditOrders)
-          .set({
-            status: 'paid',
-            paidAt: createdAt,
-            sumopodPaymentId: event.data.payment_id,
-          })
-          .where(
-            and(
-              eq(creditOrders.id, order.id),
-              eq(creditOrders.status, 'pending'),
-            ),
-          ),
-        db.insert(creditLedger).values({
-          id: crypto.randomUUID(),
-          userId: order.userId,
-          amount: order.credits,
-          reason: 'purchase',
-          refType: 'order',
-          refId: order.id,
-          idempotencyKey: `purchase:${event.data.payment_id}`,
-          note: null,
-          createdAt,
-        }),
-      ]);
-    } catch {
-      return Response.json({ ok: true });
-    }
-    logEvent({
-      message: 'payment_completed',
-      userId: order.userId,
-      status: 'paid',
-    });
-    return Response.json({ ok: true });
-  }
-  const status = event.event_type === 'payment.expired' ? 'expired' : 'failed';
-  await db
-    .insert(paymentEvents)
-    .values({
-      svixId,
-      orderId: order.orderId,
-      eventType: event.event_type,
-      paymentId: event.data.payment_id,
-      createdAt,
-    })
-    .onConflictDoNothing();
-  await db
-    .update(creditOrders)
-    .set({ status })
-    .where(
-      and(eq(creditOrders.id, order.id), eq(creditOrders.status, 'pending')),
-    );
-  return Response.json({ ok: true });
-}
-
 function readTask(value: string) {
   const parsed = taskSchema.safeParse(value);
   if (!parsed.success) throw new AppError('not_found');
@@ -1054,62 +700,6 @@ async function readJson<T>(
       parsed.error.issues[0]?.message ?? errorMessage.validation,
     );
   return parsed.data;
-}
-
-async function ownedLesson(
-  db: Awaited<ReturnType<typeof database>>,
-  userId: string,
-  lessonId: string,
-) {
-  const lessonRows = await db
-    .select()
-    .from(lessons)
-    .where(eq(lessons.id, lessonId))
-    .limit(1);
-  const lesson = lessonRows[0];
-  if (!lesson) return null;
-  const chapterRows = await db
-    .select()
-    .from(chapters)
-    .where(eq(chapters.id, lesson.chapterId))
-    .limit(1);
-  const chapter = chapterRows[0];
-  if (!chapter) return null;
-  const pathRows = await db
-    .select()
-    .from(paths)
-    .where(and(eq(paths.id, chapter.pathId), eq(paths.userId, userId)))
-    .limit(1);
-  if (!pathRows[0]) return null;
-  return lesson;
-}
-
-function publicOrder(order: typeof creditOrders.$inferSelect) {
-  return {
-    id: order.id,
-    orderId: order.orderId,
-    amountIdr: order.amountIdr,
-    credits: order.credits,
-    status: order.status,
-    paymentLinkUrl: order.paymentLinkUrl,
-    paymentCode: order.paymentCode,
-    createdAt: order.createdAt,
-    paidAt: order.paidAt,
-  };
-}
-
-function parseChoices(value: string): string[] {
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (
-      Array.isArray(parsed) &&
-      parsed.every((item) => typeof item === 'string')
-    )
-      return parsed;
-  } catch {
-    return [];
-  }
-  return [];
 }
 
 function knownSecret(env: Env, name: string): boolean {

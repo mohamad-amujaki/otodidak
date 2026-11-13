@@ -6,12 +6,14 @@ import PaginationNav from '../../../components/credit/PaginationNav.astro';
 import Shell from '../../../components/Shell.astro';
 import { orderFilterOptions } from '../../../domain/credit-ui';
 import { isRecord, record } from '../../../domain/guard';
-import { callApi } from '../../../server/call';
+import { creditsPayload } from '../../../server/credits-page';
+import { pageMe } from '../../../server/ssr';
 
 const LIMIT = 20;
-const meResult = await callApi(Astro.request, env, '/api/me');
-if (meResult.status !== 200) return Astro.redirect('/masuk');
-const me = record(meResult.data);
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session, me: meRaw } = page;
+const me = record(meRaw);
 const user = record(me.user);
 
 const offset = Math.max(0, Number(Astro.url.searchParams.get('offset') ?? 0));
@@ -23,12 +25,12 @@ const params = new URLSearchParams({
 });
 if (status) params.set('status', status);
 
-const creditResult = await callApi(
-  Astro.request,
-  env,
-  `/api/credits?${params}`,
+const listUrl = new URL('/kredit/pesanan', Astro.url);
+for (const [key, value] of params.entries())
+  listUrl.searchParams.set(key, value);
+const credit = record(
+  await creditsPayload(session.db, session.user, listUrl.toString()),
 );
-const credit = record(creditResult.data);
 const orders = Array.isArray(credit.orders)
   ? credit.orders.filter(isRecord)
   : [];

@@ -2,25 +2,35 @@
 import { env } from 'cloudflare:workers';
 import QRCode from 'qrcode';
 import Shell from '../../../../components/Shell.astro';
+import { AppError } from '../../../../domain/errors';
 import { formatIdr } from '../../../../domain/format';
 import { record } from '../../../../domain/guard';
-import { callApi } from '../../../../server/call';
+import { fetchUserCreditOrder } from '../../../../server/credit-orders-service';
+import { pageMe } from '../../../../server/ssr';
 
 const { orderId } = Astro.params;
 if (!orderId) return Astro.redirect('/kredit');
 
-const meResult = await callApi(Astro.request, env, '/api/me');
-if (meResult.status !== 200) return Astro.redirect('/masuk');
-const me = record(meResult.data);
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session, me: meRaw } = page;
+const me = record(meRaw);
 const user = record(me.user);
 
-const orderResult = await callApi(
-  Astro.request,
-  env,
-  `/api/credit-orders/${orderId}`,
-);
-if (orderResult.status === 404) return Astro.redirect('/kredit');
-const order = record(orderResult.data);
+let orderRaw: Record<string, unknown>;
+try {
+  orderRaw = await fetchUserCreditOrder(
+    session.db,
+    session.user.id,
+    orderId,
+    env,
+  );
+} catch (error) {
+  if (error instanceof AppError && error.code === 'not_found')
+    return Astro.redirect('/kredit');
+  throw error;
+}
+const order = record(orderRaw);
 const status = String(order.status ?? '');
 
 if (status !== 'pending') return Astro.redirect(`/kredit/pesanan/${orderId}`);

@@ -1,21 +1,27 @@
 ---
 import { env } from 'cloudflare:workers';
 import Shell from '../../../../components/Shell.astro';
+import { AppError } from '../../../../domain/errors';
 import { quizStatusLabel } from '../../../../domain/format';
 import { isRecord, record } from '../../../../domain/guard';
-import { callApi, errorOf } from '../../../../server/call';
+import { startQuiz } from '../../../../server/generation';
+import { submitQuizAttempt } from '../../../../server/quiz-actions';
+import { pathDetail } from '../../../../server/read';
+import { pageMe } from '../../../../server/ssr';
 
 const { pathId, chapterId } = Astro.params;
 if (!pathId || !chapterId) return Astro.redirect('/dasbor');
-const meResult = await callApi(Astro.request, env, '/api/me');
-if (meResult.status !== 200) return Astro.redirect('/masuk');
-const me = record(meResult.data);
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session, me: meRaw } = page;
+const me = record(meRaw);
 const user = record(me.user);
 const config = record(me.config);
 let message = '';
 let result: Record<string, unknown> | null = null;
-const pathResult = await callApi(Astro.request, env, `/api/paths/${pathId}`);
-const detail = record(pathResult.data);
+const pathRaw = await pathDetail(session.db, session.user.id, pathId);
+if (!pathRaw) return Astro.redirect('/pustaka');
+const detail = record(pathRaw);
 const chapters = Array.isArray(detail.chapters)
   ? detail.chapters.filter(isRecord)
   : [];
@@ -29,27 +35,29 @@ if (Astro.request.method === 'POST') {
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
   else if (String(form.get('aksi') ?? '') === 'ulang' && quiz) {
-    const created = await callApi(
-      Astro.request,
-      env,
-      `/api/chapters/${chapterId}/quiz`,
-      { method: 'POST', json: {}, csrf: Astro.locals.csrf },
-    );
-    const error = errorOf(created.data);
-    message = error ? error.message : 'Menyusun kuis.';
+    try {
+      await startQuiz(env, Astro.request, session.user, chapterId);
+      message = 'Menyusun kuis.';
+    } catch (error) {
+      message =
+        error instanceof AppError ? error.message : 'Gagal memulai kuis.';
+    }
   } else if (quiz) {
     const answers = questions.map((_, index) =>
       Number(form.get(`jawaban-${index}`)),
     );
-    const submitted = await callApi(
-      Astro.request,
-      env,
-      `/api/quizzes/${String(quiz.id)}/attempts`,
-      { method: 'POST', json: { answers }, csrf: Astro.locals.csrf },
-    );
-    const error = errorOf(submitted.data);
-    if (error) message = error.message;
-    else if (isRecord(submitted.data)) result = submitted.data;
+    try {
+      const submitted = await submitQuizAttempt(
+        session.db,
+        session.user,
+        String(quiz.id),
+        answers,
+      );
+      result = submitted;
+    } catch (error) {
+      message =
+        error instanceof AppError ? error.message : 'Gagal mengirim jawaban.';
+    }
   }
 }
 const cost = typeof config.costQuiz === 'number' ? config.costQuiz : 1;

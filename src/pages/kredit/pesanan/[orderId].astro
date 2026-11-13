@@ -1,15 +1,21 @@
 ---
 import { env } from 'cloudflare:workers';
 import Shell from '../../../components/Shell.astro';
+import { AppError } from '../../../domain/errors';
 import { formatIdr, formatWhen } from '../../../domain/format';
 import { record } from '../../../domain/guard';
-import { callApi, errorOf } from '../../../server/call';
+import {
+  fetchUserCreditOrder,
+  simulateDevPaymentCompletion,
+} from '../../../server/credit-orders-service';
+import { pageMe } from '../../../server/ssr';
 
 const { orderId } = Astro.params;
 if (!orderId) return Astro.redirect('/kredit');
-const meResult = await callApi(Astro.request, env, '/api/me');
-if (meResult.status !== 200) return Astro.redirect('/masuk');
-const me = record(meResult.data);
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session, me: meRaw } = page;
+const me = record(meRaw);
 const user = record(me.user);
 let message = '';
 if (Astro.request.method === 'POST' && env.SUMOPOD_API_KEY === 'mock') {
@@ -17,23 +23,35 @@ if (Astro.request.method === 'POST' && env.SUMOPOD_API_KEY === 'mock') {
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
   else {
-    const result = await callApi(
-      Astro.request,
-      env,
-      `/api/dev/payments/${orderId}/complete`,
-      { method: 'POST', json: {}, csrf: Astro.locals.csrf },
-    );
-    const error = errorOf(result.data);
-    if (error) message = error.message;
+    try {
+      await simulateDevPaymentCompletion(
+        env,
+        Astro.request,
+        session.user.id,
+        orderId,
+      );
+    } catch (error) {
+      message =
+        error instanceof AppError
+          ? error.message
+          : 'Simulasi pembayaran gagal.';
+    }
   }
 }
-const orderResult = await callApi(
-  Astro.request,
-  env,
-  `/api/credit-orders/${orderId}`,
-);
-if (orderResult.status === 404) return Astro.redirect('/kredit');
-const order = record(orderResult.data);
+let orderRaw: Record<string, unknown>;
+try {
+  orderRaw = await fetchUserCreditOrder(
+    session.db,
+    session.user.id,
+    orderId,
+    env,
+  );
+} catch (error) {
+  if (error instanceof AppError && error.code === 'not_found')
+    return Astro.redirect('/kredit');
+  throw error;
+}
+const order = record(orderRaw);
 const status = String(order.status ?? '');
 
 const statusConfig = {

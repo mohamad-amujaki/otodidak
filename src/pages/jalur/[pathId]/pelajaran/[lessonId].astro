@@ -2,16 +2,24 @@
 import { env } from 'cloudflare:workers';
 import ChapterNav from '../../../../components/ChapterNav.astro';
 import Shell from '../../../../components/Shell.astro';
+import { AppError } from '../../../../domain/errors';
 import { domainOf } from '../../../../domain/format';
 import { isRecord, record } from '../../../../domain/guard';
 import { renderLesson } from '../../../../domain/markdown';
-import { callApi, errorOf } from '../../../../server/call';
+import { openLesson } from '../../../../server/generation';
+import {
+  completeLesson,
+  lessonForUser,
+} from '../../../../server/lesson-actions';
+import { pathDetail } from '../../../../server/read';
+import { pageMe } from '../../../../server/ssr';
 
 const { pathId, lessonId } = Astro.params;
 if (!pathId || !lessonId) return Astro.redirect('/dasbor');
-const meResult = await callApi(Astro.request, env, '/api/me');
-if (meResult.status !== 200) return Astro.redirect('/masuk');
-const me = record(meResult.data);
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session, me: meRaw } = page;
+const me = record(meRaw);
 const user = record(me.user);
 const config = record(me.config);
 let message = '';
@@ -21,27 +29,32 @@ if (Astro.request.method === 'POST') {
     message = 'Muat ulang halaman, lalu kirim lagi.';
   else {
     const action = String(form.get('aksi') ?? '');
-    const path =
-      action === 'selesai'
-        ? `/api/lessons/${lessonId}/complete`
-        : `/api/lessons/${lessonId}/open`;
-    const result = await callApi(Astro.request, env, path, {
-      method: 'POST',
-      json: {},
-      csrf: Astro.locals.csrf,
-    });
-    const error = errorOf(result.data);
-    if (error && error.code !== 'generation_in_progress')
-      message = error.message;
+    try {
+      if (action === 'selesai')
+        await completeLesson(session.db, session.user, lessonId);
+      else await openLesson(env, Astro.request, session.user, lessonId);
+    } catch (error) {
+      if (
+        error instanceof AppError &&
+        error.code === 'generation_in_progress'
+      ) {
+        /* tetap menunggu */
+      } else {
+        message =
+          error instanceof AppError ? error.message : 'Permintaan gagal.';
+      }
+    }
   }
 }
-const contentResult = await callApi(
-  Astro.request,
-  env,
-  `/api/lessons/${lessonId}`,
-);
-if (contentResult.status === 404) return Astro.redirect(`/jalur/${pathId}`);
-const lesson = record(contentResult.data);
+let lessonRaw: Record<string, unknown>;
+try {
+  lessonRaw = await lessonForUser(session.db, session.user.id, lessonId);
+} catch (error) {
+  if (error instanceof AppError && error.code === 'not_found')
+    return Astro.redirect(`/jalur/${pathId}`);
+  throw error;
+}
+const lesson = record(lessonRaw);
 const claims = Array.isArray(lesson.claims)
   ? lesson.claims.filter(isRecord)
   : [];
@@ -61,10 +74,10 @@ const html =
 const cost = typeof config.costLesson === 'number' ? config.costLesson : 3;
 const minutes =
   typeof config.lessonMinuteLabel === 'number' ? config.lessonMinuteLabel : 15;
-const pathResult = await callApi(Astro.request, env, `/api/paths/${pathId}`);
+const pathRaw = await pathDetail(session.db, session.user.id, pathId);
 const outlineChapters =
-  isRecord(pathResult.data) && Array.isArray(pathResult.data.chapters)
-    ? pathResult.data.chapters.filter(isRecord)
+  pathRaw && Array.isArray(pathRaw.chapters)
+    ? pathRaw.chapters.filter(isRecord)
     : [];
 const navChapters = outlineChapters.map((chapter) => ({
   id: String(chapter.id),
