@@ -63,7 +63,12 @@ import {
   simulateDevPaymentCompletion,
 } from './credit-orders-service';
 import { creditsPayload, readCreditsQuery } from './credits-page';
-import { cookieHeader, readCookie, timingSafeEqual } from './crypto';
+import { cookieHeader } from './crypto';
+import {
+  CSRF_HEADER,
+  isCrossSiteMutation,
+  verifyCsrfDoubleSubmit,
+} from './csrf';
 import {
   openLesson,
   startQuiz,
@@ -109,9 +114,14 @@ export function createApp() {
       c.req.path === '/api/webhooks/sumopod'
     )
       return next();
-    const cookie = readCookie(c.req.header('cookie') ?? null, 'otodidak_csrf');
-    const header = c.req.header('x-csrf-token');
-    if (!cookie || !header || !timingSafeEqual(cookie, header))
+    if (isCrossSiteMutation(c.req.raw)) return jsonError(c, 'forbidden');
+    const cookieHeader = c.req.header('cookie');
+    if (
+      !verifyCsrfDoubleSubmit(
+        cookieHeader ?? null,
+        c.req.header(CSRF_HEADER) ?? null,
+      )
+    )
       return jsonError(c, 'forbidden');
     await next();
   });
