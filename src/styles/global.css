@@ -34,6 +34,10 @@
   --font-serif: "Source Serif 4", ui-serif, georgia, serif;
   --radius-kartu: 12px;
   --radius-kontrol: 8px;
+  --spacing-bingkai: 1rem;
+  --spacing-rapat: 0.5rem;
+  --spacing-section: 2rem;
+  --spacing-section-lg: 3rem;
 }
 
 @layer base {
@@ -138,8 +142,46 @@
   .judul {
     font-size: 1.75rem;
     line-height: 1.25;
+    font-weight: 700;
     letter-spacing: -0.015em;
     text-wrap: balance;
+  }
+
+  .subjudul {
+    font-size: 1.125rem;
+    line-height: 1.4;
+    font-weight: 600;
+    color: var(--color-tinta);
+  }
+
+  .btn-jalur {
+    display: inline-flex;
+    min-height: 3rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: var(--radius-kontrol);
+    background: var(--color-jalur);
+    padding-inline: 1.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+    box-shadow: 0 10px 15px -3px rgb(11 110 79 / 0.2);
+    transition:
+      box-shadow 0.2s ease,
+      filter 0.2s ease;
+  }
+
+  .btn-jalur:hover {
+    filter: brightness(1.08);
+    box-shadow: 0 12px 20px -4px rgb(11 110 79 / 0.28);
+  }
+
+  .menu-lembar a.menu-aktif,
+  .menu-lembar a[aria-current="page"] {
+    background: var(--color-jalur-lembut);
+    color: var(--color-jalur);
+    font-weight: 600;
   }
 
   .eyebrow {
@@ -221,6 +263,11 @@
     border-radius: var(--radius-kontrol);
     text-align: left;
     transition: all 150ms ease;
+  }
+
+  .menu-lembar a.menu-aktif svg,
+  .menu-lembar a[aria-current="page"] svg {
+    color: var(--color-jalur);
   }
 
   .daftar > summary {

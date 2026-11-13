@@ -19,7 +19,7 @@ export default {
       }
     }
     const response = await handle(request, env, ctx);
-    return withSecurityHeaders(response);
+    return withSecurityHeaders(response, request, env);
   },
   queue: entry.queue,
 } satisfies ExportedHandler<Env, GenerationMessage>;
