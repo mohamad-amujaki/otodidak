@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { htmlUsesDevViteStyles } from '../src/server/security';
 
-const env = { ENVIRONMENT: 'development' } as Env;
+const env = { ENVIRONMENT: 'development' } as unknown as Env;
 
 describe('htmlUsesDevViteStyles', () => {
   it('mengizinkan inline style di localhost dev', () => {

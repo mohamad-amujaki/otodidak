@@ -13,6 +13,7 @@ export default defineConfig({
           TEST_MIGRATIONS: migrations,
           CLERK_SECRET_KEY: 'mock',
           BOOTSTRAP_ADMIN_EMAIL: 'admin@example.com',
+          SUPERADMIN_EMAILS: 'admin@example.com',
           SUMOPOD_API_KEY: 'mock',
           SUMOPOD_WEBHOOK_SECRET:
             'whsec_b3RvZGlkYWstdGVzdC13ZWJob29rLXNlY3JldC1rZXk=',
