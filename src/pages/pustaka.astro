@@ -41,13 +41,31 @@ function progressPercent(path: Record<string, unknown>): number {
   const total = Number(progress.total ?? 0);
   return total > 0 ? Math.round((done / total) * 100) : 0;
 }
-const filtered = queryLower
+function pathIsComplete(path: Record<string, unknown>): boolean {
+  const progress = record(path.progress);
+  const done = Number(progress.done ?? 0);
+  const total = Number(progress.total ?? 0);
+  return done === total && total > 0;
+}
+const STATUS_IDS = ['semua', 'aktif', 'selesai'] as const;
+type StatusId = (typeof STATUS_IDS)[number];
+const statusRaw = Astro.url.searchParams.get('status') ?? 'semua';
+const status: StatusId = STATUS_IDS.includes(statusRaw as StatusId)
+  ? (statusRaw as StatusId)
+  : 'semua';
+const searched = queryLower
   ? pathsRaw.filter((path) => {
       const title = String(path.title ?? '').toLowerCase();
       const topic = String(path.topic ?? '').toLowerCase();
       return title.includes(queryLower) || topic.includes(queryLower);
     })
   : pathsRaw;
+const filtered =
+  status === 'semua'
+    ? searched
+    : searched.filter((path) =>
+        status === 'aktif' ? path.isActive === true : pathIsComplete(path),
+      );
 const paths = [...filtered].sort((left, right) => {
   if (sort === 'judul')
     return String(left.title ?? '').localeCompare(
@@ -58,10 +76,18 @@ const paths = [...filtered].sort((left, right) => {
     return progressPercent(right) - progressPercent(left);
   return 0;
 });
-function listHref(urut: string): string {
+function listHref(parts?: {
+  urut?: string;
+  status?: StatusId;
+  clearSearch?: boolean;
+}): string {
   const url = new URL('/pustaka', Astro.url);
+  const urut = parts?.urut ?? sort;
+  const statusVal = parts?.status ?? status;
+  const cari = parts?.clearSearch ? '' : query;
   if (urut !== 'terbaru') url.searchParams.set('urut', urut);
-  if (query) url.searchParams.set('cari', query);
+  if (cari) url.searchParams.set('cari', cari);
+  if (statusVal !== 'semua') url.searchParams.set('status', statusVal);
   const search = url.searchParams.toString();
   return search ? `${url.pathname}?${search}` : url.pathname;
 }
@@ -70,6 +96,14 @@ const sortOptions = [
   { id: 'progress', label: 'Progress' },
   { id: 'judul', label: 'A–Z' },
 ] as const;
+const statusOptions = [
+  { id: 'semua', label: 'Semua' },
+  { id: 'aktif', label: 'Aktif' },
+  { id: 'selesai', label: 'Selesai' },
+] as const;
+const statusLabel =
+  statusOptions.find((o) => o.id === status)?.label ?? 'Semua';
+const filtering = Boolean(query) || status !== 'semua';
 ---
 <Shell title="Pustaka" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
   <!-- Header Section -->
@@ -79,8 +113,8 @@ const sortOptions = [
       <p class="mt-1 text-tinta-lembut">
         {pathsRaw.length === 0
           ? 'Koleksi jalur pembelajaran kosong'
-          : query
-            ? `${paths.length} dari ${pathsRaw.length} jalur cocok`
+          : filtering
+            ? `${paths.length} dari ${pathsRaw.length} jalur ditampilkan`
             : `${paths.length} jalur pembelajaran`}
       </p>
     </div>
@@ -128,6 +162,7 @@ const sortOptions = [
     <>
     <form class="mb-4 flex flex-col gap-2 min-[640px]:flex-row" method="get" role="search">
       {sort !== 'terbaru' && <input type="hidden" name="urut" value={sort} />}
+      {status !== 'semua' && <input type="hidden" name="status" value={status} />}
       <label class="sr-only" for="cari-jalur">Cari jalur pembelajaran</label>
       <input
         id="cari-jalur"
@@ -155,8 +190,25 @@ const sortOptions = [
               ? 'border-jalur bg-jalur-lembut text-jalur'
               : 'border-garis bg-kartu text-tinta hover:border-jalur/40',
           ]}
-          href={listHref(option.id)}
+          href={listHref({ urut: option.id })}
           aria-current={sort === option.id ? 'true' : undefined}
+        >
+          {option.label}
+        </a>
+      ))}
+    </div>
+    <div class="mb-4 flex flex-wrap items-center gap-2" role="group" aria-label="Filter status jalur">
+      <span class="text-sm text-tinta-lembut">Status:</span>
+      {statusOptions.map((option) => (
+        <a
+          class:list={[
+            'rounded-kontrol border px-3 py-1.5 text-sm font-medium transition-colors',
+            status === option.id
+              ? 'border-jalur bg-jalur-lembut text-jalur'
+              : 'border-garis bg-kartu text-tinta hover:border-jalur/40',
+          ]}
+          href={listHref({ status: option.id })}
+          aria-current={status === option.id ? 'true' : undefined}
         >
           {option.label}
         </a>
@@ -164,9 +216,19 @@ const sortOptions = [
     </div>
     {paths.length === 0 ? (
       <div class="rounded-kartu border border-garis bg-kartu p-8 text-center shadow-sm">
-        <p class="text-tinta-lembut">Tidak ada jalur yang cocok dengan “{query}”.</p>
-        <a class="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-jalur hover:underline" href="/pustaka">
-          Hapus pencarian
+        {query ? (
+          <p class="text-tinta-lembut">
+            Tidak ada jalur yang cocok dengan “{query}”
+            {status !== 'semua' ? ` (status: ${statusLabel.toLowerCase()})` : ''}.
+          </p>
+        ) : (
+          <p class="text-tinta-lembut">Tidak ada jalur berstatus “{statusLabel}”.</p>
+        )}
+        <a
+          class="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-jalur hover:underline"
+          href={listHref({ status: 'semua', clearSearch: true })}
+        >
+          Reset filter
         </a>
       </div>
     ) : (

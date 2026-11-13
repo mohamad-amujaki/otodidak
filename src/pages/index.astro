@@ -20,6 +20,21 @@ const contoh = [
   },
 ];
 
+const trustSignals = [
+  {
+    judul: 'Kredit transparan',
+    isi: `${SEED_CONFIG.signupCredits} kredit saat mendaftar, tanpa kartu. Setiap generate memakai kredit yang bisa kamu lihat di halaman Kredit.`,
+  },
+  {
+    judul: 'Sumber terlihat',
+    isi: 'Setiap pelajaran menampilkan sumber yang dipakai. Klaim tanpa tautan ditandai agar kamu bisa menilai sendiri.',
+  },
+  {
+    judul: 'Tanpa langganan',
+    isi: 'Beli paket kredit lewat QRIS saat butuh. Tidak ada biaya bulanan yang mengunci akses.',
+  },
+];
+
 const features = [
   {
     icon: 'map',
@@ -95,6 +110,22 @@ const features = [
         </div>
       ))}
     </div>
+  </section>
+
+  <section class="mx-auto mt-16 max-w-5xl min-[768px]:mt-20 min-[1100px]:mt-24" aria-labelledby="trust-heading">
+    <p class="eyebrow text-center">Kepercayaan</p>
+    <h2 id="trust-heading" class="subjudul mt-2 text-center">Dibangun untuk belajar mandiri</h2>
+    <p class="mx-auto mt-3 max-w-2xl text-center text-sm text-tinta-lembut">
+      Bukan angka pengguna atau testimonial palsu — hanya cara kerja produk yang bisa kamu cek sendiri.
+    </p>
+    <ul class="mt-10 grid gap-6 min-[768px]:grid-cols-3 min-[768px]:gap-8">
+      {trustSignals.map((item) => (
+        <li class="rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+          <h3 class="text-lg font-semibold text-tinta">{item.judul}</h3>
+          <p class="mt-2 text-sm leading-relaxed text-tinta-lembut">{item.isi}</p>
+        </li>
+      ))}
+    </ul>
   </section>
 
   <!-- Example Section -->

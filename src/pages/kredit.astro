@@ -82,8 +82,9 @@ const summary = {
   net: Number(summaryBlock.net ?? 0),
 };
 const showSummary = summary.added > 0 || summary.used < 0;
+const balance = typeof me.balance === 'number' ? me.balance : 0;
 ---
-<Shell title="Kredit" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
+<Shell title="Kredit" balance={balance} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
   <div class="mx-auto w-full max-w-6xl space-y-8">
     <div>
       <h1 class="judul">Kredit</h1>
@@ -97,7 +98,13 @@ const showSummary = summary.added > 0 || summary.used < 0;
             </div>
             <div>
               <p class="text-sm text-tinta-lembut">Saldo kredit</p>
-              <p class="text-3xl font-bold tabular-nums tracking-tight text-tinta min-[768px]:text-4xl">{me.balance}</p>
+              <p
+                class="text-3xl font-bold tabular-nums tracking-tight text-tinta min-[768px]:text-4xl"
+                data-count-up={balance}
+                aria-live="polite"
+              >
+                {balance}
+              </p>
               {showSummary && (
                 <p class="mt-1 text-xs text-tinta-lembut min-[480px]:text-sm">
                   30 hari:{' '}
@@ -276,4 +283,5 @@ const showSummary = summary.added > 0 || summary.used < 0;
       </section>
     </div>
   </div>
+  <script src="/scripts/count-up.js" defer></script>
 </Shell>
