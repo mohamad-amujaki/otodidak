@@ -66,9 +66,14 @@ paths.forEach((path) => {
   totalLessons += Number(progress.total ?? 0);
 });
 
-// Get active path progress
+const activePathId = activePath ? String(activePath.id) : '';
+const activePathRow = activePathId
+  ? paths.find((p) => String(p.id) === activePathId)
+  : null;
 const activePathProgress =
-  activePath && isRecord(activePath.progress) ? activePath.progress : null;
+  activePathRow && isRecord(activePathRow.progress)
+    ? activePathRow.progress
+    : null;
 const activePathDone = activePathProgress
   ? Number(activePathProgress.done ?? 0)
   : 0;
@@ -79,57 +84,36 @@ const activePathPercentage =
   activePathTotal > 0
     ? Math.round((activePathDone / activePathTotal) * 100)
     : 0;
+const streakCount =
+  streak && typeof streak.count === 'number' ? streak.count : 0;
+const balance = typeof me.balance === 'number' ? me.balance : 0;
 ---
-<Shell title="Dasbor" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
-  <!-- Header -->
-  <div class="mb-6">
-    <h1 class="judul">Dasbor</h1>
-    <p class="mt-2 text-tinta-lembut">Selamat datang kembali, {user.name}</p>
-  </div>
-
-  <!-- Stats Section -->
-  {totalPaths > 0 && (
-    <div class="mb-8 grid gap-4 min-[768px]:grid-cols-3">
-      <!-- Total Paths -->
-      <div class="flex items-center gap-4 rounded-xl border-2 border-garis bg-gradient-to-br from-white to-kertas p-5 shadow-sm transition-all hover:shadow-md">
-        <div class="flex size-14 shrink-0 items-center justify-center rounded-xl bg-jalur-lembut">
-          <svg class="size-7 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-          </svg>
-        </div>
-        <div>
-          <p class="text-3xl font-bold tabular-nums text-tinta">{totalPaths}</p>
-          <p class="text-sm text-tinta-lembut">Jalur</p>
-        </div>
-      </div>
-
-      <!-- Lessons Progress -->
-      <div class="flex items-center gap-4 rounded-xl border-2 border-garis bg-gradient-to-br from-white to-jalur-lembut/20 p-5 shadow-sm transition-all hover:shadow-md">
-        <div class="flex size-14 shrink-0 items-center justify-center rounded-xl bg-jalur text-white">
-          <svg class="size-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <div>
-          <p class="text-3xl font-bold tabular-nums text-tinta">{completedLessons}/{totalLessons}</p>
-          <p class="text-sm text-tinta-lembut">Pelajaran selesai</p>
-        </div>
-      </div>
-
-      <!-- Active Paths -->
-      <div class="flex items-center gap-4 rounded-xl border-2 border-jalur/30 bg-gradient-to-br from-jalur-lembut to-white p-5 shadow-sm transition-all hover:shadow-md">
-        <div class="flex size-14 shrink-0 items-center justify-center rounded-xl bg-jalur">
-          <svg class="size-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-        </div>
-        <div>
-          <p class="text-3xl font-bold tabular-nums text-jalur">{activePaths}</p>
-          <p class="text-sm text-tinta-lembut">Jalur aktif</p>
-        </div>
-      </div>
+<Shell title="Dasbor" balance={balance} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
+  <div class="mb-6 flex flex-col gap-4 min-[640px]:flex-row min-[640px]:items-end min-[640px]:justify-between">
+    <div>
+      <h1 class="judul">Dasbor</h1>
+      <p class="mt-2 text-tinta-lembut">Selamat datang kembali, {user.name}</p>
+      {streak && streakCount > 0 && (
+        <p class="mt-2 text-sm text-tinta-lembut">
+          <span class="font-semibold tabular-nums text-hangat">{streakCount} hari</span>
+          {' '}
+          runtun belajar
+          {lines.length > 1 && (
+            <span class="text-tinta-lembut"> · {lines.slice(1).join(' ')}</span>
+          )}
+        </p>
+      )}
     </div>
-  )}
+    <div class="flex flex-wrap items-center gap-3">
+      <p class="text-sm text-tinta-lembut">
+        Saldo{' '}
+        <span class="text-lg font-bold tabular-nums text-tinta">{balance}</span>
+      </p>
+      <a class="inline-flex min-h-11 items-center rounded-kontrol border border-jalur px-4 text-sm font-semibold text-jalur hover:bg-jalur-lembut" href="/kredit">
+        Isi kredit
+      </a>
+    </div>
+  </div>
 
   {message && (
     <div class="mb-6 rounded-kontrol border border-bahaya/30 bg-bahaya/10 p-4">
@@ -154,62 +138,33 @@ const activePathPercentage =
     </div>
   )}
 
-  <!-- Lanjutkan dari Terakhir -->
   {activePath && nextLesson && (
-    <div class="mb-8">
-      <h2 class="mb-4 text-xl font-bold text-tinta">Lanjutkan dari Terakhir</h2>
-      <article class="group relative overflow-hidden rounded-xl border-2 border-garis bg-gradient-to-br from-tinta to-tinta/80 p-6 text-white shadow-lg transition-all hover:shadow-xl">
-        <!-- Progress bar at top -->
-        <div class="absolute top-0 left-0 right-0 h-1 bg-white/20">
-          <div 
-            class="h-full bg-jalur-lembut transition-all duration-500"
-            style={`width: ${activePathPercentage}%`}
-          ></div>
-        </div>
-
-        <div class="mt-2 flex items-start justify-between gap-4">
-          <div class="min-w-0 flex-1">
-            <p class="text-sm font-medium text-white/80">{String(activePath.title)}</p>
-            <h3 class="mt-1 text-xl font-bold">{String(nextLesson.title)}</h3>
-            <div class="mt-2 flex items-center gap-3 text-sm text-white/70">
-              <div class="flex items-center gap-1">
-                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>{minuteLabel(minutes)}</span>
-              </div>
-              <span>•</span>
-              <span>{activePathDone}/{activePathTotal} pelajaran</span>
-            </div>
+    <article class="mb-8 rounded-kartu border border-garis border-l-4 border-l-hangat bg-kartu p-5 shadow-sm min-[768px]:p-6">
+      <p class="text-sm text-tinta-lembut">{String(activePath.title)}</p>
+      <h2 class="mt-1 text-xl font-bold text-tinta">{String(nextLesson.title)}</h2>
+      <p class="mt-2 text-sm text-tinta-lembut">
+        Sekitar {minuteLabel(minutes)} · {activePathDone}/{activePathTotal} pelajaran
+      </p>
+      {activePathTotal > 0 && (
+        <div class="mt-4 flex items-center gap-3">
+          <div class="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-kertas">
+            <div
+              class="h-full bg-jalur transition-[width] duration-300"
+              style={`width: ${activePathPercentage}%`}
+            />
           </div>
-
-          <a 
-            href={`/jalur/${String(activePath.id)}/pelajaran/${String(nextLesson.id)}`}
-            class="flex size-12 shrink-0 items-center justify-center rounded-full bg-jalur text-white shadow-lg transition-transform hover:scale-110"
-          >
-            <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </a>
+          <span class="text-sm font-semibold tabular-nums text-tinta">{activePathPercentage}%</span>
         </div>
-
-        <div class="mt-4 flex items-center gap-4">
-          <div class="flex-1">
-            <div class="h-2 w-full overflow-hidden rounded-full bg-white/20">
-              <div 
-                class="h-full bg-jalur-lembut transition-all duration-500"
-                style={`width: ${activePathPercentage}%`}
-              ></div>
-            </div>
-          </div>
-          <span class="text-sm font-semibold tabular-nums">{activePathPercentage}%</span>
-        </div>
-      </article>
-    </div>
+      )}
+      <a
+        class="btn-jalur mt-5 w-full min-[480px]:w-auto"
+        href={`/jalur/${String(activePath.id)}/pelajaran/${String(nextLesson.id)}`}
+      >
+        Lanjut
+      </a>
+    </article>
   )}
 
-  <!-- Empty State -->
   {!activePath && !activeJob && (
     <div class="mb-6 rounded-kartu border border-garis bg-kartu p-8 text-center shadow-sm">
       <div class="mx-auto flex size-16 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
@@ -222,19 +177,39 @@ const activePathPercentage =
     </div>
   )}
 
-  <!-- Streak Display -->
-  {streak && lines.length > 0 && (
-    <div class="mb-6 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
-      <div class="flex items-start gap-3">
-        <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-hangat-lembut text-hangat">
-          <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
+  {totalPaths > 0 && (
+    <div class="mb-8 grid gap-4 min-[768px]:grid-cols-3">
+      <div class="flex items-center gap-4 rounded-kartu border border-garis bg-kartu p-5 shadow-sm">
+        <div class="flex size-12 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+          <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
           </svg>
         </div>
-        <div class="min-w-0 flex-1">
-          <p class="font-medium text-tinta">Runtun Belajar</p>
-          <p class="mt-1 text-sm leading-relaxed text-tinta-lembut">{lines.join(' ')}</p>
+        <div>
+          <p class="text-2xl font-bold tabular-nums text-tinta">{totalPaths}</p>
+          <p class="text-sm text-tinta-lembut">Jalur di pustaka</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-4 rounded-kartu border border-garis bg-kartu p-5 shadow-sm">
+        <div class="flex size-12 shrink-0 items-center justify-center rounded-kontrol bg-jalur text-white">
+          <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <div>
+          <p class="text-2xl font-bold tabular-nums text-tinta">{completedLessons}/{totalLessons}</p>
+          <p class="text-sm text-tinta-lembut">Pelajaran selesai</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-4 rounded-kartu border border-garis border-jalur/20 bg-jalur-lembut/30 p-5 shadow-sm">
+        <div class="flex size-12 shrink-0 items-center justify-center rounded-kontrol bg-jalur text-white">
+          <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <div>
+          <p class="text-2xl font-bold tabular-nums text-jalur">{activePaths}</p>
+          <p class="text-sm text-tinta-lembut">Jalur aktif</p>
         </div>
       </div>
     </div>

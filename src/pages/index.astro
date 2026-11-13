@@ -65,14 +65,22 @@ const features = [
       </p>
       
       <!-- CTA -->
-      <div class="mt-8 flex flex-col items-center gap-4 min-[768px]:flex-row min-[768px]:justify-center">
-        <a class="btn-jalur w-full min-[768px]:w-auto min-[768px]:px-8" href="/masuk">
-          <svg class="size-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
-          </svg>
-          Masuk dengan Google
-        </a>
-        <div class="flex items-center gap-2 text-sm text-tinta-lembut">
+      <div class="mt-8 flex flex-col items-stretch gap-3 min-[768px]:items-center">
+        <div class="flex w-full flex-col items-stretch gap-3 min-[768px]:w-auto min-[768px]:flex-row min-[768px]:justify-center">
+          <a class="btn-jalur w-full min-[768px]:w-auto min-[768px]:px-8" href="/masuk">
+            <svg class="size-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
+            </svg>
+            Masuk dengan Google
+          </a>
+          <a
+            class="inline-flex min-h-12 w-full items-center justify-center rounded-kontrol border border-garis bg-kartu px-8 text-base font-semibold text-tinta shadow-sm transition-colors hover:border-jalur/40 min-[768px]:w-auto"
+            href="#cara-kerja"
+          >
+            Pelajari lebih lanjut
+          </a>
+        </div>
+        <div class="flex items-center justify-center gap-2 text-sm text-tinta-lembut">
           <svg class="size-5 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
           </svg>
@@ -83,7 +91,7 @@ const features = [
   </section>
 
   <!-- Features Section -->
-  <section class="mx-auto mt-16 max-w-5xl min-[768px]:mt-20 min-[1100px]:mt-24">
+  <section id="cara-kerja" class="mx-auto mt-16 max-w-5xl scroll-mt-24 min-[768px]:mt-20 min-[1100px]:mt-24">
     <h2 class="text-center text-2xl font-bold text-tinta min-[768px]:text-3xl">Bagaimana Otodidak Bekerja</h2>
     <div class="mt-10 grid gap-6 min-[768px]:grid-cols-3 min-[768px]:gap-8">
       {features.map((feature) => (

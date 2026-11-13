@@ -47,7 +47,10 @@ function pathIsComplete(path: Record<string, unknown>): boolean {
   const total = Number(progress.total ?? 0);
   return done === total && total > 0;
 }
-const STATUS_IDS = ['semua', 'aktif', 'selesai'] as const;
+function pathIsInProgress(path: Record<string, unknown>): boolean {
+  return path.isActive !== true && !pathIsComplete(path);
+}
+const STATUS_IDS = ['semua', 'aktif', 'berjalan', 'selesai'] as const;
 type StatusId = (typeof STATUS_IDS)[number];
 const statusRaw = Astro.url.searchParams.get('status') ?? 'semua';
 const status: StatusId = STATUS_IDS.includes(statusRaw as StatusId)
@@ -63,9 +66,11 @@ const searched = queryLower
 const filtered =
   status === 'semua'
     ? searched
-    : searched.filter((path) =>
-        status === 'aktif' ? path.isActive === true : pathIsComplete(path),
-      );
+    : searched.filter((path) => {
+        if (status === 'aktif') return path.isActive === true;
+        if (status === 'selesai') return pathIsComplete(path);
+        return pathIsInProgress(path);
+      });
 const paths = [...filtered].sort((left, right) => {
   if (sort === 'judul')
     return String(left.title ?? '').localeCompare(
@@ -99,6 +104,7 @@ const sortOptions = [
 const statusOptions = [
   { id: 'semua', label: 'Semua' },
   { id: 'aktif', label: 'Aktif' },
+  { id: 'berjalan', label: 'Berjalan' },
   { id: 'selesai', label: 'Selesai' },
 ] as const;
 const statusLabel =
