@@ -110,50 +110,42 @@ const navChapters = outlineChapters.map((chapter) => ({
 
           <article class="baca" set:html={html} id="lesson-content"></article>
           
-          <!-- Enhanced Sources Section -->
-          <section class="mt-12 rounded-xl border-2 border-garis bg-gradient-to-br from-white to-kertas p-6">
-            <div class="mb-4 flex items-center gap-3">
-              <div class="flex size-10 items-center justify-center rounded-lg bg-jalur-lembut">
-                <svg class="size-5 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                </svg>
-              </div>
-              <div>
-                <h2 class="text-xl font-bold text-tinta">Sumber Referensi</h2>
-                <p class="text-sm text-tinta-lembut">{sources.length} sumber terverifikasi</p>
-              </div>
-            </div>
+          <!-- Academic-Style References Section -->
+          <section class="mt-12 border-t-2 border-garis pt-8">
+            <h2 class="mb-6 text-xs font-semibold uppercase tracking-wider text-tinta-lembut">
+              Referensi
+            </h2>
             
             {sources.length === 0 ? (
-              <div class="rounded-lg border border-garis bg-white p-6 text-center">
-                <p class="text-sm text-tinta-lembut">Belum ada sumber yang tersimpan</p>
-              </div>
+              <p class="text-sm text-tinta-lembut italic">
+                Belum ada sumber yang tersimpan
+              </p>
             ) : (
-              <div class="grid gap-3">
+              <ol class="space-y-3">
                 {sources.map((source, index) => (
-                  <a 
-                    href={String(source.url)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="group flex items-start gap-4 rounded-lg border border-garis bg-white p-4 transition-all hover:border-jalur hover:shadow-md"
-                  >
-                    <div class="flex size-8 shrink-0 items-center justify-center rounded-full bg-kertas text-sm font-semibold text-tinta-lembut group-hover:bg-jalur-lembut group-hover:text-jalur">
-                      {index + 1}
-                    </div>
+                  <li class="group flex gap-3 text-sm leading-relaxed">
+                    <span class="shrink-0 text-tinta-lembut font-mono text-xs">
+                      [{index + 1}]
+                    </span>
                     <div class="min-w-0 flex-1">
-                      <p class="font-medium text-tinta group-hover:text-jalur break-words">
+                      <a 
+                        href={String(source.url)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-tinta hover:text-jalur hover:underline decoration-jalur/50 break-words inline transition-colors"
+                      >
                         {source.title}
-                      </p>
-                      <p class="mt-1 text-sm text-tinta-lembut">
-                        {domainOf(String(source.url))}
-                      </p>
+                      </a>
+                      <span class="text-tinta-lembut">
+                        {' '}· {domainOf(String(source.url))}
+                      </span>
+                      <svg class="inline-block size-3 ml-1 text-tinta-lembut group-hover:text-jalur transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
                     </div>
-                    <svg class="size-5 shrink-0 text-tinta-lembut transition-transform group-hover:translate-x-0.5 group-hover:text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </a>
+                  </li>
                 ))}
-              </div>
+              </ol>
             )}
           </section>
           
