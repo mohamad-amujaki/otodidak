@@ -62,6 +62,7 @@ import {
   pendingOrdersFor,
 } from './account';
 import { isSuperadmin } from './admin-access';
+import { adminLedgerExportCsv, adminOrdersExportCsv } from './admin-export';
 import {
   adminJobsTotal,
   adminLedgerTotal,
@@ -857,6 +858,32 @@ export function createApp() {
       adminOrdersTotal(db, query),
     ]);
     return c.json({ orders, total });
+  });
+
+  app.get('/api/admin/ledger/export', async (c) => {
+    const query = readAdminQuery(c.req.url);
+    const db = await database(c.env);
+    const csv = await adminLedgerExportCsv(db, query);
+    return new Response(csv, {
+      headers: {
+        'content-type': 'text/csv; charset=utf-8',
+        'content-disposition':
+          'attachment; filename="admin-buku-besar-otodidak.csv"',
+      },
+    });
+  });
+
+  app.get('/api/admin/orders/export', async (c) => {
+    const query = readAdminQuery(c.req.url);
+    const db = await database(c.env);
+    const csv = await adminOrdersExportCsv(db, query);
+    return new Response(csv, {
+      headers: {
+        'content-type': 'text/csv; charset=utf-8',
+        'content-disposition':
+          'attachment; filename="admin-pesanan-otodidak.csv"',
+      },
+    });
   });
 
   app.get('/api/admin/jobs', async (c) => {

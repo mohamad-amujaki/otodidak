@@ -13,7 +13,7 @@ import { runAdminAction } from '../../server/admin-actions';
 import { requireAdmin } from '../../server/admin-guard';
 import { callApi } from '../../server/call';
 
-const auth = await requireAdmin(Astro.request);
+const auth = await requireAdmin(Astro.request, { nav: true });
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
 
 let message = '';
@@ -31,7 +31,7 @@ const groupKeys = Object.keys(
   configFieldGroups,
 ) as (keyof typeof configFieldGroups)[];
 ---
-<AdminShell title="Konfigurasi" section="konfigurasi" balance={auth.balance} superadmin={auth.superadmin}>
+<AdminShell title="Konfigurasi" section="konfigurasi" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav}>
   <h1 class="judul">Konfigurasi produk</h1>
   <p class="mt-2 text-sm text-tinta-lembut">Batas konten, biaya kredit, dan onboarding untuk semua pengguna.</p>
   {message && <AdminAlert message={message} tone="success" />}

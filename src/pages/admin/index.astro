@@ -34,6 +34,12 @@ const recentUsers =
 const pendingOrders = Number(stats.pendingOrders ?? 0);
 const jobsFailed = Number(stats.jobsFailed ?? 0);
 const deletionRequests = Number(stats.deletionRequests ?? 0);
+const navStats = {
+  pendingOrders: Number(stats.pendingOrders ?? 0),
+  jobsFailed: Number(stats.jobsFailed ?? 0),
+  deletionRequests: Number(stats.deletionRequests ?? 0),
+};
+
 const actionItems = [
   pendingOrders > 0 && {
     label: `${pendingOrders} pesanan menunggu bayar`,
@@ -97,7 +103,7 @@ const cardClass: Record<string, string> = {
   danger: 'border-bahaya/30 bg-bahaya/5 hover:border-bahaya/50',
 };
 ---
-<AdminShell title="Admin" section="ringkasan" balance={auth.balance} superadmin={auth.superadmin}>
+<AdminShell title="Admin" section="ringkasan" balance={auth.balance} superadmin={auth.superadmin} navStats={navStats}>
   <h1 class="judul">Ringkasan</h1>
   <p class="mt-2 text-sm text-tinta-lembut">Operasi platform Otodidak</p>
 

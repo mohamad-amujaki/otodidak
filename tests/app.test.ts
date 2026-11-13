@@ -289,6 +289,15 @@ describe('putaran belajar', () => {
     expect(body.users).toBeGreaterThanOrEqual(1);
   });
 
+  it('admin mengunduh ekspor buku besar', async () => {
+    const cookie = await signIn('admin@example.com', 'Admin');
+    const response = await api('/api/admin/ledger/export', { cookie });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/csv');
+    const text = await response.text();
+    expect(text.startsWith('tanggal,email,nama')).toBe(true);
+  });
+
   it('admin biasa ditolak dari paket platform', async () => {
     await signIn('admin-kedua@example.com', 'Admin Kedua');
     const cookie = await signIn('admin@example.com', 'Admin');

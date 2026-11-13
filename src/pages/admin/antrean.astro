@@ -9,7 +9,7 @@ import { isRecord } from '../../domain/guard';
 import { requireAdmin } from '../../server/admin-guard';
 import { callApi } from '../../server/call';
 
-const auth = await requireAdmin(Astro.request);
+const auth = await requireAdmin(Astro.request, { nav: true });
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
 
 const offset = Number(Astro.url.searchParams.get('offset') ?? 0);
@@ -42,7 +42,7 @@ function jobStatusTone(status: string) {
   return 'neutral';
 }
 ---
-<AdminShell title="Antrean" section="antrean" balance={auth.balance} superadmin={auth.superadmin}>
+<AdminShell title="Antrean" section="antrean" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav}>
   <h1 class="judul">Antrean generasi</h1>
   <p class="mt-2 text-sm text-tinta-lembut">Job roadmap, pelajaran, dan kuis · {total} total</p>
 
