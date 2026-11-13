@@ -1,4 +1,7 @@
+import { SEED_PROMPTS } from '../domain/prompts';
 import { callApi, errorOf } from './call';
+
+const seededPromptTasks = ['roadmap', 'lesson', 'quiz'] as const;
 
 export async function runAdminAction(
   request: Request,
@@ -103,6 +106,23 @@ export async function runAdminAction(
     const modelErr = errorOf(modelResult.data);
     if (modelErr) return modelErr.message;
     return 'Pengaturan AI untuk tugas ini diperbarui.';
+  }
+  if (action === 'reset-prompt') {
+    const task = String(form.get('task') ?? '');
+    if (!seededPromptTasks.includes(task as (typeof seededPromptTasks)[number]))
+      return 'Tugas tidak dikenal.';
+    const body = SEED_PROMPTS[task as (typeof seededPromptTasks)[number]];
+    const result = await callApi(
+      request,
+      bindings,
+      `/api/admin/prompts/${task}`,
+      {
+        method: 'PUT',
+        json: { body },
+        csrf,
+      },
+    );
+    return errorOf(result.data)?.message ?? 'Prompt dikembalikan ke bawaan.';
   }
   if (action === 'prompt') {
     const result = await callApi(

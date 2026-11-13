@@ -60,6 +60,7 @@ function pricePerCredit(priceIdr: number, credits: number): number {
 const showPreview = Astro.url.searchParams.get('pratinjau') !== '0';
 ---
 <AdminShell title="Paket" section="paket" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav}>
+  <div data-admin-paket-page>
   <AdminBreadcrumb
     items={[
       { label: 'Ringkasan', href: '/admin' },
@@ -119,7 +120,7 @@ const showPreview = Astro.url.searchParams.get('pratinjau') !== '0';
     </div>
     <ul class="divide-y divide-garis">
       {sorted.map((pack) => (
-        <li class="px-4 py-4" data-pack-row>
+        <li class="px-4 py-4" data-pack-row data-pack-id={pack.id} data-was-active={pack.active ? '1' : '0'}>
           <form class="grid gap-3 min-[900px]:grid-cols-[3.5rem_minmax(0,1fr)_5rem_7rem_6rem_4.5rem_auto] min-[900px]:items-center min-[900px]:gap-2" method="post">
             <input type="hidden" name="csrf" value={Astro.locals.csrf} />
             <input type="hidden" name="aksi" value="paket" />
@@ -202,4 +203,5 @@ const showPreview = Astro.url.searchParams.get('pratinjau') !== '0';
     </div>
   )}
   <script src="/scripts/admin-paket.js" defer></script>
+  </div>
 </AdminShell>

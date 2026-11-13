@@ -20,15 +20,31 @@ const visible = [...packs]
   .filter((p) => p.active === 1 || p.active === true)
   .sort((a, b) => a.sort - b.sort);
 ---
-<section class="rounded-kartu border border-garis bg-kertas/50 p-4" aria-label="Pratinjau tampilan pelajar">
+<section
+  class="rounded-kartu border border-garis bg-kertas/50 p-4"
+  aria-label="Pratinjau tampilan pelajar"
+  data-pack-preview-root
+>
   <h3 class="text-sm font-semibold text-tinta">Pratinjau di halaman Kredit</h3>
   <p class="mt-1 text-xs text-tinta-lembut">Hanya paket aktif, diurutkan seperti yang dilihat pelajar.</p>
-  {visible.length === 0 ? (
-    <p class="mt-4 text-sm text-tinta-lembut">Tidak ada paket aktif untuk ditampilkan.</p>
-  ) : (
-    <ul class="mt-4 grid gap-3 min-[640px]:grid-cols-2 min-[900px]:grid-cols-3">
+  <p
+    class="mt-4 text-sm text-tinta-lembut"
+    data-pack-preview-empty
+    hidden={visible.length > 0}
+  >
+    Tidak ada paket aktif untuk ditampilkan.
+  </p>
+  <ul
+    class="mt-4 grid gap-3 min-[640px]:grid-cols-2 min-[900px]:grid-cols-3"
+    data-pack-preview-grid
+    hidden={visible.length === 0}
+  >
       {visible.map((pack) => (
-        <li class="flex flex-col rounded-kartu border border-garis bg-kartu p-4 shadow-sm">
+        <li
+          class="flex flex-col rounded-kartu border border-garis bg-kartu p-4 shadow-sm"
+          data-preview-card
+          data-pack-id={pack.id}
+        >
           <h4 class="text-base font-semibold text-tinta">{pack.name}</h4>
           <p class="mt-1 text-2xl font-bold tabular-nums text-jalur">{pack.credits}</p>
           <p class="text-xs text-tinta-lembut">kredit</p>
@@ -38,6 +54,5 @@ const visible = [...packs]
           </p>
         </li>
       ))}
-    </ul>
-  )}
+  </ul>
 </section>
