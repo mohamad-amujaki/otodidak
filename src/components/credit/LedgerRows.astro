@@ -1,0 +1,59 @@
+---
+import { ledgerReasonIcons, ledgerReasonLabels } from '../../domain/credit-ui';
+import { formatWhen } from '../../domain/format';
+import { isRecord } from '../../domain/guard';
+import LedgerIcon from './LedgerIcon.astro';
+
+interface Props {
+  entries: unknown[];
+  compact?: boolean;
+}
+
+const { entries, compact = false } = Astro.props;
+const rows = entries.filter(isRecord);
+---
+<ul class:list={['grid gap-3', compact && 'gap-2']}>
+  {rows.map((entry) => {
+    const reason = String(entry.reason);
+    const iconType = ledgerReasonIcons[reason] || 'circle';
+    const amount = Number(entry.amount);
+    const isPositive = amount > 0;
+    return (
+      <li
+        class:list={[
+          'flex items-center gap-4 border border-garis bg-kartu',
+          compact
+            ? 'rounded-kontrol px-3 py-2.5'
+            : 'rounded-kartu p-4 shadow-sm transition-all hover:shadow-md',
+        ]}
+      >
+        <div
+          class:list={[
+            'flex shrink-0 items-center justify-center rounded-kontrol',
+            compact ? 'size-9' : 'size-10',
+            isPositive ? 'bg-jalur-lembut text-jalur' : 'bg-kertas text-tinta-lembut',
+          ]}
+        >
+          <LedgerIcon iconType={iconType} />
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class:list={['font-medium text-tinta', compact && 'text-sm']}>
+            {ledgerReasonLabels[reason] ?? reason}
+          </p>
+          <p class="text-sm text-tinta-lembut">{formatWhen(String(entry.createdAt))}</p>
+        </div>
+        <div class="text-right">
+          <p
+            class:list={[
+              'font-bold tabular-nums',
+              compact ? 'text-base' : 'text-lg',
+              isPositive ? 'text-jalur' : 'text-bahaya',
+            ]}
+          >
+            {isPositive ? '+' : ''}{amount}
+          </p>
+        </div>
+      </li>
+    );
+  })}
+</ul>

@@ -1,0 +1,96 @@
+---
+import { env } from 'cloudflare:workers';
+import LedgerRows from '../../components/credit/LedgerRows.astro';
+import PageRange from '../../components/credit/PageRange.astro';
+import PaginationNav from '../../components/credit/PaginationNav.astro';
+import Shell from '../../components/Shell.astro';
+import { ledgerFilterOptions } from '../../domain/credit-ui';
+import { isRecord, record } from '../../domain/guard';
+import { callApi } from '../../server/call';
+
+const LIMIT = 20;
+const meResult = await callApi(Astro.request, env, '/api/me');
+if (meResult.status !== 200) return Astro.redirect('/masuk');
+const me = record(meResult.data);
+const user = record(me.user);
+
+const offset = Math.max(0, Number(Astro.url.searchParams.get('offset') ?? 0));
+const reason = Astro.url.searchParams.get('reason') ?? '';
+const params = new URLSearchParams({
+  limit: String(LIMIT),
+  offset: String(offset),
+  ordersLimit: '0',
+});
+if (reason) params.set('reason', reason);
+
+const creditResult = await callApi(
+  Astro.request,
+  env,
+  `/api/credits?${params}`,
+);
+const credit = record(creditResult.data);
+const entries = Array.isArray(credit.entries)
+  ? credit.entries.filter(isRecord)
+  : [];
+const entriesTotal =
+  typeof credit.entriesTotal === 'number'
+    ? credit.entriesTotal
+    : entries.length;
+const extraQuery: Record<string, string> = {};
+if (reason) extraQuery.reason = reason;
+---
+<Shell
+  title="Riwayat kredit"
+  balance={typeof me.balance === 'number' ? me.balance : 0}
+  role={user.role === 'admin' ? 'admin' : 'learner'}
+  suspended={user.status === 'suspended'}
+>
+  <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <a class="text-sm text-jalur hover:underline" href="/kredit">← Kredit</a>
+      <h1 class="judul mt-2">Buku besar</h1>
+    </div>
+    <PageRange offset={offset} limit={LIMIT} total={entriesTotal} noun="transaksi" />
+  </div>
+
+  <form class="mb-6 flex flex-wrap items-end gap-3" method="get" action="/kredit/riwayat">
+    <label class="block min-w-[12rem] flex-1">
+      <span class="text-sm font-medium text-tinta">Filter</span>
+      <select
+        class="mt-1 min-h-11 w-full rounded-kontrol border border-garis bg-kartu px-3 text-sm"
+        name="reason"
+      >
+        {ledgerFilterOptions.map((opt) => (
+          <option value={opt.value} selected={reason === opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </label>
+    <button
+      class="inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-5 text-sm font-semibold text-white"
+      type="submit"
+    >
+      Terapkan
+    </button>
+  </form>
+
+  {entries.length === 0 ? (
+    <div class="rounded-kartu border border-garis bg-kartu p-8 text-center">
+      <p class="font-medium text-tinta">Tidak ada transaksi</p>
+      <p class="mt-1 text-sm text-tinta-lembut">
+        {reason ? 'Coba filter lain atau reset filter.' : 'Riwayat akan muncul di sini.'}
+      </p>
+    </div>
+  ) : (
+    <LedgerRows entries={entries} compact />
+  )}
+
+  <PaginationNav
+    basePath="/kredit/riwayat"
+    offset={offset}
+    limit={LIMIT}
+    total={entriesTotal}
+    extraQuery={extraQuery}
+  />
+</Shell>

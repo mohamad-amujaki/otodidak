@@ -49,6 +49,36 @@ export const pageSchema = z.strictObject({
   q: z.string().trim().min(1).max(120).optional(),
 });
 
+const ledgerReason = z.enum([
+  'signup_grant',
+  'purchase',
+  'roadmap',
+  'lesson',
+  'quiz',
+  'outline',
+  'refund',
+  'admin_adjust',
+  'usage',
+]);
+
+const orderStatus = z.enum(['pending', 'paid', 'failed', 'expired']);
+
+const emptyToUndefined = (value: unknown) =>
+  value === '' || value === undefined ? undefined : value;
+
+export const creditsQuerySchema = z.strictObject({
+  limit: z.coerce.number().int().min(0).max(50).default(20),
+  offset: z.coerce.number().int().min(0).max(10_000).default(0),
+  ordersLimit: z.coerce.number().int().min(0).max(50).default(20),
+  ordersOffset: z.coerce.number().int().min(0).max(10_000).default(0),
+  reason: z.preprocess(emptyToUndefined, ledgerReason.optional()),
+  status: z.preprocess(emptyToUndefined, orderStatus.optional()),
+  includePending: z
+    .union([z.literal('1'), z.literal('true'), z.literal('')])
+    .optional()
+    .transform((v) => v === '1' || v === 'true'),
+});
+
 export const adminUserSchema = z
   .strictObject({
     role: z.enum(['learner', 'admin']).optional(),

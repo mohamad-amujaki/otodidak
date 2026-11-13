@@ -34,6 +34,7 @@ import {
   adminUserSchema,
   attemptSchema,
   configSchema,
+  creditsQuerySchema,
   devSessionSchema,
   modelSchema,
   packOrderSchema,
@@ -53,9 +54,13 @@ import {
   database,
   ensureUser,
   eraseLearning,
+  ledgerCount,
   ledgerPage,
   loadConfig,
+  ordersCount,
   ordersFor,
+  ordersPage,
+  pendingOrdersFor,
 } from './account';
 import { isSuperadmin } from './admin-access';
 import { DEV_COOKIE, devIdentityFor, identify, signDevSession } from './auth';
@@ -392,13 +397,30 @@ export function createApp() {
   });
 
   app.get('/api/credits', async (c) => {
-    const query = readQuery(c.req.url);
+    const query = readCreditsQuery(c.req.url);
     const db = await database(c.env);
     const user = c.get('user');
+    const reason = query.reason || undefined;
+    const status = query.status || undefined;
+    const [balance, entries, entriesTotal, orders, ordersTotal, pendingOrders] =
+      await Promise.all([
+        balanceOf(db, user.id),
+        ledgerPage(db, user.id, query.limit, query.offset, reason),
+        ledgerCount(db, user.id, reason),
+        ordersPage(db, user.id, query.ordersLimit, query.ordersOffset, status),
+        ordersCount(db, user.id, status),
+        query.includePending
+          ? pendingOrdersFor(db, user.id)
+          : Promise.resolve([]),
+      ]);
     return c.json({
-      balance: await balanceOf(db, user.id),
-      entries: await ledgerPage(db, user.id, query.limit, query.offset),
-      orders: await ordersFor(db, user.id),
+      balance,
+      entries,
+      entriesTotal,
+      orders,
+      ordersTotal,
+      pendingOrders,
+      pendingOrdersTotal: pendingOrders.length,
     });
   });
 
@@ -1146,6 +1168,14 @@ async function handleWebhook(
 
 function readQuery(url: string) {
   const parsed = pageSchema.safeParse(
+    Object.fromEntries(new URL(url).searchParams),
+  );
+  if (!parsed.success) throw new AppError('validation');
+  return parsed.data;
+}
+
+function readCreditsQuery(url: string) {
+  const parsed = creditsQuerySchema.safeParse(
     Object.fromEntries(new URL(url).searchParams),
   );
   if (!parsed.success) throw new AppError('validation');

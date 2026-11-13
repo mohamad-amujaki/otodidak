@@ -1,0 +1,99 @@
+---
+import { orderStatusLabels, shortOrderId } from '../../domain/credit-ui';
+import { formatIdr, formatWhen } from '../../domain/format';
+import { isRecord } from '../../domain/guard';
+
+interface Props {
+  orders: unknown[];
+  compact?: boolean;
+}
+
+const { orders, compact = false } = Astro.props;
+const rows = orders.filter(isRecord);
+
+const statusConfig = {
+  pending: {
+    label: orderStatusLabels.pending,
+    color: 'bg-hangat-lembut text-hangat border-hangat/30',
+    icon: 'clock',
+  },
+  paid: {
+    label: orderStatusLabels.paid,
+    color: 'bg-jalur-lembut text-jalur border-jalur/30',
+    icon: 'check',
+  },
+  failed: {
+    label: orderStatusLabels.failed,
+    color: 'bg-bahaya/10 text-bahaya border-bahaya/30',
+    icon: 'x',
+  },
+  expired: {
+    label: orderStatusLabels.expired,
+    color: 'bg-kertas text-tinta-lembut border-garis',
+    icon: 'clock',
+  },
+} as const;
+---
+<ul class:list={['grid gap-3', compact && 'gap-2']}>
+  {rows.map((order) => {
+    const status = String(order.status);
+    const config =
+      statusConfig[status as keyof typeof statusConfig] ?? statusConfig.failed;
+    const orderKey = String(order.orderId ?? order.id);
+    return (
+      <li>
+        <a
+          class:list={[
+            'flex items-center gap-4 border border-garis bg-kartu transition-all hover:border-jalur/30',
+            compact
+              ? 'rounded-kontrol px-3 py-2.5'
+              : 'rounded-kartu p-4 shadow-sm hover:shadow-md',
+          ]}
+          href={`/kredit/pesanan/${String(order.id)}`}
+        >
+          <div
+            class:list={[
+              'flex shrink-0 items-center justify-center rounded-kontrol',
+              compact ? 'size-9' : 'size-10',
+              config.color.split(' ')[0],
+            ]}
+          >
+            {config.icon === 'clock' && (
+              <svg class:list={['size-5', config.color.split(' ')[1]]} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            {config.icon === 'check' && (
+              <svg class:list={['size-5', config.color.split(' ')[1]]} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+            {config.icon === 'x' && (
+              <svg class:list={['size-5', config.color.split(' ')[1]]} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <p class:list={['font-medium text-tinta', compact && 'text-sm']}>
+                {formatWhen(String(order.createdAt))}
+              </p>
+              <span class:list={['rounded border px-2 py-0.5 text-xs font-medium', config.color]}>
+                {config.label}
+              </span>
+            </div>
+            <p class="mt-1 text-sm text-tinta-lembut">
+              <span class="font-mono text-xs">{shortOrderId(orderKey)}</span>
+              {' · '}
+              {order.credits} kredit · {formatIdr(Number(order.amountIdr))}
+            </p>
+          </div>
+          <svg class="size-5 shrink-0 text-tinta-lembut" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+      </li>
+    );
+  })}
+</ul>

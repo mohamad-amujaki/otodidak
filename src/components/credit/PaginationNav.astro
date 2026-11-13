@@ -1,0 +1,42 @@
+---
+interface Props {
+  basePath: string;
+  offset: number;
+  limit: number;
+  total: number;
+  extraQuery?: Record<string, string>;
+}
+
+const { basePath, offset, limit, total, extraQuery = {} } = Astro.props;
+const prev = offset >= limit ? offset - limit : null;
+const next = offset + limit < total ? offset + limit : null;
+
+function href(at: number) {
+  const params = new URLSearchParams({ offset: String(at), ...extraQuery });
+  return `${basePath}?${params.toString()}`;
+}
+---
+{(prev !== null || next !== null) && (
+  <nav class="mt-4 flex flex-wrap items-center justify-between gap-3" aria-label="Paginasi">
+    {prev !== null ? (
+      <a
+        class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:bg-kertas"
+        href={href(prev)}
+      >
+        Sebelumnya
+      </a>
+    ) : (
+      <span class="min-h-11" />
+    )}
+    {next !== null ? (
+      <a
+        class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:bg-kertas"
+        href={href(next)}
+      >
+        Berikutnya
+      </a>
+    ) : (
+      <span class="min-h-11" />
+    )}
+  </nav>
+)}

@@ -1,4 +1,4 @@
-import { and, desc, eq, or } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, or, type SQL } from 'drizzle-orm';
 import { balanceOf, insertLedger } from '../billing/ledger';
 import { createDb, type Database } from '../db/client';
 import {
@@ -187,28 +187,111 @@ export async function deletePath(db: Database, pathId: string): Promise<void> {
   await db.delete(paths).where(eq(paths.id, pathId));
 }
 
+const usageReasons = ['roadmap', 'lesson', 'quiz', 'outline'] as const;
+
+function ledgerReasonWhere(userId: string, reason?: string): SQL | undefined {
+  if (!reason) return eq(creditLedger.userId, userId);
+  if (reason === 'usage') {
+    return and(
+      eq(creditLedger.userId, userId),
+      inArray(creditLedger.reason, [...usageReasons]),
+    );
+  }
+  return and(
+    eq(creditLedger.userId, userId),
+    eq(
+      creditLedger.reason,
+      reason as (typeof creditLedger.$inferSelect)['reason'],
+    ),
+  );
+}
+
+function orderStatusWhere(userId: string, status?: string): SQL | undefined {
+  if (!status) return eq(creditOrders.userId, userId);
+  return and(
+    eq(creditOrders.userId, userId),
+    eq(
+      creditOrders.status,
+      status as (typeof creditOrders.$inferSelect)['status'],
+    ),
+  );
+}
+
 export async function ledgerPage(
   db: Database,
   userId: string,
   limit: number,
   offset: number,
+  reason?: string,
 ) {
+  if (limit < 1) return [];
+  const where = ledgerReasonWhere(userId, reason);
   return db
     .select()
     .from(creditLedger)
-    .where(eq(creditLedger.userId, userId))
+    .where(where)
     .orderBy(desc(creditLedger.createdAt))
     .limit(limit)
     .offset(offset);
 }
 
-export async function ordersFor(db: Database, userId: string) {
+export async function ledgerCount(
+  db: Database,
+  userId: string,
+  reason?: string,
+) {
+  const where = ledgerReasonWhere(userId, reason);
+  const rows = await db
+    .select({ total: count() })
+    .from(creditLedger)
+    .where(where);
+  return Number(rows[0]?.total ?? 0);
+}
+
+export async function ordersPage(
+  db: Database,
+  userId: string,
+  limit: number,
+  offset: number,
+  status?: string,
+) {
+  if (limit < 1) return [];
+  const where = orderStatusWhere(userId, status);
   return db
     .select()
     .from(creditOrders)
-    .where(eq(creditOrders.userId, userId))
+    .where(where)
     .orderBy(desc(creditOrders.createdAt))
-    .limit(20);
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function ordersCount(
+  db: Database,
+  userId: string,
+  status?: string,
+) {
+  const where = orderStatusWhere(userId, status);
+  const rows = await db
+    .select({ total: count() })
+    .from(creditOrders)
+    .where(where);
+  return Number(rows[0]?.total ?? 0);
+}
+
+export async function pendingOrdersFor(db: Database, userId: string) {
+  return db
+    .select()
+    .from(creditOrders)
+    .where(
+      and(eq(creditOrders.userId, userId), eq(creditOrders.status, 'pending')),
+    )
+    .orderBy(desc(creditOrders.createdAt));
+}
+
+/** @deprecated Gunakan {@link ordersPage} dengan limit/offset. */
+export async function ordersFor(db: Database, userId: string) {
+  return ordersPage(db, userId, 20, 0);
 }
 
 export async function activePacks(db: Database) {
