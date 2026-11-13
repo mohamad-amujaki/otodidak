@@ -157,9 +157,25 @@ function taskHref(task: string) {
             {promptLen.toLocaleString('id-ID')} / {MAX_PROMPT_CHARS.toLocaleString('id-ID')} karakter
           </p>
           {seedBody && (
-            <details class="mt-4 rounded-kontrol border border-garis bg-kertas/40 px-4 py-3">
+            <details class="mt-4 rounded-kontrol border border-garis bg-kertas/40 px-4 py-3" data-prompt-compare-details>
               <summary class="cursor-pointer text-sm font-medium text-tinta">Bandingkan prompt bawaan</summary>
-              <pre class="mt-3 max-h-48 overflow-auto whitespace-pre-wrap font-mono text-xs text-tinta-lembut">{seedBody}</pre>
+              <p class="mt-2 text-xs text-tinta-lembut" data-prompt-diff-meta aria-live="polite"></p>
+              <div class="mt-3 grid gap-3 min-[768px]:grid-cols-2">
+                <div class="min-w-0">
+                  <p class="text-xs font-semibold uppercase tracking-wide text-tinta-lembut">Saat ini</p>
+                  <pre
+                    class="mt-1 max-h-56 overflow-auto whitespace-pre-wrap rounded-kontrol border border-garis bg-kartu p-3 font-mono text-xs text-tinta"
+                    data-prompt-mirror
+                  >{promptBody}</pre>
+                </div>
+                <div class="min-w-0">
+                  <p class="text-xs font-semibold uppercase tracking-wide text-tinta-lembut">Bawaan</p>
+                  <pre
+                    class="mt-1 max-h-56 overflow-auto whitespace-pre-wrap rounded-kontrol border border-garis bg-kertas p-3 font-mono text-xs text-tinta-lembut"
+                    data-prompt-seed
+                  >{seedBody}</pre>
+                </div>
+              </div>
             </details>
           )}
         </section>

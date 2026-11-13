@@ -109,7 +109,14 @@ const showPreview = Astro.url.searchParams.get('pratinjau') !== '0';
   {message && <AdminAlert message={message} tone={messageTone} />}
 
   <div class="mt-8 overflow-hidden rounded-kartu border border-garis bg-kartu" data-admin-paket>
-    <div class="hidden min-[900px]:grid min-[900px]:grid-cols-[3.5rem_minmax(0,1fr)_5rem_7rem_6rem_4.5rem_auto] min-[900px]:gap-2 min-[900px]:border-b min-[900px]:border-garis min-[900px]:bg-kertas/50 min-[900px]:px-4 min-[900px]:py-2 min-[900px]:text-xs min-[900px]:font-medium min-[900px]:text-tinta-lembut">
+    <p class="mb-2 px-4 text-xs text-tinta-lembut min-[900px]:hidden">
+      Tahan ikon seret untuk mengubah urutan tampil, lalu simpan tiap baris.
+    </p>
+    <p class="hidden min-[900px]:block min-[900px]:px-4 min-[900px]:pb-2 min-[900px]:text-xs min-[900px]:text-tinta-lembut">
+      Seret baris untuk mengubah urutan tampil di halaman pelajar.
+    </p>
+    <div class="hidden min-[900px]:grid min-[900px]:grid-cols-[2rem_3.5rem_minmax(0,1fr)_5rem_7rem_6rem_4.5rem_auto] min-[900px]:gap-2 min-[900px]:border-b min-[900px]:border-garis min-[900px]:bg-kertas/50 min-[900px]:px-4 min-[900px]:py-2 min-[900px]:text-xs min-[900px]:font-medium min-[900px]:text-tinta-lembut">
+      <span class="sr-only">Seret</span>
       <span>Urut</span>
       <span>Nama</span>
       <span>Kredit</span>
@@ -118,13 +125,22 @@ const showPreview = Astro.url.searchParams.get('pratinjau') !== '0';
       <span>Status</span>
       <span></span>
     </div>
-    <ul class="divide-y divide-garis">
+    <ul class="divide-y divide-garis" data-pack-sortable>
       {sorted.map((pack) => (
         <li class="px-4 py-4" data-pack-row data-pack-id={pack.id} data-was-active={pack.active ? '1' : '0'}>
-          <form class="grid gap-3 min-[900px]:grid-cols-[3.5rem_minmax(0,1fr)_5rem_7rem_6rem_4.5rem_auto] min-[900px]:items-center min-[900px]:gap-2" method="post">
+          <form class="grid gap-3 min-[900px]:grid-cols-[2rem_3.5rem_minmax(0,1fr)_5rem_7rem_6rem_4.5rem_auto] min-[900px]:items-center min-[900px]:gap-2" method="post">
             <input type="hidden" name="csrf" value={Astro.locals.csrf} />
             <input type="hidden" name="aksi" value="paket" />
             <input type="hidden" name="id" value={pack.id} />
+            <button
+              class="inline-flex size-10 cursor-grab items-center justify-center rounded-kontrol border border-garis bg-kertas text-tinta-lembut active:cursor-grabbing min-[900px]:size-8"
+              type="button"
+              data-drag-handle
+              aria-label={`Seret untuk mengurutkan ${pack.name}`}
+              title="Seret untuk mengurutkan"
+            >
+              <span aria-hidden="true">⋮⋮</span>
+            </button>
             <label class="text-sm min-[900px]:contents">
               <span class="min-[900px]:sr-only font-medium">Urutan</span>
               <input

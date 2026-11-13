@@ -26,8 +26,42 @@
     counter.classList.toggle('text-tinta-lembut', !hot);
   };
 
-  textarea?.addEventListener('input', syncCounter);
+  const mirror = root.querySelector('[data-prompt-mirror]');
+  const seedEl = root.querySelector('[data-prompt-seed]');
+  const diffMeta = root.querySelector('[data-prompt-diff-meta]');
+
+  const syncCompare = () => {
+    if (!textarea || !mirror) return;
+    mirror.textContent = textarea.value;
+    if (!diffMeta || !seedEl) return;
+    const current = textarea.value.trim();
+    const seed = seedEl.textContent?.trim() ?? '';
+    if (current === seed) {
+      diffMeta.textContent = 'Identik dengan prompt bawaan.';
+      diffMeta.classList.remove('text-bahaya');
+      diffMeta.classList.add('text-jalur');
+      return;
+    }
+    const delta = current.length - seed.length;
+    const deltaLabel =
+      delta === 0
+        ? 'panjang sama'
+        : delta > 0
+          ? `${delta.toLocaleString('id-ID')} karakter lebih panjang`
+          : `${Math.abs(delta).toLocaleString('id-ID')} karakter lebih pendek`;
+    diffMeta.textContent = `Berbeda dari bawaan (${deltaLabel}).`;
+    diffMeta.classList.remove('text-jalur');
+    diffMeta.classList.add('text-bahaya');
+  };
+
+  const onPromptInput = () => {
+    syncCounter();
+    syncCompare();
+  };
+
+  textarea?.addEventListener('input', onPromptInput);
   syncCounter();
+  syncCompare();
 
   const modelFieldsChanged = () => {
     if (!form) return false;

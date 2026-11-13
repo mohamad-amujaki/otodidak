@@ -118,6 +118,56 @@
     syncRow(row);
   };
 
+  const reindexSort = () => {
+    const sortable = tableRoot.querySelector('[data-pack-sortable]');
+    if (!sortable) return;
+    [...sortable.querySelectorAll('[data-pack-row]')].forEach((row, index) => {
+      const input = row.querySelector('[name="sort"]');
+      if (input) input.value = String(index * 10);
+    });
+    renderPreview();
+  };
+
+  const sortable = tableRoot.querySelector('[data-pack-sortable]');
+  let dragRow = null;
+  if (sortable) {
+    sortable.querySelectorAll('[data-pack-row]').forEach((row) => {
+      const handle = row.querySelector('[data-drag-handle]');
+      row.addEventListener('dragend', () => {
+        row.draggable = false;
+        row.classList.remove('opacity-60');
+      });
+      row.addEventListener('dragstart', (event) => {
+        if (!row.draggable) {
+          event.preventDefault();
+          return;
+        }
+        dragRow = row;
+        row.classList.add('opacity-60');
+        event.dataTransfer?.setData(
+          'text/plain',
+          row.getAttribute('data-pack-id') ?? '',
+        );
+      });
+      row.addEventListener('dragover', (event) => {
+        event.preventDefault();
+      });
+      row.addEventListener('drop', (event) => {
+        event.preventDefault();
+        if (!dragRow || dragRow === row) return;
+        const rect = row.getBoundingClientRect();
+        const after = event.clientY > rect.top + rect.height / 2;
+        if (after) row.after(dragRow);
+        else row.before(dragRow);
+        dragRow = null;
+        reindexSort();
+      });
+      handle?.addEventListener('pointerdown', () => {
+        row.draggable = true;
+      });
+    });
+  }
+
   tableRoot.querySelectorAll('[data-pack-row]').forEach(bindRow);
   renderPreview();
 })();
