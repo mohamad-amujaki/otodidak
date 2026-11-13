@@ -39,7 +39,6 @@ import {
   modelSchema,
   packOrderSchema,
   packsSchema,
-  pageSchema,
   promptSchema,
   streakSchema,
   taskSchema,
