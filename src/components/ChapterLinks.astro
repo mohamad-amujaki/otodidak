@@ -18,20 +18,18 @@ const { pathId, chapters, currentLessonId, onPath = false } = Astro.props;
 ---
 <div class="space-y-2">
   {chapters.map((chapter, chapterIndex) => {
-    const hasCurrentLesson = chapter.lessons.some(l => l.id === currentLessonId);
-    
+    const hasCurrentLesson = chapter.lessons.some((l) => l.id === currentLessonId);
+
     return (
-      <details 
-        class="chapter-group overflow-hidden rounded-lg border border-garis bg-white shadow-sm"
+      <details
+        class="chapter-group overflow-hidden rounded-kontrol border border-garis bg-kartu shadow-sm"
         open={hasCurrentLesson || chapterIndex === 0}
       >
-        <summary class="flex cursor-pointer items-center justify-between p-3 transition-colors hover:bg-kertas">
-          <div class="flex items-center gap-3">
-            <!-- Chapter Number Badge -->
-            <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-jalur-lembut text-sm font-bold text-jalur">
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-2 p-3 transition-colors hover:bg-kertas">
+          <div class="flex min-w-0 items-center gap-3">
+            <div class="flex size-8 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-sm font-bold text-jalur">
               {chapterIndex + 1}
             </div>
-            
             <div class="min-w-0 flex-1">
               <p class="font-semibold text-tinta">{chapter.title}</p>
               <p class="text-xs text-tinta-lembut">
@@ -39,61 +37,63 @@ const { pathId, chapters, currentLessonId, onPath = false } = Astro.props;
               </p>
             </div>
           </div>
-
-          <!-- Chevron -->
-          <svg class="size-5 shrink-0 text-tinta-lembut transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <svg
+            class="chapter-chevron size-5 shrink-0 text-tinta-lembut"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
           </svg>
         </summary>
 
-        <!-- Lessons -->
-        <div class="border-t border-garis bg-kertas/50 p-2">
+        <ul class="border-t border-garis bg-kertas/50 p-2">
           {chapter.lessons.map((lesson, lessonIndex) => {
             const isActive = lesson.id === currentLessonId;
-            
+            const href = onPath
+              ? `#pelajaran-${lesson.id}`
+              : `/jalur/${pathId}/pelajaran/${lesson.id}`;
+
             return (
-              <a 
-                href={onPath ? '#' : `/jalur/${pathId}/pelajaran/${lesson.id}`}
-                class={`group flex items-center gap-3 rounded-lg p-2 transition-all ${
-                  isActive 
-                    ? 'bg-jalur text-white' 
-                    : 'text-tinta hover:bg-white hover:shadow-sm'
-                }`}
-                aria-current={isActive ? "page" : undefined}
-              >
-                <!-- Lesson Icon -->
-                <div class={`flex size-7 shrink-0 items-center justify-center rounded-lg ${
-                  isActive 
-                    ? 'bg-white/20' 
-                    : 'bg-garis'
-                }`}>
-                  <span class="text-xs font-medium">{lessonIndex + 1}</span>
-                </div>
-
-                <!-- Lesson Info -->
-                <div class="min-w-0 flex-1">
-                  <p class={`text-sm font-medium ${isActive ? 'text-white' : 'text-tinta'}`}>
+              <li>
+                <a
+                  class:list={[
+                    'group flex min-h-11 items-center gap-3 rounded-kontrol p-2 transition-colors',
+                    isActive
+                      ? 'bg-jalur text-white'
+                      : 'text-tinta hover:bg-kartu hover:shadow-sm',
+                  ]}
+                  href={href}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  <span
+                    class:list={[
+                      'flex size-7 shrink-0 items-center justify-center rounded-kontrol text-xs font-medium',
+                      isActive ? 'bg-white/20' : 'bg-garis',
+                    ]}
+                  >
+                    {lessonIndex + 1}
+                  </span>
+                  <span
+                    class:list={[
+                      'min-w-0 flex-1 text-sm font-medium leading-snug',
+                      isActive ? 'text-white' : 'text-tinta',
+                    ]}
+                  >
                     {lesson.title}
-                  </p>
-                </div>
-
-                <!-- Arrow for active -->
-                {isActive && (
-                  <svg class="size-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                  </svg>
-                )}
-              </a>
+                  </span>
+                  {isActive && (
+                    <svg class="size-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                  )}
+                </a>
+              </li>
             );
           })}
-        </div>
+        </ul>
       </details>
     );
   })}
 </div>
-
-<style>
-  details[open] > summary svg {
-    transform: rotate(180deg);
-  }
-</style>

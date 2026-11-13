@@ -265,11 +265,6 @@
     transition: all 150ms ease;
   }
 
-  .menu-lembar a.menu-aktif svg,
-  .menu-lembar a[aria-current="page"] svg {
-    color: var(--color-jalur);
-  }
-
   .daftar > summary {
     display: flex;
     align-items: center;
@@ -285,6 +280,19 @@
   }
 
   .daftar[open] > summary svg {
+    transform: rotate(180deg);
+  }
+
+  .menu-lembar a.menu-aktif svg,
+  .menu-lembar a[aria-current="page"] svg {
+    color: var(--color-jalur);
+  }
+
+  .chapter-group > summary .chapter-chevron {
+    transition: transform 150ms ease;
+  }
+
+  .chapter-group[open] > summary .chapter-chevron {
     transform: rotate(180deg);
   }
 
