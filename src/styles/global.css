@@ -557,19 +557,19 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .menu > summary:hover,
-  .menu-lembar a:hover,
-  .menu-lembar button:hover,
-  .daftar > summary:hover {
-    background: var(--color-kertas);
-  }
-
   a:hover {
     transition: all 150ms ease;
   }
 
   button:not(:disabled):hover {
     transition: all 150ms ease;
+  }
+
+  .menu > summary:hover,
+  .menu-lembar a:hover,
+  .menu-lembar button:hover,
+  .daftar > summary:hover {
+    background: var(--color-kertas);
   }
 }
 

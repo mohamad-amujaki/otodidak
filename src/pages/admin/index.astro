@@ -21,12 +21,36 @@ const recentUsers =
     : [];
 
 const cards = [
-  { label: 'Total pengguna', value: Number(stats.users ?? 0), href: '/admin/pengguna' },
-  { label: 'Baru (7 hari)', value: Number(stats.newUsers ?? 0), href: '/admin/pengguna' },
-  { label: 'Minta hapus data', value: Number(stats.deletionRequests ?? 0), href: '/admin/pengguna' },
-  { label: 'Pesanan pending', value: Number(stats.pendingOrders ?? 0), href: '/admin/kredit' },
-  { label: 'Antrean aktif', value: Number(stats.jobsQueued ?? 0), href: '/admin/antrean' },
-  { label: 'Job gagal', value: Number(stats.jobsFailed ?? 0), href: '/admin/antrean' },
+  {
+    label: 'Total pengguna',
+    value: Number(stats.users ?? 0),
+    href: '/admin/pengguna',
+  },
+  {
+    label: 'Baru (7 hari)',
+    value: Number(stats.newUsers ?? 0),
+    href: '/admin/pengguna',
+  },
+  {
+    label: 'Minta hapus data',
+    value: Number(stats.deletionRequests ?? 0),
+    href: '/admin/pengguna',
+  },
+  {
+    label: 'Pesanan pending',
+    value: Number(stats.pendingOrders ?? 0),
+    href: '/admin/kredit',
+  },
+  {
+    label: 'Antrean aktif',
+    value: Number(stats.jobsQueued ?? 0),
+    href: '/admin/antrean',
+  },
+  {
+    label: 'Job gagal',
+    value: Number(stats.jobsFailed ?? 0),
+    href: '/admin/antrean',
+  },
 ];
 ---
 <AdminShell title="Admin" section="ringkasan" balance={auth.balance} superadmin={auth.superadmin}>

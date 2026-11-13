@@ -248,7 +248,7 @@ export async function suggestChapterLesson(
     .where(eq(paths.id, chapter.pathId))
     .limit(1);
   const path = pathRows[0];
-  if (!path || path.status !== 'ready') {
+  if (path?.status !== 'ready') {
     throw new AppError('validation', 'Jalur belum siap untuk disunting.');
   }
   const config = await loadConfig(db);

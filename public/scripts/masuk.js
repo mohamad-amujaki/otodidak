@@ -2,9 +2,9 @@ const button = document.querySelector('#google');
 if (button instanceof HTMLButtonElement) {
   const key = document.querySelector('meta[name="clerk-key"]')?.content ?? '';
   const host = document.querySelector('meta[name="clerk-host"]')?.content ?? '';
-  const returning = [...new URLSearchParams(window.location.search).keys()].some(
-    (name) => name.startsWith('__clerk'),
-  );
+  const returning = [
+    ...new URLSearchParams(window.location.search).keys(),
+  ].some((name) => name.startsWith('__clerk'));
   const destination = {
     signInForceRedirectUrl: '/dasbor',
     signUpForceRedirectUrl: '/dasbor',
@@ -25,16 +25,35 @@ if (button instanceof HTMLButtonElement) {
         return;
       }
       button.addEventListener('click', () => {
-        void clerk.client.signIn.authenticateWithRedirect({
-          strategy: 'oauth_google',
-          redirectUrl: '/masuk',
-          redirectUrlComplete: '/dasbor',
-        });
+        void clerk.client.signIn
+          .authenticateWithRedirect({
+            strategy: 'oauth_google',
+            redirectUrl: '/masuk',
+            redirectUrlComplete: '/dasbor',
+          })
+          .catch(showError);
       });
     })
-    .catch(() => {
-      button.disabled = true;
-    });
+    .catch(showError);
+}
+
+function showError(error) {
+  const button = document.querySelector('#google');
+  const detail =
+    error?.errors?.[0]?.longMessage ??
+    error?.errors?.[0]?.message ??
+    error?.message ??
+    'Masuk dengan Google gagal. Muat ulang halaman lalu coba lagi.';
+  let box = document.querySelector('#masuk-galat');
+  if (!(box instanceof HTMLElement)) {
+    box = document.createElement('p');
+    box.id = 'masuk-galat';
+    box.setAttribute('role', 'alert');
+    box.className = 'mt-3 text-sm text-bahaya';
+    button?.after(box);
+  }
+  box.textContent = detail;
+  console.error('[masuk]', error);
 }
 
 function signedIn(clerk) {

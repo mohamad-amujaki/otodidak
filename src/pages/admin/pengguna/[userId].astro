@@ -4,7 +4,11 @@ import AdminShell from '../../../components/AdminShell.astro';
 import { ledgerReasonLabels } from '../../../domain/admin-labels';
 import { formatWhen } from '../../../domain/format';
 import { isRecord, record } from '../../../domain/guard';
-import { roleLabel, statusLabel, runAdminAction } from '../../../server/admin-actions';
+import {
+  roleLabel,
+  runAdminAction,
+  statusLabel,
+} from '../../../server/admin-actions';
 import { requireAdmin } from '../../../server/admin-guard';
 import { callApi } from '../../../server/call';
 
@@ -19,15 +23,24 @@ if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
-  else message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
+  else
+    message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
 }
 
-const detailResult = await callApi(Astro.request, env, `/api/admin/users/${userId}`);
+const detailResult = await callApi(
+  Astro.request,
+  env,
+  `/api/admin/users/${userId}`,
+);
 if (detailResult.status === 404) return Astro.redirect('/admin/pengguna');
 const detail = record(detailResult.data);
 const profile = record(detail.user);
-const ledger = Array.isArray(detail.ledger) ? detail.ledger.filter(isRecord) : [];
-const orders = Array.isArray(detail.orders) ? detail.orders.filter(isRecord) : [];
+const ledger = Array.isArray(detail.ledger)
+  ? detail.ledger.filter(isRecord)
+  : [];
+const orders = Array.isArray(detail.orders)
+  ? detail.orders.filter(isRecord)
+  : [];
 const activeJob = isRecord(detail.activeJob) ? detail.activeJob : null;
 const pathCount = Number(detail.pathCount ?? 0);
 ---

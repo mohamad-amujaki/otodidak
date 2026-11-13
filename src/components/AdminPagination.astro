@@ -14,7 +14,11 @@ const hasPrev = offset > 0;
 const hasNext = count >= limit;
 
 function href(off: number): string {
-  const params = new URLSearchParams({ ...extraParams, offset: String(off), limit: String(limit) });
+  const params = new URLSearchParams({
+    ...extraParams,
+    offset: String(off),
+    limit: String(limit),
+  });
   return `${baseUrl}?${params}`;
 }
 ---

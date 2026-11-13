@@ -15,7 +15,8 @@ if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
-  else message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
+  else
+    message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
 }
 
 const packsResult = await callApi(Astro.request, env, '/api/admin/packs');

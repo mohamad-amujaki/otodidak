@@ -19,12 +19,14 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const useClerk =
     env.CLERK_SECRET_KEY.startsWith('sk_') &&
     Boolean(clerkHost(publishableKey));
-  const response = (useClerk
-    ? await clerkMiddleware({
-        secretKey: env.CLERK_SECRET_KEY,
-        publishableKey,
-      })(context, next)
-    : await next()) as Response;
+  const response = (
+    useClerk
+      ? await clerkMiddleware({
+          secretKey: env.CLERK_SECRET_KEY,
+          publishableKey,
+        })(context, next)
+      : await next()
+  ) as Response;
   if (!existing) {
     response.headers.append(
       'set-cookie',

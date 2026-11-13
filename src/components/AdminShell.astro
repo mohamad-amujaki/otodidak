@@ -23,7 +23,7 @@ const platform = [
   ['paket', 'Paket', '/admin/paket'],
 ] as const;
 
-function isActive(id: string, href: string): boolean {
+function isActive(id: string): boolean {
   if (section === id) return true;
   if (id === 'pengguna' && section === 'pengguna-detail') return true;
   return false;
@@ -38,12 +38,12 @@ function isActive(id: string, href: string): boolean {
           <a
             class:list={[
               'inline-flex min-h-10 items-center rounded-kontrol px-3 text-sm transition-colors',
-              isActive(id, href)
+              isActive(id)
                 ? 'bg-jalur-lembut font-medium text-jalur'
                 : 'text-tinta-lembut hover:bg-kartu hover:text-tinta',
             ]}
             href={href}
-            aria-current={isActive(id, href) ? 'page' : undefined}
+            aria-current={isActive(id) ? 'page' : undefined}
           >{label}</a>
         ))}
         {superadmin && (

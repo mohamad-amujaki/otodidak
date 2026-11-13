@@ -14,14 +14,19 @@ if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
-  else message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
+  else
+    message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
 }
 
 const tasks = ['roadmap', 'lesson', 'quiz'] as const;
 const prompts = [];
 const models = [];
 for (const task of tasks) {
-  const prompt = await callApi(Astro.request, env, `/api/admin/prompts/${task}`);
+  const prompt = await callApi(
+    Astro.request,
+    env,
+    `/api/admin/prompts/${task}`,
+  );
   if (prompt.status === 200) prompts.push(record(prompt.data));
   const model = await callApi(Astro.request, env, `/api/admin/models/${task}`);
   if (model.status === 200) models.push({ task, ...record(model.data) });

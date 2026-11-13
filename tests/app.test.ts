@@ -111,8 +111,9 @@ describe('putaran belajar', () => {
     const again = await jsonBody<{
       chapters: { lessons: { id: string }[] }[];
     }>(after);
-    expect(again.chapters[0]?.lessons.some((row) => row.id === lesson.lessonId))
-      .toBe(true);
+    expect(
+      again.chapters[0]?.lessons.some((row) => row.id === lesson.lessonId),
+    ).toBe(true);
   });
 
   it('kunci pelajaran yang sudah ada menolak pembukaan kedua', async () => {

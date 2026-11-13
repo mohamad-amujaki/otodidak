@@ -3,7 +3,11 @@ import { env } from 'cloudflare:workers';
 import AdminPagination from '../../../components/AdminPagination.astro';
 import AdminShell from '../../../components/AdminShell.astro';
 import { isRecord } from '../../../domain/guard';
-import { roleLabel, statusLabel, runAdminAction } from '../../../server/admin-actions';
+import {
+  roleLabel,
+  runAdminAction,
+  statusLabel,
+} from '../../../server/admin-actions';
 import { requireAdmin } from '../../../server/admin-guard';
 import { callApi } from '../../../server/call';
 
@@ -15,16 +19,24 @@ if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
-  else message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
+  else
+    message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
 }
 
 const q = Astro.url.searchParams.get('q') ?? '';
 const offset = Number(Astro.url.searchParams.get('offset') ?? 0);
 const limit = Number(Astro.url.searchParams.get('limit') ?? 20);
-const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+const params = new URLSearchParams({
+  limit: String(limit),
+  offset: String(offset),
+});
 if (q) params.set('q', q);
 
-const usersResult = await callApi(Astro.request, env, `/api/admin/users?${params}`);
+const usersResult = await callApi(
+  Astro.request,
+  env,
+  `/api/admin/users?${params}`,
+);
 const users =
   isRecord(usersResult.data) && Array.isArray(usersResult.data.users)
     ? usersResult.data.users.filter(isRecord)

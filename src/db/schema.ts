@@ -42,6 +42,7 @@ export const creditLedger = sqliteTable(
         'roadmap',
         'lesson',
         'quiz',
+        'outline',
         'refund',
         'admin_adjust',
       ],

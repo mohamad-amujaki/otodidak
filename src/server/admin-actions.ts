@@ -1,5 +1,4 @@
-import type { Env } from 'cloudflare:workers';
-import { errorOf, callApi } from './call';
+import { callApi, errorOf } from './call';
 
 export async function runAdminAction(
   request: Request,
