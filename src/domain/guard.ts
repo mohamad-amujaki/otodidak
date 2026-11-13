@@ -1,0 +1,27 @@
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
+}
+
+export function record(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
+}
+
+export function clerkHost(publishableKey: string): string | null {
+  const prefix = publishableKey.startsWith('pk_live_')
+    ? 'pk_live_'
+    : publishableKey.startsWith('pk_test_')
+      ? 'pk_test_'
+      : '';
+  if (!prefix) return null;
+  try {
+    const decoded = atob(publishableKey.slice(prefix.length)).replace(
+      /\$$/,
+      '',
+    );
+    if (!decoded || decoded.includes('mock') || !decoded.includes('.'))
+      return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}

@@ -1,0 +1,60 @@
+---
+import { env } from 'cloudflare:workers';
+import Shell from '../components/Shell.astro';
+import { isRecord, record } from '../domain/guard';
+import { callApi, errorOf } from '../server/call';
+
+const meResult = await callApi(Astro.request, env, '/api/me');
+if (meResult.status !== 200) return Astro.redirect('/masuk');
+const me = record(meResult.data);
+const user = record(me.user);
+let message = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+    message = 'Muat ulang halaman, lalu kirim lagi.';
+  else {
+    const result = await callApi(
+      Astro.request,
+      env,
+      `/api/paths/${String(form.get('pathId') ?? '')}/active`,
+      { method: 'POST', json: {}, csrf: Astro.locals.csrf },
+    );
+    const error = errorOf(result.data);
+    if (error) message = error.message;
+    else return Astro.redirect('/pustaka');
+  }
+}
+const library = await callApi(Astro.request, env, '/api/paths');
+const paths =
+  isRecord(library.data) && Array.isArray(library.data.paths)
+    ? library.data.paths.filter(isRecord)
+    : [];
+---
+<Shell title="Pustaka" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
+  <h1 class="text-[1.75rem] leading-[1.25]">Pustaka</h1>
+  {message && <p class="mt-3 text-sm text-bahaya">{message}</p>}
+  {paths.length === 0 ? (
+    <p class="mt-4">Belum ada jalur. Tulis satu hal yang ingin kamu kuasai.</p>
+  ) : (
+    <ul class="mt-4 space-y-3">
+      {paths.map((path) => {
+        const progress = record(path.progress);
+        return (
+          <li class="rounded-kartu border border-garis bg-kartu p-4">
+            <a class="text-lg" href={`/jalur/${String(path.id)}`}>{String(path.title)}</a>
+            <p class="text-sm text-tinta-lembut">{String(progress.done ?? 0)} dari {String(progress.total ?? 0)} pelajaran selesai</p>
+            {path.isActive === true ? <p class="text-sm text-jalur">Jalur aktif</p> : (
+              <form method="post" class="mt-2">
+                <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                <input type="hidden" name="pathId" value={String(path.id)} />
+                <button class="inline-flex min-h-11 items-center rounded-kontrol border border-garis px-3" type="submit">Aktifkan</button>
+              </form>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  )}
+  <p class="mt-6"><a class="inline-flex min-h-11 items-center text-jalur" href="/dasbor?baru=1">Jalur baru</a></p>
+</Shell>

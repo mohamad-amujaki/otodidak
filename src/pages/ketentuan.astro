@@ -1,0 +1,20 @@
+---
+export const prerender = true;
+
+import Shell from '../components/Shell.astro';
+---
+<Shell title="Ketentuan">
+  <article class="max-w-2xl space-y-4">
+    <h1 class="text-[1.75rem] leading-[1.25]">Ketentuan</h1>
+    <p>Otodidak menyusun jalur belajar dari topik yang kamu tulis. Isi pelajaran dibuat saat dibuka, lalu ditampilkan bersama sumber yang berhasil ditemukan.</p>
+    <h2 class="text-xl">Kredit</h2>
+    <p>Kredit awal diberikan sekali saat akun dibuat. Menyusun jalur, membuka pelajaran yang belum punya isi, dan menyusun kuis mengurangi kredit sesuai angka yang berlaku saat itu. Membaca pelajaran yang sudah siap tidak mengurangi kredit. Mengirim ulang jawaban kuis yang sama juga tidak mengurangi kredit. Menyusun kuis baru mengurangi kredit.</p>
+    <p>Jika penyusunan gagal secara permanen, kredit untuk pekerjaan itu dikembalikan satu kali. Jika model berhasil tetapi pencarian sumber gagal, pelajaran tetap disimpan, klaim ditandai tanpa sumber, dan kredit tidak dikembalikan.</p>
+    <h2 class="text-xl">Pembelian</h2>
+    <p>Kredit dari pembelian masuk setelah webhook pembayaran terverifikasi dan jumlahnya cocok dengan pesanan. Halaman kembali dari pembayaran tidak menambah kredit.</p>
+    <h2 class="text-xl">Akun</h2>
+    <p>Akun yang ditahan tetap bisa membaca materi yang sudah ada, tetapi tidak bisa menyusun materi baru atau membuat pesanan. Satu akun punya satu jalur aktif.</p>
+    <h2 class="text-xl">Isi</h2>
+    <p>Kuis tidak mengunci pelajaran berikutnya. Kamu menandai pelajaran selesai sendiri. Hitungan hari hanya naik saat sebuah pelajaran ditandai selesai pada hari yang belum terhitung, dan bisa dimatikan dari profil.</p>
+  </article>
+</Shell>

@@ -1,0 +1,63 @@
+"$schema" = "./node_modules/wrangler/config-schema.json"
+name = "otodidak"
+main = "src/worker.ts"
+compatibility_date = "2026-11-13"
+compatibility_flags = ["nodejs_compat"]
+upload_source_maps = true
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+[observability.traces]
+enabled = true
+
+[assets]
+binding = "ASSETS"
+run_worker_first = true
+
+# Ganti sebelum produksi. Nilai lokal ditimpa .dev.vars.
+[vars]
+CLERK_PUBLISHABLE_KEY = "pk_test_mock"
+APP_ORIGIN = "http://localhost:8787"
+
+[secrets]
+required = [
+  "CLERK_SECRET_KEY",
+  "BOOTSTRAP_ADMIN_EMAIL",
+  "SUMOPOD_API_KEY",
+  "SUMOPOD_WEBHOOK_SECRET",
+  "SUMOPOD_API_BASE",
+  "OPENAI_API_KEY",
+  "BRAVE_SEARCH_API_KEY",
+  "YOUTUBE_API_KEY",
+]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "otodidak"
+database_id = "a3c1e8b0-7d4f-4e2a-9b6c-1f0d8e7a6b51"
+migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "APP_KV"
+id = "b7e2c4d1-8a5f-4c3b-9d0e-2a1b3c4d5e6f"
+
+[[queues.producers]]
+binding = "GENERATION_QUEUE"
+queue = "generation"
+
+[[queues.consumers]]
+queue = "generation"
+max_batch_size = 1
+max_retries = 3
+max_concurrency = 4
+dead_letter_queue = "generation-dlq"
+
+[[queues.consumers]]
+queue = "generation-dlq"
+max_batch_size = 1
+max_retries = 1

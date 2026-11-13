@@ -1,0 +1,59 @@
+---
+import { env } from 'cloudflare:workers';
+import Shell from '../components/Shell.astro';
+import { clerkHost } from '../domain/guard';
+import { callApi, errorOf } from '../server/call';
+
+const mock = env.CLERK_SECRET_KEY === 'mock';
+const session = await callApi(Astro.request, env, '/api/me');
+if (session.status === 200) return Astro.redirect('/dasbor');
+
+let message = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+    message = 'Muat ulang halaman, lalu kirim lagi.';
+  else if (mock) {
+    const result = await callApi(Astro.request, env, '/api/dev/session', {
+      method: 'POST',
+      json: {
+        email: String(form.get('email') ?? ''),
+        name: String(form.get('name') ?? ''),
+      },
+      csrf: Astro.locals.csrf,
+    });
+    const error = errorOf(result.data);
+    if (error) message = error.message;
+    else {
+      const headers = new Headers({ Location: '/dasbor' });
+      for (const cookie of result.setCookie)
+        headers.append('set-cookie', cookie);
+      return new Response(null, { status: 303, headers });
+    }
+  }
+}
+const host = clerkHost(env.CLERK_PUBLISHABLE_KEY);
+---
+<Shell title="Masuk">
+  <h1 class="text-[1.75rem] leading-[1.25]">Masuk</h1>
+  <p class="mt-2 text-tinta-lembut">Tidak ada kata sandi.</p>
+  {mock ? (
+    <form class="mt-6 max-w-md space-y-3" method="post">
+      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+      <p class="text-sm text-tinta-lembut">Lingkungan lokal memakai sesi percobaan sampai kunci Clerk diisi.</p>
+      <label class="block text-sm" for="email">Email</label>
+      <input class="min-h-11 w-full rounded-kontrol border border-garis bg-kartu px-3" id="email" name="email" type="email" required />
+      <label class="block text-sm" for="name">Nama</label>
+      <input class="min-h-11 w-full rounded-kontrol border border-garis bg-kartu px-3" id="name" name="name" required />
+      {message && <p class="text-sm text-bahaya">{message}</p>}
+      <button class="inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-white" type="submit">Masuk dengan Google</button>
+    </form>
+  ) : (
+    <>
+      <meta name="clerk-key" content={env.CLERK_PUBLISHABLE_KEY} />
+      {host && <meta name="clerk-host" content={host} />}
+      <button class="mt-6 inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-white" id="google" type="button">Masuk dengan Google</button>
+      <script type="module" src="/scripts/masuk.js"></script>
+    </>
+  )}
+</Shell>

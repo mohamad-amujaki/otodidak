@@ -1,0 +1,76 @@
+---
+import { env } from 'cloudflare:workers';
+import Shell from '../components/Shell.astro';
+import { minuteLabel } from '../domain/format';
+import { isRecord, record } from '../domain/guard';
+import { callApi, errorOf } from '../server/call';
+
+const meResult = await callApi(Astro.request, env, '/api/me');
+if (meResult.status !== 200 || !isRecord(meResult.data))
+  return Astro.redirect('/masuk');
+const me = meResult.data;
+let message = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+    message = 'Muat ulang halaman, lalu kirim lagi.';
+  else {
+    const result = await callApi(Astro.request, env, '/api/paths', {
+      method: 'POST',
+      json: { topic: String(form.get('topic') ?? '') },
+      csrf: Astro.locals.csrf,
+    });
+    const error = errorOf(result.data);
+    if (error) message = error.message;
+    else return Astro.redirect('/dasbor');
+  }
+}
+const user = record(me.user);
+const config = record(me.config);
+const activePath = isRecord(me.activePath) ? me.activePath : null;
+const nextLesson =
+  activePath && isRecord(activePath.nextLesson) ? activePath.nextLesson : null;
+const activeJob = isRecord(me.activeJob) ? me.activeJob : null;
+const streak = isRecord(me.streak) ? me.streak : null;
+const lines = Array.isArray(streak?.lines)
+  ? streak.lines.filter((line) => typeof line === 'string')
+  : [];
+const minutes =
+  typeof config.lessonMinuteLabel === 'number' ? config.lessonMinuteLabel : 15;
+const cost = typeof config.costRoadmap === 'number' ? config.costRoadmap : 6;
+const showForm = !activePath || Astro.url.searchParams.has('baru');
+---
+<Shell title="Dasbor" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
+  <h1 class="text-[1.75rem] leading-[1.25] min-[1100px]:text-[2.25rem] min-[1100px]:leading-[1.2]">Dasbor</h1>
+  {activeJob && <p class="mt-4">Menyusun jalur.</p>}
+  {activePath && nextLesson ? (
+    <article class="mt-4 flex gap-3 rounded-kartu border border-garis bg-kartu p-4">
+      <span class="w-1 shrink-0 rounded-full bg-hangat-lembut"></span>
+      <div>
+        <p class="text-sm text-hangat">{String(activePath.title)}</p>
+        <h2 class="text-xl">{String(nextLesson.title)}</h2>
+        <p class="text-sm text-tinta-lembut">{minuteLabel(minutes)}</p>
+        <a class="mt-3 inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-white" href={`/jalur/${String(activePath.id)}/pelajaran/${String(nextLesson.id)}`}>Lanjut</a>
+      </div>
+    </article>
+  ) : !activeJob && (
+    <p class="mt-4">Belum ada jalur. Tulis satu hal yang ingin kamu kuasai.</p>
+  )}
+  {streak && (
+    <p class="mt-4 text-sm text-tinta-lembut">{lines.join(' ')}</p>
+  )}
+  <p class="mt-4"><a class="text-jalur" href="/kredit">Isi kredit</a></p>
+  {message && <p class="mt-3 text-sm text-bahaya">{message}</p>}
+  {showForm && (
+    <form class="mt-6 max-w-xl" method="post">
+      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+      <label class="block" for="topic">Apa yang ingin kamu pelajari?</label>
+      <p class="text-sm text-tinta-lembut" id="topic-help">Satu kalimat cukup.</p>
+      <textarea class="mt-2 min-h-28 w-full rounded-kontrol border border-garis bg-kartu px-3 py-2" id="topic" name="topic" maxlength="280" required aria-describedby="topic-help"></textarea>
+      <button class="mt-3 inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-white disabled:opacity-60" type="submit" disabled={Boolean(activeJob)}>Susun jalur</button>
+      <p class="mt-2 text-sm text-tinta-lembut">Memakai {cost} kredit</p>
+    </form>
+  )}
+  {activePath && !showForm && <p class="mt-6"><a class="inline-flex min-h-11 items-center" href="/dasbor?baru=1">Jalur baru</a></p>}
+  {activeJob && <meta http-equiv="refresh" content="4" />}
+</Shell>

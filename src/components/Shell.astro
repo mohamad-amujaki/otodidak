@@ -1,0 +1,62 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  balance?: number | null;
+  role?: 'learner' | 'admin' | null;
+  suspended?: boolean;
+}
+const { title, balance = null, role = null, suspended = false } = Astro.props;
+---
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+  </head>
+  <body class="min-h-screen bg-kertas text-tinta">
+    <header class="sticky top-0 z-10 border-b border-garis bg-kertas">
+      <div class="mx-auto flex max-w-5xl items-center gap-2 px-4 py-2">
+        <a class="min-h-11 content-center px-1 text-lg font-semibold" href={role ? '/dasbor' : '/'}>Otodidak</a>
+        <div class="ml-auto flex items-center gap-2">
+          {balance !== null && (
+            <a class="min-h-11 content-center px-2 text-sm tabular-nums text-tinta-lembut" href="/kredit">{balance} kredit</a>
+          )}
+          <details class="relative">
+            <summary class="min-h-11 min-w-11 cursor-pointer content-center rounded-kontrol px-3 text-center">Menu</summary>
+            <nav class="absolute right-0 mt-2 flex w-52 flex-col gap-2 rounded-kartu border border-garis bg-kartu p-2">
+              {role ? (
+                <>
+                  <a class="min-h-11 content-center rounded-kontrol px-3" href="/dasbor">Dasbor</a>
+                  <a class="min-h-11 content-center rounded-kontrol px-3" href="/pustaka">Pustaka</a>
+                  <a class="min-h-11 content-center rounded-kontrol px-3" href="/kredit">Kredit</a>
+                  <a class="min-h-11 content-center rounded-kontrol px-3" href="/profil">Profil</a>
+                  {role === 'admin' && <a class="min-h-11 content-center rounded-kontrol px-3" href="/admin">Admin</a>}
+                  <form method="post" action="/profil">
+                    <input type="hidden" name="aksi" value="keluar" />
+                    <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                    <button class="min-h-11 w-full rounded-kontrol px-3 text-left" type="submit">Keluar</button>
+                  </form>
+                </>
+              ) : (
+                <a class="min-h-11 content-center rounded-kontrol px-3" href="/masuk">Masuk</a>
+              )}
+            </nav>
+          </details>
+        </div>
+      </div>
+    </header>
+    {suspended && (
+      <p class="mx-auto max-w-5xl px-4 pt-4 text-bahaya">Akun ini ditahan. Materi yang sudah ada tetap bisa dibaca.</p>
+    )}
+    <main class="mx-auto max-w-5xl px-4 py-6">
+      <slot />
+    </main>
+    <footer class="mx-auto flex max-w-5xl gap-4 px-4 py-8 text-sm text-tinta-lembut">
+      <a class="min-h-11 content-center" href="/privasi">Privasi</a>
+      <a class="min-h-11 content-center" href="/ketentuan">Ketentuan</a>
+    </footer>
+  </body>
+</html>

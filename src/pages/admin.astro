@@ -1,0 +1,309 @@
+---
+import { env } from 'cloudflare:workers';
+import Shell from '../components/Shell.astro';
+import { isRecord, record } from '../domain/guard';
+import { callApi, errorOf } from '../server/call';
+
+const meResult = await callApi(Astro.request, env, '/api/me');
+if (meResult.status !== 200) return Astro.redirect('/masuk');
+const me = record(meResult.data);
+const user = record(me.user);
+if (user.role !== 'admin') return Astro.redirect('/dasbor');
+const section = Astro.url.searchParams.get('bagian') ?? 'pengguna';
+let message = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+    message = 'Muat ulang halaman, lalu kirim lagi.';
+  else message = await saveAdmin(Astro.request, env, Astro.locals.csrf, form);
+}
+
+const email = Astro.url.searchParams.get('email') ?? '';
+const usersResult = await callApi(
+  Astro.request,
+  env,
+  `/api/admin/users${email ? `?email=${encodeURIComponent(email)}` : ''}`,
+);
+const users =
+  isRecord(usersResult.data) && Array.isArray(usersResult.data.users)
+    ? usersResult.data.users.filter(isRecord)
+    : [];
+const ledgerResult = await callApi(Astro.request, env, '/api/admin/ledger');
+const entries =
+  isRecord(ledgerResult.data) && Array.isArray(ledgerResult.data.entries)
+    ? ledgerResult.data.entries.filter(isRecord)
+    : [];
+const configResult = await callApi(Astro.request, env, '/api/admin/config');
+const config = record(configResult.data);
+const packsResult = await callApi(Astro.request, env, '/api/admin/packs');
+const packs =
+  isRecord(packsResult.data) && Array.isArray(packsResult.data.packs)
+    ? packsResult.data.packs.filter(isRecord)
+    : [];
+const tasks = ['roadmap', 'lesson', 'quiz'] as const;
+const prompts = [];
+const models = [];
+for (const task of tasks) {
+  const prompt = await callApi(
+    Astro.request,
+    env,
+    `/api/admin/prompts/${task}`,
+  );
+  prompts.push(record(prompt.data));
+  const model = await callApi(Astro.request, env, `/api/admin/models/${task}`);
+  models.push({ task, ...record(model.data) });
+}
+
+async function saveAdmin(
+  request: Request,
+  bindings: Env,
+  csrf: string,
+  form: FormData,
+): Promise<string> {
+  const action = String(form.get('aksi') ?? '');
+  if (action === 'pengguna') {
+    const result = await callApi(
+      request,
+      bindings,
+      `/api/admin/users/${String(form.get('userId') ?? '')}`,
+      {
+        method: 'PATCH',
+        json: {
+          role: String(form.get('role') ?? ''),
+          status: String(form.get('status') ?? ''),
+        },
+        csrf,
+      },
+    );
+    return errorOf(result.data)?.message ?? 'Pengguna diperbarui.';
+  }
+  if (action === 'hapus') {
+    const result = await callApi(
+      request,
+      bindings,
+      `/api/admin/users/${String(form.get('userId') ?? '')}/deletion`,
+      { method: 'POST', json: {}, csrf },
+    );
+    return (
+      errorOf(result.data)?.message ??
+      'Materi belajar dihapus. Buku kredit tetap ada.'
+    );
+  }
+  if (action === 'sesuaikan') {
+    const result = await callApi(
+      request,
+      bindings,
+      `/api/admin/users/${String(form.get('userId') ?? '')}/ledger`,
+      {
+        method: 'POST',
+        json: {
+          amount: Number(form.get('amount')),
+          note: String(form.get('note') ?? ''),
+        },
+        csrf,
+      },
+    );
+    return errorOf(result.data)?.message ?? 'Buku kredit diperbarui.';
+  }
+  if (action === 'konfigurasi') {
+    const result = await callApi(request, bindings, '/api/admin/config', {
+      method: 'PUT',
+      json: {
+        maxChapters: Number(form.get('maxChapters')),
+        maxLessonsPerChapter: Number(form.get('maxLessonsPerChapter')),
+        quizQuestionCount: Number(form.get('quizQuestionCount')),
+        quizPassPercent: Number(form.get('quizPassPercent')),
+        costRoadmap: Number(form.get('costRoadmap')),
+        costLesson: Number(form.get('costLesson')),
+        costQuiz: Number(form.get('costQuiz')),
+        signupCredits: Number(form.get('signupCredits')),
+        lessonMinuteLabel: Number(form.get('lessonMinuteLabel')),
+      },
+      csrf,
+    });
+    return errorOf(result.data)?.message ?? 'Batas diperbarui.';
+  }
+  if (action === 'prompt') {
+    const result = await callApi(
+      request,
+      bindings,
+      `/api/admin/prompts/${String(form.get('task') ?? '')}`,
+      {
+        method: 'PUT',
+        json: { body: String(form.get('body') ?? '') },
+        csrf,
+      },
+    );
+    return errorOf(result.data)?.message ?? 'Prompt diperbarui.';
+  }
+  if (action === 'model') {
+    const result = await callApi(
+      request,
+      bindings,
+      `/api/admin/models/${String(form.get('task') ?? '')}`,
+      {
+        method: 'PUT',
+        json: {
+          modelName: String(form.get('modelName') ?? ''),
+          maxOutputTokens: Number(form.get('maxOutputTokens')),
+          timeoutMs: Number(form.get('timeoutMs')),
+          baseUrl: String(form.get('baseUrl') ?? ''),
+          secretName: String(form.get('secretName') ?? ''),
+          authKind: String(form.get('authKind') ?? 'bearer'),
+        },
+        csrf,
+      },
+    );
+    return errorOf(result.data)?.message ?? 'Model diperbarui.';
+  }
+  if (action === 'paket') {
+    const result = await callApi(request, bindings, '/api/admin/packs', {
+      method: 'PUT',
+      json: {
+        packs: [
+          {
+            id: String(form.get('id') ?? ''),
+            name: String(form.get('name') ?? ''),
+            credits: Number(form.get('credits')),
+            priceIdr: Number(form.get('priceIdr')),
+            active: form.get('active') === '1',
+            sort: Number(form.get('sort')),
+          },
+        ],
+      },
+      csrf,
+    });
+    return errorOf(result.data)?.message ?? 'Paket diperbarui.';
+  }
+  return 'Aksi tidak dikenal.';
+}
+---
+<Shell title="Admin" balance={typeof me.balance === 'number' ? me.balance : 0} role="admin">
+  <h1 class="text-[1.75rem] leading-[1.25]">Admin</h1>
+  <nav class="mt-4 flex flex-wrap gap-2 text-sm">
+    <a class="inline-flex min-h-11 items-center px-2" href="/admin?bagian=pengguna">Pengguna</a>
+    <a class="inline-flex min-h-11 items-center px-2" href="/admin?bagian=buku">Buku kredit</a>
+    <a class="inline-flex min-h-11 items-center px-2" href="/admin?bagian=batas">Batas</a>
+    <a class="inline-flex min-h-11 items-center px-2" href="/admin?bagian=prompt">Prompt</a>
+    <a class="inline-flex min-h-11 items-center px-2" href="/admin?bagian=model">Model</a>
+    <a class="inline-flex min-h-11 items-center px-2" href="/admin?bagian=paket">Paket</a>
+  </nav>
+  {message && <p class="mt-3 text-sm">{message}</p>}
+  {section === 'pengguna' && (
+    <section class="mt-6 space-y-3">
+      <form method="get" class="flex flex-wrap gap-2">
+        <input type="hidden" name="bagian" value="pengguna" />
+        <label class="sr-only" for="email">Email</label>
+        <input class="min-h-11 rounded-kontrol border border-garis bg-kartu px-3" id="email" name="email" type="email" value={email} placeholder="Email persis" />
+        <button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Cari</button>
+      </form>
+      {users.map((item) => (
+        <article class="rounded-kartu border border-garis bg-kartu p-4">
+          <p class="font-medium">{item.name}</p>
+          <p class="text-sm text-tinta-lembut">{item.email} · {item.role} · {item.status} · {item.balance} kredit</p>
+          <form class="mt-3 flex flex-wrap gap-2" method="post">
+            <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+            <input type="hidden" name="aksi" value="pengguna" />
+            <input type="hidden" name="userId" value={String(item.id)} />
+            <select class="min-h-11 rounded-kontrol border border-garis px-2" name="role">
+              <option value="learner" selected={item.role === 'learner'}>Pelajar</option>
+              <option value="admin" selected={item.role === 'admin'}>Admin</option>
+            </select>
+            <select class="min-h-11 rounded-kontrol border border-garis px-2" name="status">
+              <option value="active" selected={item.status === 'active'}>Aktif</option>
+              <option value="suspended" selected={item.status === 'suspended'}>Ditahan</option>
+            </select>
+            <button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Simpan</button>
+          </form>
+          <form class="mt-2 flex flex-wrap gap-2" method="post">
+            <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+            <input type="hidden" name="aksi" value="sesuaikan" />
+            <input type="hidden" name="userId" value={String(item.id)} />
+            <input class="min-h-11 w-24 rounded-kontrol border border-garis px-3" name="amount" type="number" required />
+            <input class="min-h-11 rounded-kontrol border border-garis px-3" name="note" minlength="3" required placeholder="Catatan" />
+            <button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Sesuaikan kredit</button>
+          </form>
+          {item.deletionRequestedAt && (
+            <form class="mt-2" method="post">
+              <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+              <input type="hidden" name="aksi" value="hapus" />
+              <input type="hidden" name="userId" value={String(item.id)} />
+              <button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Hapus materi belajar</button>
+            </form>
+          )}
+        </article>
+      ))}
+    </section>
+  )}
+  {section === 'buku' && (
+    <ul class="mt-6 space-y-2 text-sm">
+      {entries.map((entry) => (
+        <li class="rounded-kartu border border-garis bg-kartu p-3">{entry.reason} · <span class="tabular-nums">{entry.amount}</span> · {entry.userId}</li>
+      ))}
+    </ul>
+  )}
+  {section === 'batas' && (
+    <form class="mt-6 grid max-w-md gap-2" method="post">
+      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+      <input type="hidden" name="aksi" value="konfigurasi" />
+      {['maxChapters', 'maxLessonsPerChapter', 'quizQuestionCount', 'quizPassPercent', 'costRoadmap', 'costLesson', 'costQuiz', 'signupCredits', 'lessonMinuteLabel'].map((field) => (
+        <label class="text-sm">{field}<input class="mt-1 min-h-11 w-full rounded-kontrol border border-garis px-3" name={field} type="number" value={String(config[field] ?? '')} /></label>
+      ))}
+      <button class="min-h-11 rounded-kontrol bg-jalur px-3 text-white" type="submit">Simpan batas</button>
+    </form>
+  )}
+  {section === 'prompt' && (
+    <div class="mt-6 space-y-4">
+      {prompts.map((prompt) => (
+        <form class="space-y-2" method="post">
+          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+          <input type="hidden" name="aksi" value="prompt" />
+          <input type="hidden" name="task" value={String(prompt.task)} />
+          <label class="text-sm" for={`prompt-${prompt.task}`}>{prompt.task}</label>
+          <textarea class="min-h-40 w-full rounded-kontrol border border-garis px-3 py-2" id={`prompt-${prompt.task}`} name="body">{prompt.body}</textarea>
+          <button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Simpan prompt</button>
+        </form>
+      ))}
+    </div>
+  )}
+  {section === 'model' && (
+    <div class="mt-6 space-y-4">
+      {models.map((model) => (
+        <form class="grid max-w-md gap-2" method="post">
+          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+          <input type="hidden" name="aksi" value="model" />
+          <input type="hidden" name="task" value={model.task} />
+          <p class="font-medium">{model.task}</p>
+          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="modelName" value={String(model.modelName ?? '')} />
+          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="maxOutputTokens" type="number" value={String(model.maxOutputTokens ?? '')} />
+          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="timeoutMs" type="number" value={String(model.timeoutMs ?? '')} />
+          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="baseUrl" value={String(model.baseUrl ?? '')} />
+          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="secretName" value={String(model.secretName ?? '')} />
+          <select class="min-h-11 rounded-kontrol border border-garis px-2" name="authKind">
+            <option value="bearer" selected={model.authKind === 'bearer'}>bearer</option>
+            <option value="workers_ai_binding" selected={model.authKind === 'workers_ai_binding'}>workers_ai_binding</option>
+          </select>
+          <button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Simpan model</button>
+        </form>
+      ))}
+    </div>
+  )}
+  {section === 'paket' && (
+    <div class="mt-6 space-y-4">
+      {packs.map((pack) => (
+        <form class="grid max-w-md gap-2" method="post">
+          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+          <input type="hidden" name="aksi" value="paket" />
+          <input type="hidden" name="id" value={String(pack.id)} />
+          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="name" value={String(pack.name)} />
+          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="credits" type="number" value={String(pack.credits)} />
+          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="priceIdr" type="number" value={String(pack.priceIdr)} />
+          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="sort" type="number" value={String(pack.sort)} />
+          <label class="text-sm"><input type="checkbox" name="active" value="1" checked={pack.active === 1} /> Aktif</label>
+          <button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Simpan paket</button>
+        </form>
+      ))}
+    </div>
+  )}
+</Shell>

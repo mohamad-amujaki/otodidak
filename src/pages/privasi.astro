@@ -1,0 +1,20 @@
+---
+export const prerender = true;
+
+import Shell from '../components/Shell.astro';
+---
+<Shell title="Privasi">
+  <article class="max-w-2xl space-y-4">
+    <h1 class="text-[1.75rem] leading-[1.25]">Privasi</h1>
+    <p>Otodidak menyimpan akun, jalur, pelajaran, kuis, dan buku kredit supaya kamu bisa melanjutkan belajar di perangkat lain.</p>
+    <h2 class="text-xl">Yang disimpan</h2>
+    <p>Masuk memakai Google lewat Clerk. Kami menyimpan identitas Clerk, nama, dan email. Topik yang kamu tulis, kerangka jalur, isi pelajaran, sumber yang dipakai, jawaban kuis, dan mutasi kredit disimpan di basis data aplikasi.</p>
+    <p>Kunci penyedia model, pencarian, dan pembayaran tidak disimpan di basis data. Kunci itu ada di secret Worker.</p>
+    <h2 class="text-xl">Pembayaran</h2>
+    <p>Pembelian kredit memakai QRIS lewat Sumopod. Kami menyimpan nomor pesanan, jumlah rupiah, jumlah kredit, dan status. Kode bayar tidak disimpan.</p>
+    <h2 class="text-xl">Penghapusan</h2>
+    <p>Kamu bisa meminta penghapusan materi belajar dari halaman profil. Admin menghapus jalur, pelajaran, kuis, dan pekerjaan penyusunan. Buku kredit dan pesanan tetap ada karena itu catatan pembayaran. Akun tidak otomatis ditahan.</p>
+    <h2 class="text-xl">Catatan teknis</h2>
+    <p>Catatan operasional boleh memuat id pekerjaan, id pengguna, status, dan kode kesalahan. Isi pelajaran, klaim, URL sumber, prompt, kunci, dan isi webhook mentah tidak ditulis ke log.</p>
+  </article>
+</Shell>
