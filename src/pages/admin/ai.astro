@@ -10,11 +10,15 @@ import {
   aiTasks,
 } from '../../domain/admin-labels';
 import { MAX_PROMPT_CHARS } from '../../domain/defaults';
+import type { TaskName } from '../../domain/schemas';
 import { record } from '../../domain/guard';
 import { SEED_PROMPTS } from '../../domain/prompts';
 import { runAdminAction } from '../../server/admin-actions';
+import {
+  getActiveModelForTask,
+  getPromptForTask,
+} from '../../server/admin-data';
 import { requireSuperadminPage } from '../../server/admin-guard';
-import { callApi } from '../../server/call';
 
 const auth = await requireSuperadminPage(Astro.request, { nav: true });
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
@@ -46,21 +50,16 @@ const activeTask = aiTasks.includes(taskParam as (typeof aiTasks)[number])
   ? taskParam
   : 'roadmap';
 
-const promptByTask: Record<string, Record<string, unknown>> = {};
-const modelByTask: Record<string, Record<string, unknown>> = {};
-for (const task of aiTasks) {
-  const prompt = await callApi(
-    Astro.request,
-    env,
-    `/api/admin/prompts/${task}`,
-  );
-  if (prompt.status === 200) promptByTask[task] = record(prompt.data);
-  const model = await callApi(Astro.request, env, `/api/admin/models/${task}`);
-  if (model.status === 200) modelByTask[task] = record(model.data);
-}
-
-const prompt = promptByTask[activeTask] ?? {};
-const model = modelByTask[activeTask] ?? {};
+const { session } = auth;
+const taskName = activeTask as TaskName;
+const promptRow = await getPromptForTask(session.db, taskName).catch(
+  () => null,
+);
+const modelRow = await getActiveModelForTask(session.db, taskName).catch(
+  () => null,
+);
+const prompt = promptRow ? record(promptRow) : {};
+const model = modelRow ? record(modelRow) : {};
 const promptBody = String(prompt.body ?? '');
 const promptLen = promptBody.length;
 const promptNearLimit = promptLen > MAX_PROMPT_CHARS * 0.9;

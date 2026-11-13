@@ -24,9 +24,21 @@ import { AppError } from '../domain/errors';
 import { nowIso } from '../domain/time';
 import type { Identity } from './auth';
 
+let seedPromise: Promise<void> | null = null;
+
+/**
+ * Seeds defaults once per Worker isolate. Seeding on every request wrote ~10
+ * statements (and used to reset admin AI/prompt config) on each API call.
+ */
 export async function database(env: Env): Promise<Database> {
   const db = createDb(env.DB);
-  await ensureSeed(db);
+  if (!seedPromise) {
+    seedPromise = ensureSeed(db).catch((error: unknown) => {
+      seedPromise = null;
+      throw error;
+    });
+  }
+  await seedPromise;
   return db;
 }
 

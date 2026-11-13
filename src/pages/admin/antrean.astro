@@ -7,7 +7,7 @@ import { jobKindLabels, jobStatusLabels } from '../../domain/admin-labels';
 import { formatWhenShort } from '../../domain/format';
 import { isRecord } from '../../domain/guard';
 import { requireAdmin } from '../../server/admin-guard';
-import { callApi } from '../../server/call';
+import { listAdminJobs } from '../../server/admin-data';
 
 const auth = await requireAdmin(Astro.request, { nav: true });
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
@@ -23,12 +23,9 @@ const params = new URLSearchParams({
 if (jobStatus) params.set('jobStatus', jobStatus);
 if (jobKind) params.set('jobKind', jobKind);
 
-const jobsResult = await callApi(
-  Astro.request,
-  env,
-  `/api/admin/jobs?${params}`,
-);
-const jobsData = isRecord(jobsResult.data) ? jobsResult.data : {};
+const listUrl = new URL('/admin/antrean', Astro.url);
+for (const [key, value] of params.entries()) listUrl.searchParams.set(key, value);
+const jobsData = await listAdminJobs(auth.session.db, listUrl.toString());
 const jobs = Array.isArray(jobsData.jobs) ? jobsData.jobs.filter(isRecord) : [];
 const total = typeof jobsData.total === 'number' ? jobsData.total : jobs.length;
 const extraParams: Record<string, string> = {};

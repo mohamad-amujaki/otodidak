@@ -44,7 +44,7 @@ import { nowIso } from '../domain/time';
 import { searchWeb, searchYouTube } from '../sources/search';
 import { database, loadConfig, requireActiveJobClear } from './account';
 import { logEvent } from './log';
-import { allowGenerateIp, jobsWithinLimit, recordJob } from './rate';
+import { allowGenerateIp, assertUserGenerationRate } from './rate';
 
 export type GenerationMessage = { jobId: string };
 
@@ -270,8 +270,7 @@ export async function suggestChapterLesson(
   if (user.status === 'suspended') throw new AppError('account_suspended');
   if (!(await allowGenerateIp(env.APP_KV, request)))
     throw new AppError('rate_limited');
-  if (!(await jobsWithinLimit(env.APP_KV, user.id)))
-    throw new AppError('rate_limited');
+  await assertUserGenerationRate(db, user.id);
   await requireActiveJobClear(db, user.id);
 
   const attemptId = crypto.randomUUID();
@@ -407,8 +406,7 @@ async function beginJob(
   if (user.status === 'suspended') throw new AppError('account_suspended');
   if (!(await allowGenerateIp(env.APP_KV, request)))
     throw new AppError('rate_limited');
-  if (!(await jobsWithinLimit(env.APP_KV, user.id)))
-    throw new AppError('rate_limited');
+  await assertUserGenerationRate(db, user.id);
   await clearStaleLock(env, db, user.id);
   await requireActiveJobClear(db, user.id);
   const debited = await debitIfEnough(db, {
@@ -443,7 +441,6 @@ async function beginJob(
     });
     throw new AppError('generation_in_progress');
   }
-  await recordJob(env.APP_KV, user.id);
   await env.APP_KV.put(lockKey(user.id), input.jobId, {
     expirationTtl: JOB_LOCK_TTL_SECONDS,
   });

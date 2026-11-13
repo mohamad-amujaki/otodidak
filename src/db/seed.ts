@@ -35,14 +35,7 @@ export async function ensureSeed(db: Database): Promise<void> {
       secretName: 'OPENAI_API_KEY',
       active: 1,
     })
-    .onConflictDoUpdate({
-      target: aiProviders.id,
-      set: {
-        name: 'deepseek-compatible',
-        baseUrl: DEFAULT_AI_BASE_URL,
-        secretName: 'OPENAI_API_KEY',
-      },
-    });
+    .onConflictDoNothing();
   for (const model of SEED_MODELS) {
     await db
       .insert(aiModels)
@@ -55,15 +48,7 @@ export async function ensureSeed(db: Database): Promise<void> {
         maxOutputTokens: model.maxOutputTokens,
         timeoutMs: model.timeoutMs,
       })
-      .onConflictDoUpdate({
-        target: aiModels.id,
-        set: {
-          modelName: DEFAULT_MODEL_NAME,
-          maxOutputTokens: model.maxOutputTokens,
-          timeoutMs: model.timeoutMs,
-          active: 1,
-        },
-      });
+      .onConflictDoNothing();
   }
   for (const task of ['roadmap', 'lesson', 'quiz'] as const) {
     await db
@@ -74,10 +59,7 @@ export async function ensureSeed(db: Database): Promise<void> {
         updatedAt: now,
         updatedBy: null,
       })
-      .onConflictDoUpdate({
-        target: promptTemplates.task,
-        set: { body: SEED_PROMPTS[task], updatedAt: now },
-      });
+      .onConflictDoNothing();
   }
   await db
     .insert(sourceProviders)

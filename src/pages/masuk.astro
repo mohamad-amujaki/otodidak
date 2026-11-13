@@ -2,12 +2,16 @@
 import { env } from 'cloudflare:workers';
 import Shell from '../components/Shell.astro';
 import { activePublishableKey, clerkHost } from '../domain/guard';
-import { callApi, errorOf } from '../server/call';
+import { devSessionSchema } from '../domain/schemas';
+import { database, ensureUser } from '../server/account';
+import { devIdentityFor } from '../server/auth';
+import { signInDevSession } from '../server/profile-actions';
+import { pageSession } from '../server/ssr';
 
 const mock = env.CLERK_SECRET_KEY === 'mock';
 const keluar = Astro.url.searchParams.get('keluar') === '1';
-const session = await callApi(Astro.request, env, '/api/me');
-if (session.status === 200 && !keluar) return Astro.redirect('/dasbor');
+const existing = await pageSession(Astro.request, env);
+if (existing && !keluar) return Astro.redirect('/dasbor');
 
 let message = '';
 if (Astro.request.method === 'POST') {
@@ -15,20 +19,23 @@ if (Astro.request.method === 'POST') {
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
   else if (mock) {
-    const result = await callApi(Astro.request, env, '/api/dev/session', {
-      method: 'POST',
-      json: {
-        email: String(form.get('email') ?? ''),
-        name: String(form.get('name') ?? ''),
-      },
-      csrf: Astro.locals.csrf,
+    const parsed = devSessionSchema.safeParse({
+      email: String(form.get('email') ?? ''),
+      name: String(form.get('name') ?? ''),
     });
-    const error = errorOf(result.data);
-    if (error) message = error.message;
+    if (!parsed.success) message = 'Email dan nama tidak valid.';
     else {
+      const identity = await devIdentityFor(
+        parsed.data.email,
+        parsed.data.name,
+      );
+      const db = await database(env);
+      await ensureUser(db, env, identity);
       const headers = new Headers({ Location: '/dasbor' });
-      for (const cookie of result.setCookie)
-        headers.append('set-cookie', cookie);
+      headers.append(
+        'set-cookie',
+        await signInDevSession(Astro.request, env, identity),
+      );
       return new Response(null, { status: 303, headers });
     }
   }

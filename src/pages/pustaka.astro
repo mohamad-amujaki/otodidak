@@ -2,11 +2,15 @@
 import { env } from 'cloudflare:workers';
 import Shell from '../components/Shell.astro';
 import { isRecord, record } from '../domain/guard';
-import { callApi, errorOf } from '../server/call';
+import { AppError } from '../domain/errors';
+import { activateUserPath } from '../server/path-actions';
+import { library } from '../server/read';
+import { pageMe } from '../server/ssr';
 
-const meResult = await callApi(Astro.request, env, '/api/me');
-if (meResult.status !== 200) return Astro.redirect('/masuk');
-const me = record(meResult.data);
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session, me: meRaw } = page;
+const me = record(meRaw);
 const user = record(me.user);
 let message = '';
 if (Astro.request.method === 'POST') {
@@ -14,22 +18,20 @@ if (Astro.request.method === 'POST') {
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
   else {
-    const result = await callApi(
-      Astro.request,
-      env,
-      `/api/paths/${String(form.get('pathId') ?? '')}/active`,
-      { method: 'POST', json: {}, csrf: Astro.locals.csrf },
-    );
-    const error = errorOf(result.data);
-    if (error) message = error.message;
-    else return Astro.redirect('/pustaka');
+    try {
+      await activateUserPath(
+        session.db,
+        session.user.id,
+        String(form.get('pathId') ?? ''),
+      );
+      return Astro.redirect('/pustaka');
+    } catch (error) {
+      message =
+        error instanceof AppError ? error.message : 'Gagal mengaktifkan jalur.';
+    }
   }
 }
-const library = await callApi(Astro.request, env, '/api/paths');
-const paths =
-  isRecord(library.data) && Array.isArray(library.data.paths)
-    ? library.data.paths.filter(isRecord)
-    : [];
+const paths = (await library(session.db, session.user.id)).filter(isRecord);
 ---
 <Shell title="Pustaka" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
   <!-- Header Section -->

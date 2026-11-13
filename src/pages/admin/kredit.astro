@@ -11,7 +11,7 @@ import { shortOrderId } from '../../domain/credit-ui';
 import { formatIdr, formatWhenShort } from '../../domain/format';
 import { isRecord } from '../../domain/guard';
 import { requireAdmin } from '../../server/admin-guard';
-import { callApi } from '../../server/call';
+import { listAdminLedger, listAdminOrders } from '../../server/admin-data';
 
 const auth = await requireAdmin(Astro.request, { nav: true });
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
@@ -31,17 +31,23 @@ const ordersParams = new URLSearchParams({
 });
 if (orderStatus) ordersParams.set('orderStatus', orderStatus);
 
-const [ledgerResult, ordersResult] = await Promise.all([
-  tab === 'buku'
-    ? callApi(Astro.request, env, `/api/admin/ledger?${ledgerParams}`)
-    : Promise.resolve({ data: { entries: [], total: 0 } }),
-  tab === 'pesanan'
-    ? callApi(Astro.request, env, `/api/admin/orders?${ordersParams}`)
-    : Promise.resolve({ data: { orders: [], total: 0 } }),
-]);
+const ledgerListUrl = new URL('/admin/kredit', Astro.url);
+ledgerListUrl.searchParams.set('tab', 'buku');
+for (const [key, value] of ledgerParams.entries())
+  ledgerListUrl.searchParams.set(key, value);
+const ordersListUrl = new URL('/admin/kredit', Astro.url);
+ordersListUrl.searchParams.set('tab', 'pesanan');
+for (const [key, value] of ordersParams.entries())
+  ordersListUrl.searchParams.set(key, value);
 
-const ledgerData = isRecord(ledgerResult.data) ? ledgerResult.data : {};
-const ordersData = isRecord(ordersResult.data) ? ordersResult.data : {};
+const ledgerData =
+  tab === 'buku'
+    ? await listAdminLedger(auth.session.db, ledgerListUrl.toString())
+    : { entries: [], total: 0 };
+const ordersData =
+  tab === 'pesanan'
+    ? await listAdminOrders(auth.session.db, ordersListUrl.toString())
+    : { orders: [], total: 0 };
 const entries = Array.isArray(ledgerData.entries)
   ? ledgerData.entries.filter(isRecord)
   : [];

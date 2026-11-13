@@ -3,28 +3,38 @@ import { env } from 'cloudflare:workers';
 import Shell from '../components/Shell.astro';
 import { minuteLabel } from '../domain/format';
 import { isRecord, record } from '../domain/guard';
-import { callApi, errorOf } from '../server/call';
+import { AppError } from '../domain/errors';
+import { startRoadmap } from '../server/generation';
+import { library } from '../server/read';
+import { pageMe } from '../server/ssr';
+import { topicSchema } from '../domain/schemas';
 
-const meResult = await callApi(Astro.request, env, '/api/me');
-if (meResult.status !== 200 || !isRecord(meResult.data))
-  return Astro.redirect('/masuk');
-const me = meResult.data;
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session, me } = page;
 let message = '';
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
   else {
-    const result = await callApi(Astro.request, env, '/api/paths', {
-      method: 'POST',
-      json: { topic: String(form.get('topic') ?? '') },
-      csrf: Astro.locals.csrf,
-    });
-    const error = errorOf(result.data);
-    if (error) message = error.message;
-    else if (isRecord(result.data) && typeof result.data.pathId === 'string')
-      return Astro.redirect(`/jalur/${result.data.pathId}?tinjau=1`);
-    else return Astro.redirect('/dasbor');
+    const topicRaw = String(form.get('topic') ?? '');
+    const parsed = topicSchema.safeParse({ topic: topicRaw });
+    if (!parsed.success) message = 'Topik tidak valid.';
+    else {
+      try {
+        const started = await startRoadmap(
+          env,
+          Astro.request,
+          session.user,
+          parsed.data.topic,
+        );
+        return Astro.redirect(`/jalur/${started.pathId}?tinjau=1`);
+      } catch (error) {
+        message =
+          error instanceof AppError ? error.message : 'Gagal memulai jalur.';
+      }
+    }
   }
 }
 const user = record(me.user);
@@ -42,12 +52,7 @@ const minutes =
 const cost = typeof config.costRoadmap === 'number' ? config.costRoadmap : 6;
 const showForm = !activePath || Astro.url.searchParams.has('baru');
 
-// Get library data for stats
-const library = await callApi(Astro.request, env, '/api/paths');
-const paths =
-  isRecord(library.data) && Array.isArray(library.data.paths)
-    ? library.data.paths.filter(isRecord)
-    : [];
+const paths = (await library(session.db, session.user.id)).filter(isRecord);
 
 // Calculate stats
 const totalPaths = paths.length;

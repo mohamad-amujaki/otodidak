@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { creditLedger } from '../db/schema';
 import { nowIso } from '../domain/time';
@@ -18,6 +18,25 @@ export async function balanceOf(db: Database, userId: string): Promise<number> {
     select coalesce(sum(amount), 0) as balance from credit_ledger where user_id = ${userId}
   `);
   return Number(row?.balance ?? 0);
+}
+
+export async function balancesByUserIds(
+  db: Database,
+  userIds: string[],
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (userIds.length === 0) return map;
+  const rows = await db
+    .select({
+      userId: creditLedger.userId,
+      balance: sql<number>`coalesce(sum(${creditLedger.amount}), 0)`,
+    })
+    .from(creditLedger)
+    .where(inArray(creditLedger.userId, userIds))
+    .groupBy(creditLedger.userId);
+  for (const row of rows) map.set(row.userId, Number(row.balance));
+  for (const id of userIds) if (!map.has(id)) map.set(id, 0);
+  return map;
 }
 
 export async function debitIfEnough(

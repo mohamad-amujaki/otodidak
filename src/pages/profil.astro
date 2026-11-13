@@ -1,12 +1,20 @@
 ---
 import { env } from 'cloudflare:workers';
 import Shell from '../components/Shell.astro';
-import { record } from '../domain/guard';
-import { callApi, errorOf } from '../server/call';
+import { AppError } from '../domain/errors';
+import { isRecord, record } from '../domain/guard';
+import {
+  devLogoutCookie,
+  requestAccountDeletion,
+  setStreakEnabled,
+} from '../server/profile-actions';
+import { mePayload } from '../server/read';
+import { pageMe } from '../server/ssr';
 
-const meResult = await callApi(Astro.request, env, '/api/me');
-if (meResult.status !== 200) return Astro.redirect('/masuk');
-let me = record(meResult.data);
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session } = page;
+let me = record(page.me);
 const user = record(me.user);
 let message = '';
 if (Astro.request.method === 'POST') {
@@ -14,36 +22,31 @@ if (Astro.request.method === 'POST') {
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
   else if (String(form.get('aksi') ?? '') === 'keluar') {
-    const result = await callApi(Astro.request, env, '/api/session/logout', {
-      method: 'POST',
-      json: {},
-      csrf: Astro.locals.csrf,
-    });
     const headers = new Headers({ Location: '/masuk?keluar=1' });
-    for (const cookie of result.setCookie) headers.append('set-cookie', cookie);
+    headers.append('set-cookie', devLogoutCookie(Astro.request));
     return new Response(null, { status: 303, headers });
   } else if (String(form.get('aksi') ?? '') === 'hapus') {
-    const result = await callApi(
-      Astro.request,
-      env,
-      '/api/profile/deletion-request',
-      { method: 'POST', json: {}, csrf: Astro.locals.csrf },
-    );
-    const error = errorOf(result.data);
-    message = error
-      ? error.message
-      : 'Permintaan penghapusan tercatat. Admin yang menyelesaikan penghapusan materi.';
-    const again = await callApi(Astro.request, env, '/api/me');
-    if (isRecord(again.data)) me = again.data;
+    try {
+      await requestAccountDeletion(session.db, session.user.id);
+      message =
+        'Permintaan penghapusan tercatat. Admin yang menyelesaikan penghapusan materi.';
+      me = record(await mePayload(session.db, session.user));
+    } catch (error) {
+      message =
+        error instanceof AppError ? error.message : 'Permintaan gagal.';
+    }
   } else {
-    const result = await callApi(Astro.request, env, '/api/profile/streak', {
-      method: 'POST',
-      json: { enabled: form.get('enabled') === '1' },
-      csrf: Astro.locals.csrf,
-    });
-    const error = errorOf(result.data);
-    if (error) message = error.message;
-    else return Astro.redirect('/profil');
+    try {
+      await setStreakEnabled(
+        session.db,
+        session.user.id,
+        form.get('enabled') === '1',
+      );
+      return Astro.redirect('/profil');
+    } catch (error) {
+      message =
+        error instanceof AppError ? error.message : 'Gagal menyimpan streak.';
+    }
   }
 }
 const enabled = record(me.user).streakEnabled === true;

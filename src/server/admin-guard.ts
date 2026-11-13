@@ -1,7 +1,9 @@
 import { env } from 'cloudflare:workers';
 import { isRecord, record } from '../domain/guard';
 import { isSuperadmin } from './admin-access';
-import { callApi } from './call';
+import { fetchAdminStats } from './admin-data';
+import { mePayload } from './read';
+import { type PageSession, pageSession } from './ssr';
 
 export type AdminNavStats = {
   pendingOrders: number;
@@ -15,6 +17,7 @@ export type AdminContext = {
   balance: number;
   superadmin: boolean;
   nav?: AdminNavStats;
+  session: PageSession;
 };
 
 type AdminGate = { redirect: string } | AdminContext;
@@ -25,12 +28,11 @@ function gate(context: AdminContext): AdminGate {
   return context;
 }
 
-function navFromStats(data: unknown): AdminNavStats | undefined {
-  if (!isRecord(data)) return undefined;
+function navFromStats(data: Awaited<ReturnType<typeof fetchAdminStats>>) {
   return {
-    pendingOrders: Number(data.pendingOrders ?? 0),
-    jobsFailed: Number(data.jobsFailed ?? 0),
-    deletionRequests: Number(data.deletionRequests ?? 0),
+    pendingOrders: data.pendingOrders,
+    jobsFailed: data.jobsFailed,
+    deletionRequests: data.deletionRequests,
   };
 }
 
@@ -38,24 +40,24 @@ export async function requireAdmin(
   request: Request,
   options?: RequireAdminOptions,
 ): Promise<AdminGate> {
-  const [meResult, statsResult] = await Promise.all([
-    callApi(request, env, '/api/me'),
-    options?.nav
-      ? callApi(request, env, '/api/admin/stats')
-      : Promise.resolve(null),
-  ]);
-  if (meResult.status !== 200) return { redirect: '/masuk' };
-  if (!isRecord(meResult.data)) return { redirect: '/masuk' };
-  const me = meResult.data;
+  const session = await pageSession(request, env);
+  if (!session) return { redirect: '/masuk' };
+  const meRaw = await mePayload(session.db, session.user);
+  const me = meRaw as Record<string, unknown>;
+  if (!isRecord(me)) return { redirect: '/masuk' };
   const user = record(me.user);
   if (user.role !== 'admin') return { redirect: '/dasbor' };
   const email = typeof user.email === 'string' ? user.email : '';
+  const stats = options?.nav
+    ? await fetchAdminStats(session.db)
+    : undefined;
   return gate({
     me,
     user,
     balance: typeof me.balance === 'number' ? me.balance : 0,
     superadmin: isSuperadmin(env, email),
-    nav: options?.nav ? navFromStats(statsResult?.data) : undefined,
+    nav: stats ? navFromStats(stats) : undefined,
+    session,
   });
 }
 

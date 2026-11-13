@@ -11,7 +11,8 @@ import {
   statusLabel,
 } from '../../../server/admin-actions';
 import { requireAdmin } from '../../../server/admin-guard';
-import { callApi } from '../../../server/call';
+import { adminUserDetail } from '../../../server/admin-data';
+import { AppError } from '../../../domain/errors';
 
 const auth = await requireAdmin(Astro.request, { nav: true });
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
@@ -28,13 +29,14 @@ if (Astro.request.method === 'POST') {
     message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
 }
 
-const detailResult = await callApi(
-  Astro.request,
-  env,
-  `/api/admin/users/${userId}`,
-);
-if (detailResult.status === 404) return Astro.redirect('/admin/pengguna');
-const detail = record(detailResult.data);
+let detail;
+try {
+  detail = record(await adminUserDetail(auth.session.db, userId));
+} catch (error) {
+  if (error instanceof AppError && error.code === 'not_found')
+    return Astro.redirect('/admin/pengguna');
+  throw error;
+}
 const profile = record(detail.user);
 const ledger = Array.isArray(detail.ledger)
   ? detail.ledger.filter(isRecord)

@@ -1,63 +1,50 @@
 import { SEED_PROMPTS } from '../domain/prompts';
-import { callApi, errorOf } from './call';
+import {
+  adminAdjustLedger,
+  adminEraseUserLearning,
+  appErrorToMessage,
+  patchAdminUser,
+  updateAppConfig,
+  updateCreditPacks,
+  updateModelForTask,
+  updatePromptTemplate,
+} from './admin-mutations';
+import { pageSession } from './ssr';
 
 const seededPromptTasks = ['roadmap', 'lesson', 'quiz'] as const;
 
 export async function runAdminAction(
   request: Request,
   bindings: Env,
-  csrf: string,
+  _csrf: string,
   form: FormData,
 ): Promise<string> {
+  const session = await pageSession(request, bindings);
+  if (!session || session.user.role !== 'admin')
+    return 'Akses ditolak. Masuk sebagai admin.';
+  const { db, user } = session;
   const action = String(form.get('aksi') ?? '');
-  if (action === 'pengguna') {
-    const result = await callApi(
-      request,
-      bindings,
-      `/api/admin/users/${String(form.get('userId') ?? '')}`,
-      {
-        method: 'PATCH',
-        json: {
-          role: String(form.get('role') ?? ''),
-          status: String(form.get('status') ?? ''),
-        },
-        csrf,
-      },
-    );
-    return errorOf(result.data)?.message ?? 'Pengguna diperbarui.';
-  }
-  if (action === 'hapus') {
-    const result = await callApi(
-      request,
-      bindings,
-      `/api/admin/users/${String(form.get('userId') ?? '')}/deletion`,
-      { method: 'POST', json: {}, csrf },
-    );
-    return (
-      errorOf(result.data)?.message ??
-      'Materi belajar dihapus. Buku kredit tetap ada.'
-    );
-  }
-  if (action === 'sesuaikan') {
-    const result = await callApi(
-      request,
-      bindings,
-      `/api/admin/users/${String(form.get('userId') ?? '')}/ledger`,
-      {
-        method: 'POST',
-        json: {
-          amount: Number(form.get('amount')),
-          note: String(form.get('note') ?? ''),
-        },
-        csrf,
-      },
-    );
-    return errorOf(result.data)?.message ?? 'Buku kredit diperbarui.';
-  }
-  if (action === 'konfigurasi') {
-    const result = await callApi(request, bindings, '/api/admin/config', {
-      method: 'PUT',
-      json: {
+  try {
+    if (action === 'pengguna') {
+      await patchAdminUser(db, bindings, user, String(form.get('userId') ?? ''), {
+        role: String(form.get('role') ?? ''),
+        status: String(form.get('status') ?? ''),
+      });
+      return 'Pengguna diperbarui.';
+    }
+    if (action === 'hapus') {
+      await adminEraseUserLearning(db, String(form.get('userId') ?? ''));
+      return 'Materi belajar dihapus. Buku kredit tetap ada.';
+    }
+    if (action === 'sesuaikan') {
+      await adminAdjustLedger(db, bindings, user, String(form.get('userId') ?? ''), {
+        amount: Number(form.get('amount')),
+        note: String(form.get('note') ?? ''),
+      });
+      return 'Buku kredit diperbarui.';
+    }
+    if (action === 'konfigurasi') {
+      await updateAppConfig(db, bindings, user, {
         maxChapters: Number(form.get('maxChapters')),
         maxLessonsPerChapter: Number(form.get('maxLessonsPerChapter')),
         quizQuestionCount: Number(form.get('quizQuestionCount')),
@@ -67,105 +54,56 @@ export async function runAdminAction(
         costQuiz: Number(form.get('costQuiz')),
         signupCredits: Number(form.get('signupCredits')),
         lessonMinuteLabel: Number(form.get('lessonMinuteLabel')),
-      },
-      csrf,
-    });
-    return errorOf(result.data)?.message ?? 'Batas diperbarui.';
-  }
-  if (action === 'ai-task') {
-    const task = String(form.get('task') ?? '');
-    const promptResult = await callApi(
-      request,
-      bindings,
-      `/api/admin/prompts/${task}`,
-      {
-        method: 'PUT',
-        json: { body: String(form.get('body') ?? '') },
-        csrf,
-      },
-    );
-    const promptErr = errorOf(promptResult.data);
-    if (promptErr) return promptErr.message;
-    const modelResult = await callApi(
-      request,
-      bindings,
-      `/api/admin/models/${task}`,
-      {
-        method: 'PUT',
-        json: {
-          modelName: String(form.get('modelName') ?? ''),
-          maxOutputTokens: Number(form.get('maxOutputTokens')),
-          timeoutMs: Number(form.get('timeoutMs')),
-          baseUrl: String(form.get('baseUrl') ?? ''),
-          secretName: String(form.get('secretName') ?? ''),
-          authKind: String(form.get('authKind') ?? 'bearer'),
-        },
-        csrf,
-      },
-    );
-    const modelErr = errorOf(modelResult.data);
-    if (modelErr) return modelErr.message;
-    return 'Pengaturan AI untuk tugas ini diperbarui.';
-  }
-  if (action === 'reset-prompt') {
-    const task = String(form.get('task') ?? '');
-    if (!seededPromptTasks.includes(task as (typeof seededPromptTasks)[number]))
-      return 'Tugas tidak dikenal.';
-    const body = SEED_PROMPTS[task as (typeof seededPromptTasks)[number]];
-    const result = await callApi(
-      request,
-      bindings,
-      `/api/admin/prompts/${task}`,
-      {
-        method: 'PUT',
-        json: { body },
-        csrf,
-      },
-    );
-    return errorOf(result.data)?.message ?? 'Prompt dikembalikan ke bawaan.';
-  }
-  if (action === 'prompt') {
-    const result = await callApi(
-      request,
-      bindings,
-      `/api/admin/prompts/${String(form.get('task') ?? '')}`,
-      {
-        method: 'PUT',
-        json: { body: String(form.get('body') ?? '') },
-        csrf,
-      },
-    );
-    return errorOf(result.data)?.message ?? 'Prompt diperbarui.';
-  }
-  if (action === 'model') {
-    const result = await callApi(
-      request,
-      bindings,
-      `/api/admin/models/${String(form.get('task') ?? '')}`,
-      {
-        method: 'PUT',
-        json: {
-          modelName: String(form.get('modelName') ?? ''),
-          maxOutputTokens: Number(form.get('maxOutputTokens')),
-          timeoutMs: Number(form.get('timeoutMs')),
-          baseUrl: String(form.get('baseUrl') ?? ''),
-          secretName: String(form.get('secretName') ?? ''),
-          authKind: String(form.get('authKind') ?? 'bearer'),
-        },
-        csrf,
-      },
-    );
-    return errorOf(result.data)?.message ?? 'Model diperbarui.';
-  }
-  if (action === 'paket') {
-    const credits = Number(form.get('credits'));
-    const priceIdr = Number(form.get('priceIdr'));
-    if (!Number.isFinite(credits) || credits < 1) return 'Kredit minimal 1.';
-    if (!Number.isFinite(priceIdr) || priceIdr < 1)
-      return 'Harga minimal Rp 1.';
-    const result = await callApi(request, bindings, '/api/admin/packs', {
-      method: 'PUT',
-      json: {
+      });
+      return 'Batas diperbarui.';
+    }
+    if (action === 'ai-task') {
+      const task = String(form.get('task') ?? '');
+      await updatePromptTemplate(db, bindings, user, task, {
+        body: String(form.get('body') ?? ''),
+      });
+      await updateModelForTask(db, bindings, user, task, {
+        modelName: String(form.get('modelName') ?? ''),
+        maxOutputTokens: Number(form.get('maxOutputTokens')),
+        timeoutMs: Number(form.get('timeoutMs')),
+        baseUrl: String(form.get('baseUrl') ?? ''),
+        secretName: String(form.get('secretName') ?? ''),
+        authKind: String(form.get('authKind') ?? 'bearer'),
+      });
+      return 'Pengaturan AI untuk tugas ini diperbarui.';
+    }
+    if (action === 'reset-prompt') {
+      const task = String(form.get('task') ?? '');
+      if (!seededPromptTasks.includes(task as (typeof seededPromptTasks)[number]))
+        return 'Tugas tidak dikenal.';
+      const body = SEED_PROMPTS[task as (typeof seededPromptTasks)[number]];
+      await updatePromptTemplate(db, bindings, user, task, { body });
+      return 'Prompt dikembalikan ke bawaan.';
+    }
+    if (action === 'prompt') {
+      await updatePromptTemplate(db, bindings, user, String(form.get('task') ?? ''), {
+        body: String(form.get('body') ?? ''),
+      });
+      return 'Prompt diperbarui.';
+    }
+    if (action === 'model') {
+      await updateModelForTask(db, bindings, user, String(form.get('task') ?? ''), {
+        modelName: String(form.get('modelName') ?? ''),
+        maxOutputTokens: Number(form.get('maxOutputTokens')),
+        timeoutMs: Number(form.get('timeoutMs')),
+        baseUrl: String(form.get('baseUrl') ?? ''),
+        secretName: String(form.get('secretName') ?? ''),
+        authKind: String(form.get('authKind') ?? 'bearer'),
+      });
+      return 'Model diperbarui.';
+    }
+    if (action === 'paket') {
+      const credits = Number(form.get('credits'));
+      const priceIdr = Number(form.get('priceIdr'));
+      if (!Number.isFinite(credits) || credits < 1) return 'Kredit minimal 1.';
+      if (!Number.isFinite(priceIdr) || priceIdr < 1)
+        return 'Harga minimal Rp 1.';
+      await updateCreditPacks(db, bindings, user, {
         packs: [
           {
             id: String(form.get('id') ?? ''),
@@ -176,10 +114,11 @@ export async function runAdminAction(
             sort: Number(form.get('sort')),
           },
         ],
-      },
-      csrf,
-    });
-    return errorOf(result.data)?.message ?? 'Paket diperbarui.';
+      });
+      return 'Paket diperbarui.';
+    }
+  } catch (error) {
+    return appErrorToMessage(error);
   }
   return 'Aksi tidak dikenal.';
 }

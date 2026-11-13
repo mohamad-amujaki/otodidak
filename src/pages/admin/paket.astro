@@ -9,7 +9,7 @@ import { formatIdr } from '../../domain/format';
 import { isRecord } from '../../domain/guard';
 import { runAdminAction } from '../../server/admin-actions';
 import { requireSuperadminPage } from '../../server/admin-guard';
-import { callApi } from '../../server/call';
+import { listAllPacks } from '../../server/admin-data';
 
 const auth = await requireSuperadminPage(Astro.request, { nav: true });
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
@@ -33,12 +33,8 @@ if (Astro.request.method === 'POST') {
   }
 }
 
-const packsResult = await callApi(Astro.request, env, '/api/admin/packs');
-const packs = (
-  isRecord(packsResult.data) && Array.isArray(packsResult.data.packs)
-    ? packsResult.data.packs.filter(isRecord)
-    : []
-).map((pack) => ({
+const packRows = await listAllPacks(auth.session.db);
+const packs = packRows.map((pack) => ({
   id: String(pack.id ?? ''),
   name: String(pack.name ?? ''),
   credits: Number(pack.credits ?? 0),

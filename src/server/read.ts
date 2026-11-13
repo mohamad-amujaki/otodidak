@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import {
   chapters,
@@ -103,23 +103,46 @@ export async function mePayload(db: Database, user: UserRow) {
 
 export async function library(db: Database, userId: string) {
   const rows = await db
-    .select()
+    .select({
+      id: paths.id,
+      title: paths.title,
+      topic: paths.topic,
+      isActive: paths.isActive,
+      updatedAt: paths.updatedAt,
+    })
     .from(paths)
     .where(and(eq(paths.userId, userId), eq(paths.status, 'ready')))
     .orderBy(desc(paths.updatedAt));
-  const items = [];
-  for (const path of rows) {
-    const progress = await progressFor(db, path.id);
-    items.push({
-      id: path.id,
-      title: path.title,
-      topic: path.topic,
-      isActive: path.isActive === 1,
-      progress,
-      updatedAt: path.updatedAt,
-    });
-  }
-  return items;
+  if (rows.length === 0) return [];
+  const progressRows = await db
+    .select({
+      pathId: chapters.pathId,
+      total: count(lessons.id),
+      done: sql<number>`count(${lessons.completedAt})`,
+    })
+    .from(chapters)
+    .innerJoin(lessons, eq(lessons.chapterId, chapters.id))
+    .where(
+      inArray(
+        chapters.pathId,
+        rows.map((path) => path.id),
+      ),
+    )
+    .groupBy(chapters.pathId);
+  const progressByPath = new Map(
+    progressRows.map((row) => [
+      row.pathId,
+      { done: Number(row.done), total: Number(row.total) },
+    ]),
+  );
+  return rows.map((path) => ({
+    id: path.id,
+    title: path.title,
+    topic: path.topic,
+    isActive: path.isActive === 1,
+    progress: progressByPath.get(path.id) ?? { done: 0, total: 0 },
+    updatedAt: path.updatedAt,
+  }));
 }
 
 export async function pathDetail(db: Database, userId: string, pathId: string) {
@@ -131,27 +154,55 @@ export async function pathDetail(db: Database, userId: string, pathId: string) {
   const path = rows[0];
   if (!path || path.status === 'archived') return null;
   const chapterRows = await db
-    .select()
+    .select({
+      id: chapters.id,
+      title: chapters.title,
+      summary: chapters.summary,
+      position: chapters.position,
+      quizStatus: chapters.quizStatus,
+    })
     .from(chapters)
     .where(eq(chapters.pathId, path.id))
     .orderBy(asc(chapters.position));
-  const chapterPayload = [];
-  for (const chapter of chapterRows) {
-    const lessonRows = await db
-      .select()
-      .from(lessons)
-      .where(eq(lessons.chapterId, chapter.id))
-      .orderBy(asc(lessons.position));
-    const quizRows = await db
-      .select()
-      .from(quizzes)
-      .where(eq(quizzes.chapterId, chapter.id))
-      .orderBy(desc(quizzes.createdAt));
-    const quiz = await quizPayload(
-      db,
-      quizRows.map((item) => item.id),
-    );
-    chapterPayload.push({
+  const chapterIds = chapterRows.map((chapter) => chapter.id);
+  const [lessonRows, quizRows] = await Promise.all([
+    chapterIds.length > 0
+      ? db
+          .select({
+            id: lessons.id,
+            chapterId: lessons.chapterId,
+            title: lessons.title,
+            objective: lessons.objective,
+            position: lessons.position,
+            status: lessons.status,
+            completedAt: lessons.completedAt,
+            hasBody: sql<number>`case when ${lessons.body} is not null then 1 else 0 end`,
+          })
+          .from(lessons)
+          .where(inArray(lessons.chapterId, chapterIds))
+          .orderBy(asc(lessons.position))
+      : Promise.resolve([]),
+    chapterIds.length > 0
+      ? db
+          .select({ id: quizzes.id, chapterId: quizzes.chapterId })
+          .from(quizzes)
+          .where(inArray(quizzes.chapterId, chapterIds))
+          .orderBy(desc(quizzes.createdAt))
+      : Promise.resolve([]),
+  ]);
+  const quizPayloads = await quizPayloadFor(
+    db,
+    quizRows.map((quiz) => quiz.id),
+  );
+  const lessonsByChapter = groupBy(lessonRows, (lesson) => lesson.chapterId);
+  const quizIdsByChapter = groupBy(quizRows, (quiz) => quiz.chapterId);
+  const chapterPayload = chapterRows.map((chapter) => {
+    const quizzesForChapter = quizIdsByChapter.get(chapter.id) ?? [];
+    const quiz =
+      quizzesForChapter
+        .map((quizId) => quizPayloads.get(quizId))
+        .find((payload) => payload !== undefined) ?? null;
+    return {
       id: chapter.id,
       title: chapter.title,
       summary: chapter.summary,
@@ -159,17 +210,17 @@ export async function pathDetail(db: Database, userId: string, pathId: string) {
       quizStatus: chapter.quizStatus,
       quizStatusLabel: quizStatusLabel(chapter.quizStatus),
       quiz,
-      lessons: lessonRows.map((lesson) => ({
+      lessons: (lessonsByChapter.get(chapter.id) ?? []).map((lesson) => ({
         id: lesson.id,
         title: lesson.title,
         objective: lesson.objective,
         position: lesson.position,
         status: lesson.status,
-        hasBody: lesson.body !== null && lesson.status === 'ready',
+        hasBody: lesson.hasBody === 1 && lesson.status === 'ready',
         completedAt: lesson.completedAt,
       })),
-    });
-  }
+    };
+  });
   const progress = await progressFor(db, path.id);
   return {
     id: path.id,
@@ -219,25 +270,72 @@ export async function lessonContent(db: Database, lessonId: string) {
   };
 }
 
-async function quizPayload(db: Database, quizIds: string[]) {
-  for (const quizId of quizIds) {
-    const questions = await db
-      .select()
+type QuizPayload = {
+  id: string;
+  questions: {
+    id: string;
+    position: number;
+    stem: string;
+    choices: string[];
+    selected: number | null;
+    correctIndex: number | null;
+    explanation: string | null;
+  }[];
+  attempt: {
+    id: string;
+    scorePercent: number;
+    createdAt: string;
+  } | null;
+};
+
+async function quizPayloadFor(
+  db: Database,
+  quizIds: string[],
+): Promise<Map<string, QuizPayload>> {
+  const payloads = new Map<string, QuizPayload>();
+  if (quizIds.length === 0) return payloads;
+  const [questions, attempts] = await Promise.all([
+    db
+      .select({
+        id: quizQuestions.id,
+        quizId: quizQuestions.quizId,
+        position: quizQuestions.position,
+        stem: quizQuestions.stem,
+        choicesJson: quizQuestions.choicesJson,
+        correctIndex: quizQuestions.correctIndex,
+        explanation: quizQuestions.explanation,
+      })
       .from(quizQuestions)
-      .where(eq(quizQuestions.quizId, quizId))
-      .orderBy(asc(quizQuestions.position));
-    if (questions.length === 0) continue;
-    const attempts = await db
-      .select()
+      .where(inArray(quizQuestions.quizId, quizIds))
+      .orderBy(asc(quizQuestions.position)),
+    db
+      .select({
+        id: quizAttempts.id,
+        quizId: quizAttempts.quizId,
+        scorePercent: quizAttempts.scorePercent,
+        answersJson: quizAttempts.answersJson,
+        createdAt: quizAttempts.createdAt,
+      })
       .from(quizAttempts)
-      .where(eq(quizAttempts.quizId, quizId))
-      .orderBy(desc(quizAttempts.createdAt))
-      .limit(1);
-    const attempt = attempts[0] ?? null;
+      .where(inArray(quizAttempts.quizId, quizIds))
+      .orderBy(desc(quizAttempts.createdAt)),
+  ]);
+  const questionsByQuiz = groupBy(questions, (question) => question.quizId);
+  const latestAttempt = new Map<
+    string,
+    (typeof attempts)[number]
+  >();
+  for (const attempt of attempts) {
+    if (!latestAttempt.has(attempt.quizId))
+      latestAttempt.set(attempt.quizId, attempt);
+  }
+  for (const [quizId, quizQuestionsForId] of questionsByQuiz) {
+    if (quizQuestionsForId.length === 0) continue;
+    const attempt = latestAttempt.get(quizId) ?? null;
     const answers = attempt ? parseAnswers(attempt.answersJson) : [];
-    return {
+    payloads.set(quizId, {
       id: quizId,
-      questions: questions.map((question, index) => ({
+      questions: quizQuestionsForId.map((question, index) => ({
         id: question.id,
         position: question.position,
         stem: question.stem,
@@ -256,42 +354,53 @@ async function quizPayload(db: Database, quizIds: string[]) {
             createdAt: attempt.createdAt,
           }
         : null,
-    };
+    });
   }
-  return null;
+  return payloads;
 }
 
 async function progressFor(db: Database, pathId: string) {
-  const chapterRows = await db
-    .select({ id: chapters.id })
-    .from(chapters)
+  const rows = await db
+    .select({
+      total: count(lessons.id),
+      done: sql<number>`count(${lessons.completedAt})`,
+    })
+    .from(lessons)
+    .innerJoin(chapters, eq(lessons.chapterId, chapters.id))
     .where(eq(chapters.pathId, pathId));
-  let total = 0;
-  let done = 0;
-  for (const chapter of chapterRows) {
-    const lessonRows = await db
-      .select({ completedAt: lessons.completedAt })
-      .from(lessons)
-      .where(eq(lessons.chapterId, chapter.id));
-    total += lessonRows.length;
-    done += lessonRows.filter((lesson) => lesson.completedAt).length;
-  }
-  return { done, total };
+  return {
+    done: Number(rows[0]?.done ?? 0),
+    total: Number(rows[0]?.total ?? 0),
+  };
 }
 
 async function nextLesson(db: Database, pathId: string) {
   const chapterRows = await db
-    .select()
+    .select({ id: chapters.id, title: chapters.title })
     .from(chapters)
     .where(eq(chapters.pathId, pathId))
     .orderBy(asc(chapters.position));
+  if (chapterRows.length === 0) return null;
+  const lessonRows = await db
+    .select({
+      id: lessons.id,
+      chapterId: lessons.chapterId,
+      title: lessons.title,
+      completedAt: lessons.completedAt,
+    })
+    .from(lessons)
+    .where(
+      inArray(
+        lessons.chapterId,
+        chapterRows.map((chapter) => chapter.id),
+      ),
+    )
+    .orderBy(asc(lessons.position));
+  const lessonsByChapter = groupBy(lessonRows, (lesson) => lesson.chapterId);
   for (const chapter of chapterRows) {
-    const lessonRows = await db
-      .select()
-      .from(lessons)
-      .where(eq(lessons.chapterId, chapter.id))
-      .orderBy(asc(lessons.position));
-    const lesson = lessonRows.find((item) => !item.completedAt);
+    const lesson = (lessonsByChapter.get(chapter.id) ?? []).find(
+      (item) => !item.completedAt,
+    );
     if (lesson)
       return {
         id: lesson.id,
@@ -303,28 +412,29 @@ async function nextLesson(db: Database, pathId: string) {
 }
 
 async function completedDates(db: Database, userId: string): Promise<string[]> {
-  const pathRows = await db
-    .select({ id: paths.id })
-    .from(paths)
-    .where(eq(paths.userId, userId));
+  const rows = await db
+    .select({ completedAt: lessons.completedAt })
+    .from(lessons)
+    .innerJoin(chapters, eq(lessons.chapterId, chapters.id))
+    .innerJoin(paths, eq(chapters.pathId, paths.id))
+    .where(and(eq(paths.userId, userId), sql`${lessons.completedAt} is not null`));
   const dates = new Set<string>();
-  for (const path of pathRows) {
-    const chapterRows = await db
-      .select({ id: chapters.id })
-      .from(chapters)
-      .where(eq(chapters.pathId, path.id));
-    for (const chapter of chapterRows) {
-      const lessonRows = await db
-        .select({ completedAt: lessons.completedAt })
-        .from(lessons)
-        .where(eq(lessons.chapterId, chapter.id));
-      for (const lesson of lessonRows) {
-        if (lesson.completedAt)
-          dates.add(jakartaDate(new Date(lesson.completedAt)));
-      }
-    }
+  for (const lesson of rows) {
+    if (lesson.completedAt)
+      dates.add(jakartaDate(new Date(lesson.completedAt)));
   }
   return [...dates];
+}
+
+function groupBy<T, K>(rows: T[], key: (row: T) => K): Map<K, T[]> {
+  const groups = new Map<K, T[]>();
+  for (const row of rows) {
+    const value = key(row);
+    const group = groups.get(value);
+    if (group) group.push(row);
+    else groups.set(value, [row]);
+  }
+  return groups;
 }
 
 function parseChoices(value: string): string[] {

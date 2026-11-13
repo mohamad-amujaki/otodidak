@@ -5,15 +5,19 @@ import OrderRows from '../components/credit/OrderRows.astro';
 import Shell from '../components/Shell.astro';
 import { formatIdr } from '../domain/format';
 import { isRecord, record } from '../domain/guard';
+import { creditsPayload } from '../server/credits-page';
+import { publicCreditPacks } from '../server/admin-data';
 import { callApi, errorOf } from '../server/call';
+import { pageMe } from '../server/ssr';
 
 const SNIPPET_ENTRIES = 6;
 const SNIPPET_ORDERS = 3;
 const PENDING_SNIPPET = 3;
 
-const meResult = await callApi(Astro.request, env, '/api/me');
-if (meResult.status !== 200) return Astro.redirect('/masuk');
-const me = record(meResult.data);
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session, me: meRaw } = page;
+const me = record(meRaw);
 const user = record(me.user);
 let message = '';
 if (Astro.request.method === 'POST') {
@@ -32,24 +36,14 @@ if (Astro.request.method === 'POST') {
       return Astro.redirect(`/kredit/pesanan/${result.data.id}`);
   }
 }
-const packsResult = await callApi(Astro.request, env, '/api/credit-packs');
-const creditParams = new URLSearchParams({
-  limit: String(SNIPPET_ENTRIES),
-  offset: '0',
-  ordersLimit: String(SNIPPET_ORDERS + PENDING_SNIPPET),
-  ordersOffset: '0',
-  includePending: '1',
-});
-const creditResult = await callApi(
-  Astro.request,
-  env,
-  `/api/credits?${creditParams}`,
+const packs = (await publicCreditPacks(session.db)).filter(isRecord);
+const creditUrl = new URL('/kredit', Astro.url);
+creditUrl.searchParams.set('limit', String(SNIPPET_ENTRIES));
+creditUrl.searchParams.set('ordersLimit', String(SNIPPET_ORDERS + PENDING_SNIPPET));
+creditUrl.searchParams.set('includePending', '1');
+const credit = record(
+  await creditsPayload(session.db, session.user, creditUrl.toString()),
 );
-const packs =
-  isRecord(packsResult.data) && Array.isArray(packsResult.data.packs)
-    ? packsResult.data.packs.filter(isRecord)
-    : [];
-const credit = record(creditResult.data);
 const entries = Array.isArray(credit.entries)
   ? credit.entries.filter(isRecord)
   : [];

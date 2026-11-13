@@ -4,7 +4,12 @@ import AdminShell from '../../components/AdminShell.astro';
 import { aiTaskLabels, aiTasks } from '../../domain/admin-labels';
 import { isRecord, record } from '../../domain/guard';
 import { requireAdmin } from '../../server/admin-guard';
-import { callApi } from '../../server/call';
+import {
+  fetchAdminStats,
+  getActiveModelForTask,
+  listAdminUsers,
+  listAllPacks,
+} from '../../server/admin-data';
 
 const bagian = Astro.url.searchParams.get('bagian');
 const legacy: Record<string, string> = {
@@ -20,17 +25,14 @@ if (bagian && legacy[bagian]) return Astro.redirect(legacy[bagian]);
 const auth = await requireAdmin(Astro.request);
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
 
-const statsResult = await callApi(Astro.request, env, '/api/admin/stats');
-const stats = isRecord(statsResult.data) ? statsResult.data : {};
-const usersResult = await callApi(
-  Astro.request,
-  env,
-  '/api/admin/users?limit=5',
+const stats = await fetchAdminStats(auth.session.db);
+const usersListUrl = new URL('/admin/pengguna', Astro.url);
+usersListUrl.searchParams.set('limit', '5');
+const { users: recentUsersRaw } = await listAdminUsers(
+  auth.session.db,
+  usersListUrl.toString(),
 );
-const recentUsers =
-  isRecord(usersResult.data) && Array.isArray(usersResult.data.users)
-    ? usersResult.data.users.filter(isRecord)
-    : [];
+const recentUsers = recentUsersRaw.filter(isRecord);
 
 const pendingOrders = Number(stats.pendingOrders ?? 0);
 const jobsFailed = Number(stats.jobsFailed ?? 0);
@@ -108,20 +110,13 @@ type PlatformModel = { task: string; label: string; modelName: string };
 let platformActivePacks = 0;
 const platformModels: PlatformModel[] = [];
 if (auth.superadmin) {
-  const packsResult = await callApi(Astro.request, env, '/api/admin/packs');
-  if (isRecord(packsResult.data) && Array.isArray(packsResult.data.packs)) {
-    platformActivePacks = packsResult.data.packs.filter(
-      (p) => isRecord(p) && (p.active === 1 || p.active === true),
-    ).length;
-  }
+  const packs = await listAllPacks(auth.session.db);
+  platformActivePacks = packs.filter((p) => p.active === 1).length;
   for (const task of aiTasks) {
-    const modelResult = await callApi(
-      Astro.request,
-      env,
-      `/api/admin/models/${task}`,
+    const row = await getActiveModelForTask(auth.session.db, task).catch(
+      () => null,
     );
-    if (modelResult.status === 200) {
-      const row = record(modelResult.data);
+    if (row) {
       platformModels.push({
         task,
         label: aiTaskLabels[task] ?? task,
