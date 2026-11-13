@@ -1,4 +1,5 @@
 import {
+  DEFAULT_AI_BASE_URL,
   DEFAULT_MODEL_NAME,
   SEED_CONFIG,
   SEED_MODELS,
@@ -28,17 +29,24 @@ export async function ensureSeed(db: Database): Promise<void> {
     .insert(aiProviders)
     .values({
       id: SEED_PROVIDER_ID,
-      name: 'openai-compatible',
-      baseUrl: 'https://api.openai.com/v1',
+      name: 'deepseek-compatible',
+      baseUrl: DEFAULT_AI_BASE_URL,
       authKind: 'bearer',
       secretName: 'OPENAI_API_KEY',
       active: 1,
     })
-    .onConflictDoNothing();
-  await db
-    .insert(aiModels)
-    .values(
-      SEED_MODELS.map((model) => ({
+    .onConflictDoUpdate({
+      target: aiProviders.id,
+      set: {
+        name: 'deepseek-compatible',
+        baseUrl: DEFAULT_AI_BASE_URL,
+        secretName: 'OPENAI_API_KEY',
+      },
+    });
+  for (const model of SEED_MODELS) {
+    await db
+      .insert(aiModels)
+      .values({
         id: model.id,
         providerId: SEED_PROVIDER_ID,
         modelName: DEFAULT_MODEL_NAME,
@@ -46,9 +54,17 @@ export async function ensureSeed(db: Database): Promise<void> {
         active: 1,
         maxOutputTokens: model.maxOutputTokens,
         timeoutMs: model.timeoutMs,
-      })),
-    )
-    .onConflictDoNothing();
+      })
+      .onConflictDoUpdate({
+        target: aiModels.id,
+        set: {
+          modelName: DEFAULT_MODEL_NAME,
+          maxOutputTokens: model.maxOutputTokens,
+          timeoutMs: model.timeoutMs,
+          active: 1,
+        },
+      });
+  }
   for (const task of ['roadmap', 'lesson', 'quiz'] as const) {
     await db
       .insert(promptTemplates)

@@ -40,23 +40,26 @@ export const SEED_PACKS = [
 
 export const SEED_PROVIDER_ID = 'provider_openai';
 
+/** OpenAI-compatible chat/completions; dipakai oleh `completeJson`. */
+export const DEFAULT_AI_BASE_URL = 'https://api.deepseek.com';
+
 export const SEED_MODELS = [
   {
     id: 'model_roadmap',
     task: 'roadmap',
-    maxOutputTokens: 2000,
-    timeoutMs: 60000,
+    maxOutputTokens: 4096,
+    timeoutMs: 120000,
   },
   {
     id: 'model_lesson',
     task: 'lesson',
-    maxOutputTokens: 2500,
-    timeoutMs: 90000,
+    maxOutputTokens: 4096,
+    timeoutMs: 120000,
   },
-  { id: 'model_quiz', task: 'quiz', maxOutputTokens: 1500, timeoutMs: 45000 },
+  { id: 'model_quiz', task: 'quiz', maxOutputTokens: 2048, timeoutMs: 90000 },
 ] as const;
 
-export const DEFAULT_MODEL_NAME = 'gpt-4.1-mini';
+export const DEFAULT_MODEL_NAME = 'deepseek-v4.1-flash-1017';
 
 export const MAX_LESSON_CHARS = 100_000;
 export const MAX_PROMPT_CHARS = 8_000;
