@@ -41,7 +41,7 @@ export const SEED_PACKS = [
 export const SEED_PROVIDER_ID = 'provider_openai';
 
 /** OpenAI-compatible chat/completions; dipakai oleh `completeJson`. */
-export const DEFAULT_AI_BASE_URL = 'https://api.deepseek.com';
+export const DEFAULT_AI_BASE_URL = 'https://ai.sumopod.com/v1';
 
 export const SEED_MODELS = [
   {

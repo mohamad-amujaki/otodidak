@@ -8,8 +8,7 @@ SUMOPOD_WEBHOOK_SECRET=whsec_b3RvZGlkYWstdGVzdC13ZWJob29rLXNlY3JldC1rZXk=
 SUMOPOD_API_BASE=https://api-pay-sandbox.sumopod.com/api/v1
 # Opsional: kosong atau 8787 → origin dari browser dipakai saat buat pesanan.
 APP_ORIGIN=http://localhost:4321
-# Kunci Bearer untuk penyedia di admin (default base https://api.deepseek.com).
-# Untuk API resmi DeepSeek, model di DB bisa `deepseek-flash`; default seed memakai deepseek-v4.1-flash-1017.
+# Kunci Bearer untuk penyedia AI (default base https://ai.sumopod.com/v1, model deepseek-v4.1-flash-1017).
 OPENAI_API_KEY=mock
 BRAVE_SEARCH_API_KEY=mock
 YOUTUBE_API_KEY=mock
