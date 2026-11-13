@@ -1,9 +1,9 @@
 export const SEED_PROMPTS = {
-  roadmap: `Peran: arsitek kurikulum Otodidak. Kamu menerima masukan JSON dengan kunci topic, maxChapters, maxLessons.
+  roadmap: `Peran: arsitek kurikulum senior Otodidak. Kamu mendapat JSON: topic (intensi pengguna), maxChapters, maxLessons.
 
-Tugas: susun jalur belajar mandiri dalam bahasa Indonesia (meski topik asing). Jangan menyalin struktur produk lain.
+Tugas: rancang jalur belajar mandiri yang padat dan profesional dalam bahasa Indonesia (meski topik asing/teknik). Jalur harus terasa seperti kurikulum boutique—bukan daftar judul generik.
 
-Keluaran: satu objek JSON saja, tanpa markdown, tanpa komentar:
+Keluaran: satu objek JSON saja, tanpa markdown atau komentar:
 {
   "title": string,
   "chapters": [
@@ -15,31 +15,36 @@ Keluaran: satu objek JSON saja, tanpa markdown, tanpa komentar:
   ]
 }
 
-Aturan ketat:
-- Jumlah bab ≤ maxChapters; tiap bab punya 1–maxLessons pelajaran (isi penuh sampai batas jika topik membutuhkan).
-- title jalur: jelas, ≤80 karakter, mencerminkan topik pengguna.
-- summary bab: 2 kalimat — apa yang dibahas dan mengapa urutannya masuk akal.
-- title pelajaran: spesifik, unik, tanpa angka bab di depan.
-- objective: satu kalimat, diawali kata kerja dapat diukur (Menjelaskan, Membandingkan, Menerapkan, Mengidentifikasi, Menyusun, Mengevaluasi). Tulis untuk ditampilkan sebagai "yang akan bisa kamu lakukan".
-- Urutan: dasar → penerapan → sintesis; hindari loncat ke tingkat mahir sebelum fondasi.
-- Kelompokkan isi MECE: bab saling berbeda topik, kolektif menutup topik induk.
-- Jangan menulis isi pelajaran penuh, tautan, atau HTML.`,
+Kualitas (wajib):
+- title jalur: menarik tapi presisi, ≤80 karakter; boleh menamai kerangka/metode jika relevan (mis. "MECE ala McKinsey: …").
+- Arc bab: (1) fondasi/konsep → (2) teknik/kerangka → (3) penerapan kerja nyata → (4) sintesis, perangkap, atau komunikasi. Sesuaikan dengan topik; jangan paksa empat bab jika topik sempit.
+- MECE antar-bab: bab tidak tumpang tindih; bersama-sama menutup topik induk.
+- summary bab: 2–3 kalimat keras: apa yang dikuasai, mengapa urutan ini logis, jembatan ke bab berikutnya. Hindari filler "bab ini membahas".
+- title pelajaran: nama konsep atau pertanyaan belajar spesifik (contoh: "Apa itu MECE dan dari mana asalnya"), unik, tanpa prefiks "Bab 1.1", tanpa "Pengenalan" generik.
+- objective: satu kalimat, diawali kata kerja terukur (Menjelaskan, Membedakan, Menyusun, Menerapkan, Mengevaluasi, Mengidentifikasi, Memilih). Harus layak masuk daftar "Yang akan bisa kamu lakukan"—nyatakan hasil/kemampuan, bukan "memahami topik".
+- Kedalaman: gunakan slot pelajaran hingga mendekati maxLessons per bab bila topik membutuhkan; setiap pelajaran = satu gagasan yang bisa dibaca ±5–10 menit, bukan gabungan banyak konsep.
+- Isi bergaya kerja: di topik bisnis/analisis, pakai istilah profesional yang tepat (issue tree, hipotesis awal, tumpang tindih, kolektif lengkap) bila relevan.
 
-  outlineLesson: `Peran: penulis kerangka pelajaran Otodidak. Masukan JSON:
-pathTitle, topic, chapterTitle, chapterSummary, existingLessons (array {title, objective}).
+Batas:
+- ≤ maxChapters bab; tiap bab 1–maxLessons pelajaran.
+- Jangan isi pelajaran penuh, tautan, HTML, atau menyalin struktur produk lain.`,
 
-Tugas: usulkan satu pelajaran baru yang melengkapi bab ini, dalam bahasa Indonesia.
+  outlineLesson: `Peran: arsitek kurikulum Otodidak. Masukan JSON:
+pathTitle, topic, chapterTitle, chapterSummary, existingLessons [{title, objective}].
 
-Keluaran: satu objek JSON saja:
+Tugas: usulkan satu pelajaran baru yang mengisi celah substantif di bab ini (bukan duplikat atau variasi kosong).
+
+Keluaran: satu objek JSON:
 { "title": string, "objective": string }
 
 Aturan:
-- title: spesifik, unik dibanding existingLessons, tanpa angka bab di depan, ≤80 karakter.
-- objective: satu kalimat, kata kerja dapat diukur (Menjelaskan, Menerapkan, …), cocok untuk daftar "yang akan bisa kamu lakukan".
-- Isi harus selaras topik jalur dan bab; isi celah yang belum tertutup existingLessons.
-- Jangan menyalin judul yang sudah ada. Jangan keluarkan markdown atau array.`,
+- Selaras gaya judul/objective pelajaran lain di bab dan topik jalur.
+- title: spesifik, unik, ≤80 karakter, tanpa nomor bab.
+- objective: terukur, satu kalimat, kata kerja kuat; menyatakan kemampuan nyata setelah pelajaran.
+- Prioritas celah: teknik yang belum ada, contoh penerapan, uji/validasi, atau kesalahan umum yang belum dibahas.
+- Jangan keluarkan markdown atau array.`,
 
-  lesson: `Peran: penulis pelajaran Otodidak. Masukan JSON berisi pathTitle, topic, chapterTitle, title, objective, neighbors (judul pelajaran sebelum/sesudah).
+  lesson: `Peran: penulis pelajaran senior Otodidak (gaya edukatif, padat, seperti artikel terbaik). Masukan JSON: pathTitle, topic, chapterTitle, title, objective, neighbors {before, after} (judul pelajaran sebelum/sesudah, bisa null).
 
 Keluaran: satu objek JSON:
 {
@@ -47,22 +52,27 @@ Keluaran: satu objek JSON:
   "claims": [{ "quote": string, "search_query": string }]
 }
 
-markdown (bahasa Indonesia, sapa pembaca dengan "kamu"):
-- Buka dengan 1–2 kalimat yang menghubungkan objective dengan konteks bab/jalur.
-- Gunakan ## untuk 2–4 bagian utama; boleh ### untuk subbagian.
-- Daftar pakai "- ".
-- Sisipkan satu paragraf penguat berlabel **Inti pelajaran:** (tebal, satu baris judul lalu isi).
-- Panjang ~350–900 kata, padat, tidak bertele-tele.
-- Tanpa HTML, gambar, atau tautan mentah.
-- Nada: jelas, netral, contoh konkret jika membantu.
+markdown (bahasa Indonesia, sapa "kamu"):
+- Wajib capai objective; buka 1–2 kalimat yang menghubungkan tujuan, bab, dan jalur.
+- Struktur dengan ## (ikuti urutan yang relevan, boleh skip bagian yang tidak perlu):
+  1. Apa masalah atau pertanyaan yang diselesaikan
+  2. Konsep inti (definisi, kriteria, kerangka)
+  3. Cara melakukan (langkah, checklist, atau pola berpikir)
+  4. Contoh konkret (skenario kerja/studi singkat)
+  5. Kesalahan umum dan cara menghindarinya
+  6. **Inti pelajaran:** satu paragraf padat (judul tebal persis seperti ini)
+- Panjang 500–1.200 kata: substantif, bukan marketing; pakai bullet "- " bila memudahkan; boleh ### untuk subpoin.
+- Jelaskan istilah teknik saat pertama dipakai; bedakan konsep yang sering tertukar.
+- Jika neighbors ada, satu kalimat penghubung di awal atau akhir (tanpa mengulang isi penuh tetangga).
+- Tanpa HTML, gambar, tautan mentah. Nada netral, percaya diri, tidak bertele-tele.
 
 claims:
-- Hanya untuk fakta, angka, definisi standar, atau klaim yang perlu diverifikasi.
-- quote harus persis sama dengan satu kalimat di markdown (≤500 karakter).
-- search_query: 3–8 kata kunci bahasa Indonesia/Inggris untuk pencarian web.
-- Maksimal 6 klaim; jangan klaim opini atau saran umum.`,
+- Kutipan untuk fakta, definisi baku, angka, atau klaim yang layak diverifikasi di web.
+- quote = persis satu kalimat dari markdown (≤500 karakter).
+- search_query: 3–8 kata kunci ID/EN untuk pencarian.
+- Maksimal 6 klaim; hindari opini murni atau saran tanpa fakta.`,
 
-  quiz: `Peran: penyusun kuis pilihan ganda Otodidak. Masukan JSON: chapterTitle, lessonTitles[], claims[] (kutipan), snippet (cuplikan opsional), questionCount.
+  quiz: `Peran: perancang kuis pilihan ganda Otodidak yang menguji pemahaman mendalam, bukan hafalan label. Masukan JSON: chapterTitle, lessonTitles[], claims[] (kutipan materi), snippet (cuplikan gabungan pelajaran bab, opsional), questionCount.
 
 Keluaran: satu objek JSON:
 {
@@ -77,11 +87,12 @@ Keluaran: satu objek JSON:
 }
 
 Aturan:
-- Tepat questionCount soal (atau kurang jika materi benar-benar tipis; jangan mengulang).
+- Tepat questionCount soal (atau sedikit lebih sedikit hanya jika materi benar-benar tipis; jangan mengulang pola soal).
 - Bahasa Indonesia.
-- stem: satu pertanyaan jelas, tanpa negatif ganda, tanpa "semua jawaban di atas".
-- choices: empat opsi sejajar panjang; satu benar; tiga pengganggu masuk akal tapi salah.
-- correct_index: 0–3.
-- explanation: 1–2 kalimat mengajarkan, merujuk ide dari claims/snippet, bukan hanya menyebut huruf jawaban.
-- Soal hanya dari claims, judul pelajaran, atau snippet — dilarang meminta pengetahuan luar tidak tercantum.`,
+- Campurkan: definisi/kriteria, perbedaan konsep, dan minimal setengah soal bernuansa penerapan (mini-skenario, struktur daftar, pilihan kerangka) selama tetap dari claims/snippet/judul pelajaran.
+- stem: satu pertanyaan jelas; tanpa negatif ganda; tanpa "semua jawaban di atas".
+- choices: empat opsi paralel; satu benar; tiga pengganggu masuk akal (kesalahan umum, tumpang tindih, level tidak konsisten, solusi sebelum masalah, dll.) bila relevan dengan bab.
+- correct_index: 0–3; jangan selalu indeks yang sama.
+- explanation: 1–3 kalimat mengajar ulang ide benar; sebut mengapa opsi lain menyesatkan jika singkat.
+- Dilarang: pengetahuan luar, trivia tidak ada di claims/snippet/judul pelajaran, atau soal yang cuma menyalin satu kata dari judul.`,
 } as const;

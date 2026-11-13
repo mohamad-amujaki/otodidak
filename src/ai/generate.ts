@@ -186,8 +186,8 @@ function mockOutlineLesson(input: unknown): OutlineLessonOutput {
   const chapter = record.chapterTitle ?? 'Bab';
   const count = (record.existingLessons?.length ?? 0) + 1;
   return {
-    title: `Pelengkap ${chapter} (${count})`,
-    objective: `Menerapkan ide penting dari ${chapter} pada contoh singkat.`,
+    title: `Contoh penerapan: sudut yang belum dibahas (${count})`,
+    objective: `Menerapkan konsep ${chapter} pada contoh singkat yang konsisten dengan jalur.`,
   };
 }
 
@@ -197,18 +197,28 @@ function mockRoadmap(input: unknown): RoadmapOutput {
       ? (input as { topic?: string; maxChapters?: number; maxLessons?: number })
       : {};
   const topic = record.topic || 'Topik';
-  const chapters = Math.min(record.maxChapters ?? 2, 2);
-  const lessons = Math.min(record.maxLessons ?? 2, 2);
+  const chapterCount = Math.min(record.maxChapters ?? 4, 4);
+  const lessonCap = record.maxLessons ?? 4;
+  const lessonCount = Math.min(Math.max(1, lessonCap - 1), 4);
+  const arc = [
+    'Fondasi konsep',
+    'Teknik inti',
+    'Penerapan praktis',
+    'Perangkap dan sintesis',
+  ];
   return {
-    title: `Belajar ${topic}`,
-    chapters: Array.from({ length: chapters }, (_, chapterIndex) => ({
-      title: `Bab ${chapterIndex + 1}`,
-      summary: `Ringkasan bab ${chapterIndex + 1} untuk ${topic}.`,
-      lessons: Array.from({ length: lessons }, (_, lessonIndex) => ({
-        title: `Pelajaran ${chapterIndex + 1}.${lessonIndex + 1}`,
-        objective: `Memahami bagian ${lessonIndex + 1} dari bab ini.`,
-      })),
-    })),
+    title: topic.length > 48 ? `${topic.slice(0, 45)}…` : topic,
+    chapters: Array.from({ length: chapterCount }, (_, chapterIndex) => {
+      const chapterTitle = arc[chapterIndex] ?? `Bab ${chapterIndex + 1}`;
+      return {
+        title: chapterTitle,
+        summary: `Bab ini membangun ${chapterTitle.toLowerCase()} untuk ${topic}, lalu menyiapkan bab berikutnya.`,
+        lessons: Array.from({ length: lessonCount }, (_, lessonIndex) => ({
+          title: `Gagasan kunci ${chapterIndex + 1}.${lessonIndex + 1} tentang ${topic}`,
+          objective: `Menjelaskan satu aspek ${chapterTitle.toLowerCase()} yang relevan dengan ${topic}.`,
+        })),
+      };
+    }),
   };
 }
 
@@ -222,7 +232,7 @@ function mockLesson(input: unknown): LessonOutput {
   const sourced = `${title} punya langkah yang bisa dicek.`;
   const unsourced = 'Angka contoh ini tidak punya tautan.';
   return {
-    markdown: `## ${title}\n\n${objective}\n\n### Langkah utama\n\n${sourced}\n\n${unsourced}\n\n**Inti pelajaran:** ${objective}`,
+    markdown: `## Apa yang kamu capai\n\n${objective}\n\n## Konsep inti\n\n${title} membahas satu gagasan yang bisa dipakai langsung.\n\n## Cara melakukan\n\n${sourced}\n\n## Contoh singkat\n\nBayangkan kasus kerja sehari-hari yang membutuhkan ${title.toLowerCase()}.\n\n## Kesalahan umum\n\n${unsourced}\n\n**Inti pelajaran:** ${objective}`,
     claims: [
       { quote: sourced, search_query: title },
       { quote: unsourced, search_query: 'tanpa-hasil' },
