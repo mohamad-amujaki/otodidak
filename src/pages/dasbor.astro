@@ -22,6 +22,8 @@ if (Astro.request.method === 'POST') {
     });
     const error = errorOf(result.data);
     if (error) message = error.message;
+    else if (isRecord(result.data) && typeof result.data.pathId === 'string')
+      return Astro.redirect(`/jalur/${result.data.pathId}?tinjau=1`);
     else return Astro.redirect('/dasbor');
   }
 }
@@ -59,14 +61,18 @@ paths.forEach((path) => {
 });
 
 // Get active path progress
-const activePathProgress = activePath && isRecord(activePath.progress) 
-  ? activePath.progress 
-  : null;
-const activePathDone = activePathProgress ? Number(activePathProgress.done ?? 0) : 0;
-const activePathTotal = activePathProgress ? Number(activePathProgress.total ?? 0) : 0;
-const activePathPercentage = activePathTotal > 0 
-  ? Math.round((activePathDone / activePathTotal) * 100) 
+const activePathProgress =
+  activePath && isRecord(activePath.progress) ? activePath.progress : null;
+const activePathDone = activePathProgress
+  ? Number(activePathProgress.done ?? 0)
   : 0;
+const activePathTotal = activePathProgress
+  ? Number(activePathProgress.total ?? 0)
+  : 0;
+const activePathPercentage =
+  activePathTotal > 0
+    ? Math.round((activePathDone / activePathTotal) * 100)
+    : 0;
 ---
 <Shell title="Dasbor" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
   <!-- Header -->

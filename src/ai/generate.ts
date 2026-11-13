@@ -5,6 +5,8 @@ import { AppError } from '../domain/errors';
 import {
   type LessonOutput,
   lessonOutputSchema,
+  type OutlineLessonOutput,
+  outlineLessonOutputSchema,
   type QuizOutput,
   quizOutputSchema,
   type RoadmapOutput,
@@ -118,6 +120,12 @@ export async function completeJson(
   }
 }
 
+export function parseOutlineLessonOutput(value: unknown): OutlineLessonOutput {
+  const parsed = outlineLessonOutputSchema.safeParse(value);
+  if (!parsed.success) throw new ModelError('invalid_output');
+  return parsed.data;
+}
+
 export function parseModelOutput(
   task: TaskName,
   value: unknown,
@@ -156,8 +164,31 @@ async function mockCompletion(
   const mode = apiKey === 'fail' ? 'fail' : await env.APP_KV.get('dev:ai-mode');
   if (mode === 'fail') throw new ModelError('provider_timeout');
   if (task === 'roadmap') return mockRoadmap(input);
-  if (task === 'lesson') return mockLesson(input);
+  if (task === 'lesson') {
+    const mode =
+      typeof input === 'object' && input !== null
+        ? (input as { mode?: string }).mode
+        : undefined;
+    if (mode === 'outline') return mockOutlineLesson(input);
+    return mockLesson(input);
+  }
   return mockQuiz();
+}
+
+function mockOutlineLesson(input: unknown): OutlineLessonOutput {
+  const record =
+    typeof input === 'object' && input !== null
+      ? (input as {
+          chapterTitle?: string;
+          existingLessons?: { title: string }[];
+        })
+      : {};
+  const chapter = record.chapterTitle ?? 'Bab';
+  const count = (record.existingLessons?.length ?? 0) + 1;
+  return {
+    title: `Pelengkap ${chapter} (${count})`,
+    objective: `Menerapkan ide penting dari ${chapter} pada contoh singkat.`,
+  };
 }
 
 function mockRoadmap(input: unknown): RoadmapOutput {
@@ -191,7 +222,7 @@ function mockLesson(input: unknown): LessonOutput {
   const sourced = `${title} punya langkah yang bisa dicek.`;
   const unsourced = 'Angka contoh ini tidak punya tautan.';
   return {
-    markdown: `## ${title}\n\n${objective}\n\n${sourced}\n\n${unsourced}`,
+    markdown: `## ${title}\n\n${objective}\n\n### Langkah utama\n\n${sourced}\n\n${unsourced}\n\n**Inti pelajaran:** ${objective}`,
     claims: [
       { quote: sourced, search_query: title },
       { quote: unsourced, search_query: 'tanpa-hasil' },

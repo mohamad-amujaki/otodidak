@@ -1,0 +1,49 @@
+---
+import { env } from 'cloudflare:workers';
+import AdminShell from '../../components/AdminShell.astro';
+import { formatIdr } from '../../domain/format';
+import { isRecord } from '../../domain/guard';
+import { runAdminAction } from '../../server/admin-actions';
+import { requireSuperadminPage } from '../../server/admin-guard';
+import { callApi } from '../../server/call';
+
+const auth = await requireSuperadminPage(Astro.request);
+if ('redirect' in auth) return Astro.redirect(auth.redirect);
+
+let message = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+    message = 'Muat ulang halaman, lalu kirim lagi.';
+  else
+    message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
+}
+
+const packsResult = await callApi(Astro.request, env, '/api/admin/packs');
+const packs =
+  isRecord(packsResult.data) && Array.isArray(packsResult.data.packs)
+    ? packsResult.data.packs.filter(isRecord)
+    : [];
+---
+<AdminShell title="Paket" section="paket" balance={auth.balance} superadmin={auth.superadmin}>
+  <h1 class="judul">Paket kredit</h1>
+  {message && <p class="mt-3 text-sm">{message}</p>}
+
+  <div class="mt-8 space-y-6">
+    {packs.map((pack) => (
+      <form class="grid max-w-md gap-2 rounded-kartu border border-garis bg-kartu p-4" method="post">
+        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        <input type="hidden" name="aksi" value="paket" />
+        <input type="hidden" name="id" value={String(pack.id)} />
+        <p class="text-xs text-tinta-lembut">ID {pack.id}</p>
+        <input class="min-h-11 rounded-kontrol border border-garis px-3" name="name" value={String(pack.name)} aria-label="Nama paket" />
+        <input class="min-h-11 rounded-kontrol border border-garis px-3" name="credits" type="number" value={String(pack.credits)} aria-label="Kredit" />
+        <input class="min-h-11 rounded-kontrol border border-garis px-3" name="priceIdr" type="number" value={String(pack.priceIdr)} aria-label="Harga IDR" />
+        <p class="text-xs text-tinta-lembut">{formatIdr(Number(pack.priceIdr ?? 0))}</p>
+        <input class="min-h-11 rounded-kontrol border border-garis px-3" name="sort" type="number" value={String(pack.sort)} aria-label="Urutan" />
+        <label class="text-sm"><input type="checkbox" name="active" value="1" checked={pack.active === 1} /> Aktif</label>
+        <button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Simpan paket</button>
+      </form>
+    ))}
+  </div>
+</AdminShell>

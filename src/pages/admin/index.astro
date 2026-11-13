@@ -1,0 +1,104 @@
+---
+import { env } from 'cloudflare:workers';
+import AdminShell from '../../components/AdminShell.astro';
+import { isRecord } from '../../domain/guard';
+import { requireAdmin } from '../../server/admin-guard';
+import { callApi } from '../../server/call';
+
+const bagian = Astro.url.searchParams.get('bagian');
+const legacy: Record<string, string> = {
+  pengguna: '/admin/pengguna',
+  buku: '/admin/kredit',
+  batas: '/admin/konfigurasi',
+  prompt: '/admin/ai',
+  model: '/admin/ai',
+  paket: '/admin/paket',
+};
+if (bagian && legacy[bagian]) return Astro.redirect(legacy[bagian]);
+
+const auth = await requireAdmin(Astro.request);
+if ('redirect' in auth) return Astro.redirect(auth.redirect);
+
+const statsResult = await callApi(Astro.request, env, '/api/admin/stats');
+const stats = isRecord(statsResult.data) ? statsResult.data : {};
+const usersResult = await callApi(
+  Astro.request,
+  env,
+  '/api/admin/users?limit=5',
+);
+const recentUsers =
+  isRecord(usersResult.data) && Array.isArray(usersResult.data.users)
+    ? usersResult.data.users.filter(isRecord)
+    : [];
+
+const cards = [
+  {
+    label: 'Total pengguna',
+    value: Number(stats.users ?? 0),
+    href: '/admin/pengguna',
+  },
+  {
+    label: 'Baru (7 hari)',
+    value: Number(stats.newUsers ?? 0),
+    href: '/admin/pengguna',
+  },
+  {
+    label: 'Minta hapus data',
+    value: Number(stats.deletionRequests ?? 0),
+    href: '/admin/pengguna',
+  },
+  {
+    label: 'Pesanan pending',
+    value: Number(stats.pendingOrders ?? 0),
+    href: '/admin/kredit',
+  },
+  {
+    label: 'Antrean aktif',
+    value: Number(stats.jobsQueued ?? 0),
+    href: '/admin/antrean',
+  },
+  {
+    label: 'Job gagal',
+    value: Number(stats.jobsFailed ?? 0),
+    href: '/admin/antrean',
+  },
+];
+---
+<AdminShell title="Admin" section="ringkasan" balance={auth.balance} superadmin={auth.superadmin}>
+  <h1 class="judul">Ringkasan</h1>
+  <p class="mt-2 text-sm text-tinta-lembut">Operasi platform Otodidak</p>
+
+  <div class="mt-8 grid gap-4 min-[768px]:grid-cols-2 min-[1100px]:grid-cols-3">
+    {cards.map((card) => (
+      <a
+        href={card.href}
+        class="rounded-xl border-2 border-garis bg-gradient-to-br from-white to-kertas p-5 shadow-sm transition-all hover:border-jalur/40 hover:shadow-md"
+      >
+        <p class="text-3xl font-bold tabular-nums text-tinta">{card.value}</p>
+        <p class="mt-1 text-sm text-tinta-lembut">{card.label}</p>
+      </a>
+    ))}
+  </div>
+
+  {recentUsers.length > 0 && (
+    <section class="mt-10">
+      <h2 class="text-lg font-semibold text-tinta">Pengguna terbaru</h2>
+      <ul class="mt-3 space-y-2">
+        {recentUsers.map((item) => (
+          <li>
+            <a
+              class="flex flex-wrap items-center justify-between gap-2 rounded-kontrol border border-garis bg-kartu px-4 py-3 text-sm hover:border-jalur/40"
+              href={`/admin/pengguna/${String(item.id)}`}
+            >
+              <span class="font-medium">{item.name}</span>
+              <span class="text-tinta-lembut break-all">{item.email}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+      <p class="mt-3">
+        <a class="text-sm text-jalur hover:underline" href="/admin/pengguna">Lihat semua pengguna →</a>
+      </p>
+    </section>
+  )}
+</AdminShell>

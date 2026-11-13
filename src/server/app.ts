@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, like, or, type SQL, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { z } from 'zod';
 import { debitIfEnough } from '../billing/ledger';
@@ -57,14 +57,26 @@ import {
   loadConfig,
   ordersFor,
 } from './account';
+import { isSuperadmin } from './admin-access';
 import { DEV_COOKIE, devIdentityFor, identify, signDevSession } from './auth';
 import { cookieHeader, readCookie, timingSafeEqual } from './crypto';
-import { openLesson, startQuiz, startRoadmap } from './generation';
+import {
+  openLesson,
+  startQuiz,
+  startRoadmap,
+  suggestChapterLesson,
+} from './generation';
 import { logEvent } from './log';
+import { requestAppOrigin } from './origin';
 import { saveOutline } from './outline-save';
 import { allowWebhookIp } from './rate';
 import { lessonContent, library, mePayload, pathDetail } from './read';
 import { isSecure } from './security';
+
+function assertSuperadmin(c: { env: Env; get: (key: 'user') => UserRow }) {
+  if (!isSuperadmin(c.env, c.get('user').email))
+    throw new AppError('forbidden');
+}
 
 export function createApp() {
   const app = new Hono<{ Bindings: Env; Variables: { user: UserRow } }>();
@@ -282,6 +294,16 @@ export function createApp() {
     return c.json(started, 202);
   });
 
+  app.post('/api/chapters/:id/lessons/ai', async (c) => {
+    const created = await suggestChapterLesson(
+      c.env,
+      c.req.raw,
+      c.get('user'),
+      c.req.param('id'),
+    );
+    return c.json(created);
+  });
+
   app.post('/api/quizzes/:id/attempts', async (c) => {
     const body = await readJson(c, attemptSchema);
     const db = await database(c.env);
@@ -420,7 +442,9 @@ export function createApp() {
       createdAt: nowIso(),
       paidAt: null,
     });
-    const returnUrl = `${c.env.APP_ORIGIN}/kredit/pesanan/${id}`;
+    const origin = requestAppOrigin(c.req.raw, c.env);
+    const returnUrl = `${origin}/kredit/pesanan/${id}`;
+    const qrPageUrl = `${origin}/kredit/pesanan/${id}/qris`;
     try {
       const payment = await createQrisPayment({
         apiKey: c.env.SUMOPOD_API_KEY,
@@ -428,18 +452,23 @@ export function createApp() {
         orderId,
         amount: pack.priceIdr,
         returnUrl,
+        qrPageUrl,
       });
+      const paymentLinkUrl = payment.paymentCode
+        ? qrPageUrl
+        : payment.paymentLinkUrl;
       await db
         .update(creditOrders)
         .set({
           sumopodPaymentId: payment.paymentId,
-          paymentLinkUrl: payment.paymentLinkUrl,
+          paymentLinkUrl,
+          paymentCode: payment.paymentCode,
         })
         .where(eq(creditOrders.id, id));
       return c.json({
         id,
         orderId,
-        paymentLinkUrl: payment.paymentLinkUrl,
+        paymentLinkUrl,
         paymentCode: payment.paymentCode,
         mock: c.env.SUMOPOD_API_KEY === 'mock',
       });
@@ -548,10 +577,46 @@ export function createApp() {
     await next();
   });
 
+  app.get('/api/admin/stats', async (c) => {
+    const db = await database(c.env);
+    const weekAgo = new Date(
+      Date.now() - 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const row = await db.get<{
+      users: number | null;
+      newUsers: number | null;
+      deletionRequests: number | null;
+      pendingOrders: number | null;
+      jobsQueued: number | null;
+      jobsFailed: number | null;
+    }>(sql`
+      select
+        (select count(*) from user) as users,
+        (select count(*) from user where created_at >= ${weekAgo}) as newUsers,
+        (select count(*) from user where deletion_requested_at is not null) as deletionRequests,
+        (select count(*) from credit_order where status = 'pending') as pendingOrders,
+        (select count(*) from generation_job where status in ('queued', 'running')) as jobsQueued,
+        (select count(*) from generation_job where status = 'failed') as jobsFailed
+    `);
+    return c.json({
+      users: Number(row?.users ?? 0),
+      newUsers: Number(row?.newUsers ?? 0),
+      deletionRequests: Number(row?.deletionRequests ?? 0),
+      pendingOrders: Number(row?.pendingOrders ?? 0),
+      jobsQueued: Number(row?.jobsQueued ?? 0),
+      jobsFailed: Number(row?.jobsFailed ?? 0),
+    });
+  });
+
   app.get('/api/admin/users', async (c) => {
     const query = readQuery(c.req.url);
     const db = await database(c.env);
-    const filters = query.email ? eq(users.email, query.email) : undefined;
+    let filters: SQL | undefined;
+    if (query.email) filters = eq(users.email, query.email);
+    else if (query.q) {
+      const needle = `%${query.q.replace(/%/g, '')}%`;
+      filters = or(like(users.email, needle), like(users.name, needle));
+    }
     const rows = await db
       .select()
       .from(users)
@@ -573,6 +638,53 @@ export function createApp() {
     return c.json({ users: list });
   });
 
+  app.get('/api/admin/users/:id', async (c) => {
+    const db = await database(c.env);
+    const userId = c.req.param('id');
+    const rows = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    const user = rows[0];
+    if (!user) throw new AppError('not_found');
+    const pathCount = await db.get<{ n: number | null }>(sql`
+      select count(*) as n from path where user_id = ${userId}
+    `);
+    const entries = await ledgerPage(db, userId, 15, 0);
+    const orders = await ordersFor(db, userId);
+    const job = await db
+      .select()
+      .from(generationJobs)
+      .where(
+        and(
+          eq(generationJobs.userId, userId),
+          or(
+            eq(generationJobs.status, 'queued'),
+            eq(generationJobs.status, 'running'),
+          ),
+        ),
+      )
+      .limit(1);
+    return c.json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        balance: await balanceOf(db, user.id),
+        deletionRequestedAt: user.deletionRequestedAt,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      },
+      pathCount: Number(pathCount?.n ?? 0),
+      ledger: entries,
+      orders,
+      activeJob: job[0] ?? null,
+    });
+  });
+
   app.patch('/api/admin/users/:id', async (c) => {
     const body = await readJson(c, adminUserSchema);
     const db = await database(c.env);
@@ -584,6 +696,13 @@ export function createApp() {
       .limit(1);
     const target = rows[0];
     if (!target) throw new AppError('not_found');
+    if (
+      body.role === 'admin' &&
+      target.role !== 'admin' &&
+      !isSuperadmin(c.env, actor.email)
+    ) {
+      throw new AppError('forbidden');
+    }
     if (
       target.id === actor.id &&
       (body.status === 'suspended' || body.role === 'learner')
@@ -623,13 +742,73 @@ export function createApp() {
       ? eq(creditLedger.userId, query.userId)
       : undefined;
     const entries = await db
-      .select()
+      .select({
+        id: creditLedger.id,
+        userId: creditLedger.userId,
+        amount: creditLedger.amount,
+        reason: creditLedger.reason,
+        note: creditLedger.note,
+        createdAt: creditLedger.createdAt,
+        userEmail: users.email,
+        userName: users.name,
+      })
       .from(creditLedger)
+      .innerJoin(users, eq(creditLedger.userId, users.id))
       .where(filters)
       .orderBy(desc(creditLedger.createdAt))
       .limit(query.limit)
       .offset(query.offset);
     return c.json({ entries });
+  });
+
+  app.get('/api/admin/orders', async (c) => {
+    const query = readQuery(c.req.url);
+    const db = await database(c.env);
+    const orders = await db
+      .select({
+        id: creditOrders.id,
+        userId: creditOrders.userId,
+        packId: creditOrders.packId,
+        orderId: creditOrders.orderId,
+        amountIdr: creditOrders.amountIdr,
+        credits: creditOrders.credits,
+        status: creditOrders.status,
+        createdAt: creditOrders.createdAt,
+        paidAt: creditOrders.paidAt,
+        userEmail: users.email,
+        userName: users.name,
+      })
+      .from(creditOrders)
+      .innerJoin(users, eq(creditOrders.userId, users.id))
+      .orderBy(desc(creditOrders.createdAt))
+      .limit(query.limit)
+      .offset(query.offset);
+    return c.json({ orders });
+  });
+
+  app.get('/api/admin/jobs', async (c) => {
+    const query = readQuery(c.req.url);
+    const db = await database(c.env);
+    const jobs = await db
+      .select({
+        id: generationJobs.id,
+        userId: generationJobs.userId,
+        kind: generationJobs.kind,
+        refId: generationJobs.refId,
+        status: generationJobs.status,
+        errorCode: generationJobs.errorCode,
+        attempts: generationJobs.attempts,
+        createdAt: generationJobs.createdAt,
+        finishedAt: generationJobs.finishedAt,
+        userEmail: users.email,
+        userName: users.name,
+      })
+      .from(generationJobs)
+      .innerJoin(users, eq(generationJobs.userId, users.id))
+      .orderBy(desc(generationJobs.createdAt))
+      .limit(query.limit)
+      .offset(query.offset);
+    return c.json({ jobs });
   });
 
   app.post('/api/admin/users/:id/ledger', async (c) => {
@@ -667,6 +846,7 @@ export function createApp() {
   });
 
   app.get('/api/admin/prompts/:task', async (c) => {
+    assertSuperadmin(c);
     const task = readTask(c.req.param('task'));
     const rows = await (await database(c.env))
       .select()
@@ -678,6 +858,7 @@ export function createApp() {
   });
 
   app.put('/api/admin/prompts/:task', async (c) => {
+    assertSuperadmin(c);
     const task = readTask(c.req.param('task'));
     const body = await readJson(c, promptSchema);
     await (await database(c.env))
@@ -692,6 +873,7 @@ export function createApp() {
   });
 
   app.get('/api/admin/models/:task', async (c) => {
+    assertSuperadmin(c);
     const task = readTask(c.req.param('task'));
     const db = await database(c.env);
     const rows = await db
@@ -712,6 +894,7 @@ export function createApp() {
   });
 
   app.put('/api/admin/models/:task', async (c) => {
+    assertSuperadmin(c);
     const task = readTask(c.req.param('task'));
     const body = await readJson(c, modelSchema);
     if (
@@ -765,16 +948,18 @@ export function createApp() {
     return c.json({ ok: true });
   });
 
-  app.get('/api/admin/packs', async (c) =>
-    c.json({
+  app.get('/api/admin/packs', async (c) => {
+    assertSuperadmin(c);
+    return c.json({
       packs: await (await database(c.env))
         .select()
         .from(creditPacks)
         .orderBy(asc(creditPacks.sort)),
-    }),
-  );
+    });
+  });
 
   app.put('/api/admin/packs', async (c) => {
+    assertSuperadmin(c);
     const body = await readJson(c, packsSchema);
     const db = await database(c.env);
     for (const pack of body.packs) {
@@ -1037,6 +1222,7 @@ function publicOrder(order: typeof creditOrders.$inferSelect) {
     credits: order.credits,
     status: order.status,
     paymentLinkUrl: order.paymentLinkUrl,
+    paymentCode: order.paymentCode,
     createdAt: order.createdAt,
     paidAt: order.paidAt,
   };

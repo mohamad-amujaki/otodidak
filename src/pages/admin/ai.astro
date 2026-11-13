@@ -1,0 +1,81 @@
+---
+import { env } from 'cloudflare:workers';
+import AdminShell from '../../components/AdminShell.astro';
+import { isRecord, record } from '../../domain/guard';
+import { runAdminAction } from '../../server/admin-actions';
+import { requireSuperadminPage } from '../../server/admin-guard';
+import { callApi } from '../../server/call';
+
+const auth = await requireSuperadminPage(Astro.request);
+if ('redirect' in auth) return Astro.redirect(auth.redirect);
+
+let message = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+    message = 'Muat ulang halaman, lalu kirim lagi.';
+  else
+    message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
+}
+
+const tasks = ['roadmap', 'lesson', 'quiz'] as const;
+const prompts = [];
+const models = [];
+for (const task of tasks) {
+  const prompt = await callApi(
+    Astro.request,
+    env,
+    `/api/admin/prompts/${task}`,
+  );
+  if (prompt.status === 200) prompts.push(record(prompt.data));
+  const model = await callApi(Astro.request, env, `/api/admin/models/${task}`);
+  if (model.status === 200) models.push({ task, ...record(model.data) });
+}
+---
+<AdminShell title="AI" section="ai" balance={auth.balance} superadmin={auth.superadmin}>
+  <h1 class="judul">Prompt & model</h1>
+  <div class="mt-3 rounded-lg border border-jalur/30 bg-jalur-lembut/50 p-3 text-sm text-tinta">
+    Perubahan di sini memengaruhi semua pengguna.
+  </div>
+  {message && <p class="mt-3 text-sm">{message}</p>}
+
+  <section class="mt-8">
+    <h2 class="text-lg font-semibold">Prompt</h2>
+    <div class="mt-4 space-y-6">
+      {prompts.map((prompt) => (
+        <form class="space-y-2" method="post">
+          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+          <input type="hidden" name="aksi" value="prompt" />
+          <input type="hidden" name="task" value={String(prompt.task)} />
+          <label class="text-sm font-medium" for={`prompt-${prompt.task}`}>{prompt.task}</label>
+          <textarea class="min-h-40 w-full rounded-kontrol border border-garis px-3 py-2" id={`prompt-${prompt.task}`} name="body">{prompt.body}</textarea>
+          <button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Simpan prompt</button>
+        </form>
+      ))}
+    </div>
+  </section>
+
+  <section class="mt-12">
+    <h2 class="text-lg font-semibold">Model</h2>
+    <div class="mt-4 space-y-6">
+      {models.map((model) => (
+        <form class="grid max-w-md gap-2" method="post">
+          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+          <input type="hidden" name="aksi" value="model" />
+          <input type="hidden" name="task" value={model.task} />
+          <p class="font-medium">{model.task}</p>
+          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="modelName" value={String(model.modelName ?? '')} aria-label="Nama model" />
+          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="maxOutputTokens" type="number" value={String(model.maxOutputTokens ?? '')} aria-label="Token maksimum" />
+          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="timeoutMs" type="number" value={String(model.timeoutMs ?? '')} aria-label="Timeout ms" />
+          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="baseUrl" value={String(model.baseUrl ?? '')} aria-label="Base URL" />
+          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="secretName" value={String(model.secretName ?? '')} aria-label="Nama secret" />
+          <select class="min-h-11 rounded-kontrol border border-garis px-2" name="authKind" aria-label="Jenis auth">
+            <option value="bearer" selected={model.authKind === 'bearer'}>bearer</option>
+            <option value="workers_ai_binding" selected={model.authKind === 'workers_ai_binding'}>workers_ai_binding</option>
+          </select>
+          <button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Simpan model</button>
+        </form>
+      ))}
+    </div>
+  </section>
+</AdminShell>

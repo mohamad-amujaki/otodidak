@@ -1,0 +1,55 @@
+---
+import { env } from 'cloudflare:workers';
+import AdminPagination from '../../components/AdminPagination.astro';
+import AdminShell from '../../components/AdminShell.astro';
+import { formatWhen } from '../../domain/format';
+import { isRecord } from '../../domain/guard';
+import { requireAdmin } from '../../server/admin-guard';
+import { callApi } from '../../server/call';
+
+const auth = await requireAdmin(Astro.request);
+if ('redirect' in auth) return Astro.redirect(auth.redirect);
+
+const offset = Number(Astro.url.searchParams.get('offset') ?? 0);
+const limit = Number(Astro.url.searchParams.get('limit') ?? 20);
+
+const jobsResult = await callApi(
+  Astro.request,
+  env,
+  `/api/admin/jobs?limit=${limit}&offset=${offset}`,
+);
+const jobs =
+  isRecord(jobsResult.data) && Array.isArray(jobsResult.data.jobs)
+    ? jobsResult.data.jobs.filter(isRecord)
+    : [];
+---
+<AdminShell title="Antrean" section="antrean" balance={auth.balance} superadmin={auth.superadmin}>
+  <h1 class="judul">Antrean generasi</h1>
+  <p class="mt-2 text-sm text-tinta-lembut">Job roadmap, pelajaran, dan kuis.</p>
+
+  {jobs.length === 0 ? (
+    <p class="mt-8 text-tinta-lembut">Tidak ada job.</p>
+  ) : (
+    <ul class="mt-6 space-y-2 text-sm">
+      {jobs.map((job) => (
+        <li class:list={[
+          'rounded-kartu border p-3',
+          job.status === 'failed' ? 'border-bahaya/30 bg-bahaya/5' : 'border-garis bg-kartu',
+        ]}>
+          <p class="font-medium">
+            {job.kind}
+            <span class="text-tinta-lembut"> · {job.status}</span>
+            {job.errorCode && <span class="text-bahaya"> · {job.errorCode}</span>}
+          </p>
+          <p class="mt-1 text-tinta-lembut">
+            <a class="text-jalur hover:underline" href={`/admin/pengguna/${String(job.userId)}`}>{job.userEmail}</a>
+            {' · '}percobaan {job.attempts}
+          </p>
+          <p class="text-xs text-tinta-lembut">{formatWhen(String(job.createdAt ?? ''))}</p>
+        </li>
+      ))}
+    </ul>
+  )}
+
+  <AdminPagination offset={offset} limit={limit} count={jobs.length} baseUrl="/admin/antrean" />
+</AdminShell>

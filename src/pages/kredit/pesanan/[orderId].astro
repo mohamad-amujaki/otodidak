@@ -44,7 +44,7 @@ const statusConfig = {
     borderColor: 'border-hangat',
     textColor: 'text-hangat',
     iconBg: 'bg-hangat',
-    icon: 'clock'
+    icon: 'clock',
   },
   paid: {
     title: 'Pembayaran Berhasil!',
@@ -53,7 +53,7 @@ const statusConfig = {
     borderColor: 'border-jalur',
     textColor: 'text-jalur',
     iconBg: 'bg-jalur',
-    icon: 'check'
+    icon: 'check',
   },
   failed: {
     title: 'Pembayaran Tidak Berhasil',
@@ -62,11 +62,12 @@ const statusConfig = {
     borderColor: 'border-bahaya',
     textColor: 'text-bahaya',
     iconBg: 'bg-bahaya',
-    icon: 'x'
-  }
+    icon: 'x',
+  },
 };
 
-const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.failed;
+const config =
+  statusConfig[status as keyof typeof statusConfig] || statusConfig.failed;
 ---
 <Shell title="Pesanan" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
   <div class="mx-auto max-w-3xl">
@@ -202,8 +203,8 @@ const config = statusConfig[status as keyof typeof statusConfig] || statusConfig
           <a 
             class="mt-6 flex w-full min-h-12 items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 text-base font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:brightness-110" 
             href={order.paymentLinkUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+            target={typeof order.paymentCode === 'string' ? '_self' : '_blank'}
+            rel={typeof order.paymentCode === 'string' ? undefined : 'noopener noreferrer'}
           >
             <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />

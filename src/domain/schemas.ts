@@ -46,6 +46,7 @@ export const pageSchema = z.strictObject({
   offset: z.coerce.number().int().min(0).max(10_000).default(0),
   email: z.email().optional(),
   userId: z.uuid().optional(),
+  q: z.string().trim().min(1).max(120).optional(),
 });
 
 export const adminUserSchema = z
@@ -122,6 +123,11 @@ export const roadmapOutputSchema = z.strictObject({
     .min(1),
 });
 
+export const outlineLessonOutputSchema = z.strictObject({
+  title,
+  objective,
+});
+
 export const lessonOutputSchema = z.strictObject({
   markdown: z.string().trim().min(1).max(100_000),
   claims: z
@@ -186,6 +192,7 @@ export const webhookSchema = z.strictObject({
 export const taskSchema = z.enum(['roadmap', 'lesson', 'quiz']);
 
 export type RoadmapOutput = z.infer<typeof roadmapOutputSchema>;
+export type OutlineLessonOutput = z.infer<typeof outlineLessonOutputSchema>;
 export type LessonOutput = z.infer<typeof lessonOutputSchema>;
 export type QuizOutput = z.infer<typeof quizOutputSchema>;
 export type WebhookEvent = z.infer<typeof webhookSchema>;

@@ -1,9 +1,10 @@
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import {
   completeJson,
   loadModel,
   ModelError,
   parseModelOutput,
+  parseOutlineLessonOutput,
 } from '../ai/generate';
 import {
   debitIfEnough,
@@ -33,6 +34,7 @@ import {
   QUIZ_SNIPPET_CHARS,
 } from '../domain/defaults';
 import { AppError } from '../domain/errors';
+import { SEED_PROMPTS } from '../domain/prompts';
 import type {
   LessonOutput,
   QuizOutput,
@@ -231,6 +233,125 @@ export async function openLesson(
   return { ready: false as const, jobId, lessonId };
 }
 
+export async function suggestChapterLesson(
+  env: Env,
+  request: Request,
+  user: UserRow,
+  chapterId: string,
+): Promise<{ lessonId: string; title: string; objective: string }> {
+  const db = await database(env);
+  const chapter = await ownedChapter(db, user.id, chapterId);
+  if (!chapter) throw new AppError('not_found');
+  const pathRows = await db
+    .select()
+    .from(paths)
+    .where(eq(paths.id, chapter.pathId))
+    .limit(1);
+  const path = pathRows[0];
+  if (path?.status !== 'ready') {
+    throw new AppError('validation', 'Jalur belum siap untuk disunting.');
+  }
+  const config = await loadConfig(db);
+  const existing = await db
+    .select({
+      title: lessons.title,
+      objective: lessons.objective,
+      position: lessons.position,
+    })
+    .from(lessons)
+    .where(eq(lessons.chapterId, chapterId))
+    .orderBy(asc(lessons.position));
+  if (existing.length >= config.maxLessonsPerChapter) {
+    throw new AppError(
+      'validation',
+      'Batas pelajaran pada bab ini sudah tercapai.',
+    );
+  }
+  if (user.status === 'suspended') throw new AppError('account_suspended');
+  if (!(await allowGenerateIp(env.APP_KV, request)))
+    throw new AppError('rate_limited');
+  if (!(await jobsWithinLimit(env.APP_KV, user.id)))
+    throw new AppError('rate_limited');
+  await requireActiveJobClear(db, user.id);
+
+  const attemptId = crypto.randomUUID();
+  const cost = config.costQuiz;
+  const debited = await debitIfEnough(db, {
+    userId: user.id,
+    amount: -cost,
+    reason: 'outline',
+    refType: 'outline-lesson',
+    refId: attemptId,
+    idempotencyKey: `outline-lesson:${attemptId}`,
+    note: chapter.title,
+  });
+  if (debited === 'insufficient') throw new AppError('insufficient_credits');
+  if (debited === 'duplicate') throw new AppError('generation_in_progress');
+
+  const modelInput = {
+    mode: 'outline' as const,
+    pathTitle: path.title,
+    topic: path.topic,
+    chapterTitle: chapter.title,
+    chapterSummary: chapter.summary,
+    existingLessons: existing.map((lesson) => ({
+      title: lesson.title,
+      objective: lesson.objective,
+    })),
+  };
+
+  let outline: { title: string; objective: string };
+  try {
+    const model = await loadModel(db, 'lesson', SEED_PROMPTS.outlineLesson);
+    const raw = await completeJson(env, model, modelInput, 'lesson');
+    outline = parseOutlineLessonOutput(raw);
+  } catch (error) {
+    await insertLedger(db, {
+      userId: user.id,
+      amount: cost,
+      reason: 'refund',
+      refType: 'outline-lesson',
+      refId: attemptId,
+      idempotencyKey: `refund:outline-lesson:${attemptId}`,
+    });
+    logEvent({
+      message: 'outline_lesson_failed',
+      userId: user.id,
+      errorCode:
+        error instanceof ModelError ? error.errorCode : 'generation_failed',
+    });
+    throw new AppError('generation_failed');
+  }
+
+  const lessonId = crypto.randomUUID();
+  const now = nowIso();
+  try {
+    await db.insert(lessons).values({
+      id: lessonId,
+      chapterId,
+      position: existing.length,
+      title: outline.title.trim(),
+      objective: outline.objective.trim(),
+      body: null,
+      status: 'outline',
+      completedAt: null,
+      createdAt: now,
+    });
+    await db.update(paths).set({ updatedAt: now }).where(eq(paths.id, path.id));
+  } catch {
+    await insertLedger(db, {
+      userId: user.id,
+      amount: cost,
+      reason: 'refund',
+      refType: 'outline-lesson',
+      refId: attemptId,
+      idempotencyKey: `refund:outline-lesson:${attemptId}`,
+    });
+    throw new AppError('generation_failed');
+  }
+  return { lessonId, title: outline.title, objective: outline.objective };
+}
+
 export async function startQuiz(
   env: Env,
   request: Request,
@@ -376,24 +497,13 @@ async function writeRoadmap(
     }))
     .filter((chapter) => chapter.lessons.length > 0);
   if (trimmed.length === 0) throw new ModelError('invalid_output');
-  const active = await db
-    .select({ id: paths.id })
-    .from(paths)
-    .where(
-      and(
-        eq(paths.userId, userId),
-        eq(paths.isActive, 1),
-        eq(paths.status, 'ready'),
-      ),
-    )
-    .limit(1);
   const now = nowIso();
   await db
     .update(paths)
     .set({
       title: output.title,
       status: 'ready',
-      isActive: active[0] ? 0 : 1,
+      isActive: 0,
       updatedAt: now,
     })
     .where(eq(paths.id, pathId));

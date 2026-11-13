@@ -49,29 +49,20 @@ export async function ensureSeed(db: Database): Promise<void> {
       })),
     )
     .onConflictDoNothing();
-  await db
-    .insert(promptTemplates)
-    .values([
-      {
-        task: 'roadmap' as const,
-        body: SEED_PROMPTS.roadmap,
+  for (const task of ['roadmap', 'lesson', 'quiz'] as const) {
+    await db
+      .insert(promptTemplates)
+      .values({
+        task,
+        body: SEED_PROMPTS[task],
         updatedAt: now,
         updatedBy: null,
-      },
-      {
-        task: 'lesson' as const,
-        body: SEED_PROMPTS.lesson,
-        updatedAt: now,
-        updatedBy: null,
-      },
-      {
-        task: 'quiz' as const,
-        body: SEED_PROMPTS.quiz,
-        updatedAt: now,
-        updatedBy: null,
-      },
-    ])
-    .onConflictDoNothing();
+      })
+      .onConflictDoUpdate({
+        target: promptTemplates.task,
+        set: { body: SEED_PROMPTS[task], updatedAt: now },
+      });
+  }
   await db
     .insert(sourceProviders)
     .values([

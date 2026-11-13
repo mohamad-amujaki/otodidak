@@ -63,7 +63,6 @@ const paths =
   )}
 
   {paths.length === 0 ? (
-    <!-- Empty State -->
     <div class="rounded-kartu border border-garis bg-kartu p-8 text-center shadow-sm min-[768px]:p-12">
       <div class="mx-auto flex size-16 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
         <svg class="size-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -85,7 +84,6 @@ const paths =
       </a>
     </div>
   ) : (
-    <!-- Path Cards Grid -->
     <ul class="grid gap-4 min-[768px]:grid-cols-2 min-[1100px]:grid-cols-3">
       {paths.map((path) => {
         const progress = record(path.progress);
