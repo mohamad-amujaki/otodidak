@@ -1067,6 +1067,21 @@ export function createApp() {
     assertSuperadmin(c);
     const body = await readJson(c, packsSchema);
     const db = await database(c.env);
+    const rows = await db.select().from(creditPacks);
+    const activeById = new Map(rows.map((row) => [row.id, row.active === 1]));
+    for (const pack of body.packs) {
+      if (pack.credits < 1 || pack.priceIdr < 1)
+        throw new AppError('validation', 'Kredit dan harga harus positif.');
+      const id = pack.id ?? `pack_${crypto.randomUUID()}`;
+      activeById.set(id, pack.active);
+    }
+    let activeTotal = 0;
+    for (const on of activeById.values()) if (on) activeTotal += 1;
+    if (activeTotal < 1)
+      throw new AppError(
+        'validation',
+        'Minimal satu paket kredit harus aktif.',
+      );
     for (const pack of body.packs) {
       const id = pack.id ?? `pack_${crypto.randomUUID()}`;
       const values = {

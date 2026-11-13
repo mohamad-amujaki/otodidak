@@ -289,6 +289,29 @@ describe('putaran belajar', () => {
     expect(body.users).toBeGreaterThanOrEqual(1);
   });
 
+  it('admin tidak bisa menonaktifkan semua paket', async () => {
+    const cookie = await signIn('admin@example.com', 'Admin');
+    const list = await api('/api/admin/packs', { cookie });
+    expect(list.status).toBe(200);
+    const body = await jsonBody<{ packs: { id: string; active: number }[] }>(
+      list,
+    );
+    const packs = body.packs.map((p) => ({
+      id: p.id,
+      name: 'x',
+      credits: 10,
+      priceIdr: 10000,
+      active: false,
+      sort: 0,
+    }));
+    const response = await api('/api/admin/packs', {
+      cookie,
+      method: 'PUT',
+      json: { packs },
+    });
+    expect(response.status).toBe(400);
+  });
+
   it('admin mengunduh ekspor buku besar', async () => {
     const cookie = await signIn('admin@example.com', 'Admin');
     const response = await api('/api/admin/ledger/export', { cookie });

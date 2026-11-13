@@ -46,6 +46,20 @@ export const jobKindLabels: Record<string, string> = {
   quiz: 'Kuis',
 };
 
+export const aiTaskLabels: Record<string, string> = {
+  roadmap: 'Peta jalur',
+  lesson: 'Pelajaran',
+  quiz: 'Kuis',
+};
+
+export const aiTaskCostHints: Record<string, string> = {
+  roadmap: 'Biaya buat jalur (kredit)',
+  lesson: 'Biaya buka pelajaran (kredit)',
+  quiz: 'Biaya buat kuis (kredit)',
+};
+
+export const aiTasks = ['roadmap', 'lesson', 'quiz'] as const;
+
 export const configFieldGroups = {
   batas: [
     'maxChapters',

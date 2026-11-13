@@ -69,6 +69,41 @@ export async function runAdminAction(
     });
     return errorOf(result.data)?.message ?? 'Batas diperbarui.';
   }
+  if (action === 'ai-task') {
+    const task = String(form.get('task') ?? '');
+    const promptResult = await callApi(
+      request,
+      bindings,
+      `/api/admin/prompts/${task}`,
+      {
+        method: 'PUT',
+        json: { body: String(form.get('body') ?? '') },
+        csrf,
+      },
+    );
+    const promptErr = errorOf(promptResult.data);
+    if (promptErr) return promptErr.message;
+    const modelResult = await callApi(
+      request,
+      bindings,
+      `/api/admin/models/${task}`,
+      {
+        method: 'PUT',
+        json: {
+          modelName: String(form.get('modelName') ?? ''),
+          maxOutputTokens: Number(form.get('maxOutputTokens')),
+          timeoutMs: Number(form.get('timeoutMs')),
+          baseUrl: String(form.get('baseUrl') ?? ''),
+          secretName: String(form.get('secretName') ?? ''),
+          authKind: String(form.get('authKind') ?? 'bearer'),
+        },
+        csrf,
+      },
+    );
+    const modelErr = errorOf(modelResult.data);
+    if (modelErr) return modelErr.message;
+    return 'Pengaturan AI untuk tugas ini diperbarui.';
+  }
   if (action === 'prompt') {
     const result = await callApi(
       request,
@@ -103,6 +138,11 @@ export async function runAdminAction(
     return errorOf(result.data)?.message ?? 'Model diperbarui.';
   }
   if (action === 'paket') {
+    const credits = Number(form.get('credits'));
+    const priceIdr = Number(form.get('priceIdr'));
+    if (!Number.isFinite(credits) || credits < 1) return 'Kredit minimal 1.';
+    if (!Number.isFinite(priceIdr) || priceIdr < 1)
+      return 'Harga minimal Rp 1.';
     const result = await callApi(request, bindings, '/api/admin/packs', {
       method: 'PUT',
       json: {
@@ -110,8 +150,8 @@ export async function runAdminAction(
           {
             id: String(form.get('id') ?? ''),
             name: String(form.get('name') ?? ''),
-            credits: Number(form.get('credits')),
-            priceIdr: Number(form.get('priceIdr')),
+            credits,
+            priceIdr,
             active: form.get('active') === '1',
             sort: Number(form.get('sort')),
           },

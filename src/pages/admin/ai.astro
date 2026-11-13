@@ -1,6 +1,14 @@
 ---
 import { env } from 'cloudflare:workers';
 import AdminShell from '../../components/AdminShell.astro';
+import AdminAlert from '../../components/admin/AdminAlert.astro';
+import AdminBreadcrumb from '../../components/admin/AdminBreadcrumb.astro';
+import {
+  aiTaskCostHints,
+  aiTaskLabels,
+  aiTasks,
+} from '../../domain/admin-labels';
+import { MAX_PROMPT_CHARS } from '../../domain/defaults';
 import { isRecord, record } from '../../domain/guard';
 import { runAdminAction } from '../../server/admin-actions';
 import { requireSuperadminPage } from '../../server/admin-guard';
@@ -10,72 +18,213 @@ const auth = await requireSuperadminPage(Astro.request, { nav: true });
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
 
 let message = '';
+let messageTone: 'success' | 'danger' = 'success';
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
-  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf) {
     message = 'Muat ulang halaman, lalu kirim lagi.';
-  else
-    message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
+    messageTone = 'danger';
+  } else {
+    const result = await runAdminAction(
+      Astro.request,
+      env,
+      Astro.locals.csrf,
+      form,
+    );
+    message = result;
+    messageTone = result.includes('diperbarui') ? 'success' : 'danger';
+  }
 }
 
-const tasks = ['roadmap', 'lesson', 'quiz'] as const;
-const prompts = [];
-const models = [];
-for (const task of tasks) {
+const taskParam = Astro.url.searchParams.get('task') ?? 'roadmap';
+const activeTask = aiTasks.includes(taskParam as (typeof aiTasks)[number])
+  ? taskParam
+  : 'roadmap';
+
+const promptByTask: Record<string, Record<string, unknown>> = {};
+const modelByTask: Record<string, Record<string, unknown>> = {};
+for (const task of aiTasks) {
   const prompt = await callApi(
     Astro.request,
     env,
     `/api/admin/prompts/${task}`,
   );
-  if (prompt.status === 200) prompts.push(record(prompt.data));
+  if (prompt.status === 200) promptByTask[task] = record(prompt.data);
   const model = await callApi(Astro.request, env, `/api/admin/models/${task}`);
-  if (model.status === 200) models.push({ task, ...record(model.data) });
+  if (model.status === 200) modelByTask[task] = record(model.data);
+}
+
+const prompt = promptByTask[activeTask] ?? {};
+const model = modelByTask[activeTask] ?? {};
+const promptBody = String(prompt.body ?? '');
+const promptLen = promptBody.length;
+const promptNearLimit = promptLen > MAX_PROMPT_CHARS * 0.9;
+
+function taskHref(task: string) {
+  return `/admin/ai?task=${task}`;
 }
 ---
 <AdminShell title="AI" section="ai" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav}>
-  <h1 class="judul">Prompt & model</h1>
-  <div class="mt-3 rounded-lg border border-jalur/30 bg-jalur-lembut/50 p-3 text-sm text-tinta">
-    Perubahan di sini memengaruhi semua pengguna.
+  <AdminBreadcrumb
+    items={[
+      { label: 'Ringkasan', href: '/admin' },
+      { label: 'AI' },
+    ]}
+  />
+
+  <div class="mt-4 min-[1100px]:grid min-[1100px]:grid-cols-[minmax(0,1fr)_220px] min-[1100px]:gap-8 min-[1100px]:items-start">
+    <div class="min-w-0">
+      <h1 class="judul mt-2">AI & generasi konten</h1>
+      <p class="mt-2 text-sm text-tinta-lembut">
+        Instruksi model dan koneksi penyedia untuk setiap langkah generasi di produk.
+      </p>
+
+      <AdminAlert
+        tone="warning"
+        message="Perubahan di sini memengaruhi semua pengguna. Uji di staging sebelum produksi."
+      />
+      {message && <AdminAlert message={message} tone={messageTone} />}
+
+      <nav class="mt-6 flex flex-wrap gap-2" aria-label="Tugas AI" role="tablist">
+        {aiTasks.map((task) => (
+          <a
+            class:list={[
+              'inline-flex min-h-10 items-center rounded-kontrol px-4 text-sm font-medium transition-colors',
+              task === activeTask
+                ? 'bg-jalur-lembut text-jalur'
+                : 'border border-garis text-tinta-lembut hover:bg-kartu',
+            ]}
+            href={taskHref(task)}
+            role="tab"
+            aria-selected={task === activeTask}
+          >
+            {aiTaskLabels[task] ?? task}
+          </a>
+        ))}
+      </nav>
+
+      <form class="mt-6 space-y-6" method="post">
+        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        <input type="hidden" name="aksi" value="ai-task" />
+        <input type="hidden" name="task" value={activeTask} />
+
+        <section class="rounded-kartu border border-garis bg-kartu p-5" aria-labelledby="prompt-heading">
+          <h2 id="prompt-heading" class="text-lg font-semibold text-tinta">Instruksi (prompt)</h2>
+          <p class="mt-1 text-xs text-tinta-lembut">
+            Ditinjau model sebelum menghasilkan konten untuk {aiTaskLabels[activeTask] ?? activeTask}.
+          </p>
+          <label class="mt-4 block text-sm" for={`prompt-${activeTask}`}>
+            <span class="sr-only">Isi prompt</span>
+            <textarea
+              class="mt-2 min-h-48 w-full rounded-kontrol border border-garis bg-kertas px-3 py-2 font-mono text-sm leading-relaxed"
+              id={`prompt-${activeTask}`}
+              name="body"
+              maxlength={MAX_PROMPT_CHARS}
+            >{promptBody}</textarea>
+          </label>
+          <p class:list={['mt-2 text-xs tabular-nums', promptNearLimit ? 'text-bahaya' : 'text-tinta-lembut']}>
+            {promptLen.toLocaleString('id-ID')} / {MAX_PROMPT_CHARS.toLocaleString('id-ID')} karakter
+          </p>
+        </section>
+
+        <section class="rounded-kartu border border-garis bg-kartu p-5" aria-labelledby="model-heading">
+          <h2 id="model-heading" class="text-lg font-semibold text-tinta">Model</h2>
+          <div class="mt-4 grid gap-4 min-[640px]:grid-cols-2">
+            <label class="block text-sm min-[640px]:col-span-2">
+              <span class="font-medium">Nama model</span>
+              <input
+                class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-3"
+                name="modelName"
+                value={String(model.modelName ?? '')}
+                required
+              />
+            </label>
+            <label class="block text-sm">
+              <span class="font-medium">Token keluaran maks.</span>
+              <input
+                class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-3"
+                name="maxOutputTokens"
+                type="number"
+                min="1"
+                value={String(model.maxOutputTokens ?? '')}
+              />
+            </label>
+            <label class="block text-sm">
+              <span class="font-medium">Timeout (ms)</span>
+              <input
+                class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-3"
+                name="timeoutMs"
+                type="number"
+                min="1000"
+                value={String(model.timeoutMs ?? '')}
+              />
+            </label>
+          </div>
+
+          <details class="mt-4 rounded-kontrol border border-garis bg-kertas/40 px-4 py-3">
+            <summary class="cursor-pointer text-sm font-medium text-tinta">Pengaturan lanjutan</summary>
+            <div class="mt-4 grid gap-4 min-[640px]:grid-cols-2">
+              <label class="block text-sm min-[640px]:col-span-2">
+                <span class="font-medium">URL dasar API</span>
+                <span class="mt-0.5 block text-xs text-tinta-lembut">Endpoint kompatibel OpenAI, mis. Sumopod.</span>
+                <input
+                  class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-3 font-mono text-sm"
+                  name="baseUrl"
+                  autocomplete="off"
+                  value={String(model.baseUrl ?? '')}
+                />
+              </label>
+              <label class="block text-sm">
+                <span class="font-medium">Nama secret</span>
+                <span class="mt-0.5 block text-xs text-tinta-lembut">Binding di Workers, bukan nilai kunci.</span>
+                <input
+                  class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-3 font-mono text-sm"
+                  name="secretName"
+                  autocomplete="off"
+                  value={String(model.secretName ?? '')}
+                />
+              </label>
+              <label class="block text-sm">
+                <span class="font-medium">Jenis autentikasi</span>
+                <select class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-2" name="authKind">
+                  <option value="bearer" selected={model.authKind === 'bearer'}>Bearer token</option>
+                  <option value="workers_ai_binding" selected={model.authKind === 'workers_ai_binding'}>
+                    Workers AI binding
+                  </option>
+                </select>
+              </label>
+            </div>
+          </details>
+        </section>
+
+        <button
+          class="min-h-11 w-full min-[640px]:w-auto rounded-kontrol bg-jalur px-8 text-sm font-semibold text-white"
+          type="submit"
+        >
+          Simpan untuk {aiTaskLabels[activeTask] ?? activeTask}
+        </button>
+      </form>
+    </div>
+
+    <aside class="mt-8 min-[1100px]:mt-0 space-y-4 text-sm">
+      <div class="rounded-kartu border border-garis bg-kartu p-4">
+        <p class="text-xs font-semibold uppercase tracking-wider text-tinta-lembut">Terkait</p>
+        <ul class="mt-3 space-y-2">
+          <li>
+            <a class="text-jalur hover:underline" href={`/admin/antrean?jobKind=${activeTask}&jobStatus=failed`}>
+              Job gagal — {aiTaskLabels[activeTask]}
+            </a>
+          </li>
+          <li>
+            <a class="text-jalur hover:underline" href="/admin/konfigurasi">
+              {aiTaskCostHints[activeTask] ?? 'Biaya kredit'} (konfigurasi)
+            </a>
+          </li>
+        </ul>
+      </div>
+      <p class="text-xs text-tinta-lembut">
+        Kode tugas: <span class="font-mono">{activeTask}</span>
+      </p>
+    </aside>
   </div>
-  {message && <p class="mt-3 text-sm">{message}</p>}
-
-  <section class="mt-8">
-    <h2 class="text-lg font-semibold">Prompt</h2>
-    <div class="mt-4 space-y-6">
-      {prompts.map((prompt) => (
-        <form class="space-y-2" method="post">
-          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-          <input type="hidden" name="aksi" value="prompt" />
-          <input type="hidden" name="task" value={String(prompt.task)} />
-          <label class="text-sm font-medium" for={`prompt-${prompt.task}`}>{prompt.task}</label>
-          <textarea class="min-h-40 w-full rounded-kontrol border border-garis px-3 py-2" id={`prompt-${prompt.task}`} name="body">{prompt.body}</textarea>
-          <button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Simpan prompt</button>
-        </form>
-      ))}
-    </div>
-  </section>
-
-  <section class="mt-12">
-    <h2 class="text-lg font-semibold">Model</h2>
-    <div class="mt-4 space-y-6">
-      {models.map((model) => (
-        <form class="grid max-w-md gap-2" method="post">
-          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-          <input type="hidden" name="aksi" value="model" />
-          <input type="hidden" name="task" value={model.task} />
-          <p class="font-medium">{model.task}</p>
-          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="modelName" value={String(model.modelName ?? '')} aria-label="Nama model" />
-          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="maxOutputTokens" type="number" value={String(model.maxOutputTokens ?? '')} aria-label="Token maksimum" />
-          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="timeoutMs" type="number" value={String(model.timeoutMs ?? '')} aria-label="Timeout ms" />
-          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="baseUrl" value={String(model.baseUrl ?? '')} aria-label="Base URL" />
-          <input class="min-h-11 rounded-kontrol border border-garis px-3" name="secretName" value={String(model.secretName ?? '')} aria-label="Nama secret" />
-          <select class="min-h-11 rounded-kontrol border border-garis px-2" name="authKind" aria-label="Jenis auth">
-            <option value="bearer" selected={model.authKind === 'bearer'}>bearer</option>
-            <option value="workers_ai_binding" selected={model.authKind === 'workers_ai_binding'}>workers_ai_binding</option>
-          </select>
-          <button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Simpan model</button>
-        </form>
-      ))}
-    </div>
-  </section>
 </AdminShell>
