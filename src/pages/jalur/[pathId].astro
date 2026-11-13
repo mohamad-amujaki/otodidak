@@ -16,7 +16,7 @@ const user = record(me.user);
 const config = record(me.config);
 let message = '';
 let messageIsInfo = false;
-let reopenReview = false;
+let reopenReview = Astro.url.searchParams.get('tinjau') === '1';
 const detailResult = await callApi(Astro.request, env, `/api/paths/${pathId}`);
 if (detailResult.status === 404) return Astro.redirect('/pustaka');
 let detail = record(detailResult.data);
@@ -395,7 +395,7 @@ function actionFrom(form: FormData): OutlineAction {
       <div class:list={["min-w-0 space-y-6", chapterViews.length > 0 && "mt-6 min-[1100px]:mt-0"]}>
         {outcomes.length > 0 && (
           <section class="rounded-xl border border-garis bg-kartu p-5 shadow-sm">
-            <h2 class="text-[11px] font-bold uppercase tracking-[0.08em] text-tinta-lembut">Yang akan kamu kuasai</h2>
+            <h2 class="text-[11px] font-bold uppercase tracking-[0.08em] text-tinta-lembut">Yang akan bisa kamu lakukan</h2>
             <ul class="mt-3 space-y-2.5">
               {outcomes.map((outcome) => (
                 <li class="flex gap-2.5 text-sm leading-[1.55] text-tinta">
@@ -563,7 +563,7 @@ function actionFrom(form: FormData): OutlineAction {
     </div>
   )}
 
-  <dialog id="tinjau-sheet" class="tinjau" aria-labelledby="tinjau-judul" data-open={reopenReview ? 'true' : undefined}>
+  <dialog id="tinjau-sheet" class="tinjau" aria-labelledby="tinjau-judul" data-open={reopenReview && isReady ? 'true' : undefined}>
     <div class="flex max-h-[95dvh] w-[min(100vw-1rem,52rem)] flex-col overflow-hidden rounded-kartu border border-garis bg-kartu shadow-2xl">
       <header class="shrink-0 border-b border-garis px-5 py-4 min-[640px]:px-6 min-[640px]:py-5">
         <div class="flex items-start justify-between gap-4">
@@ -591,7 +591,7 @@ function actionFrom(form: FormData): OutlineAction {
         )}
         {outcomes.length > 0 && (
           <section>
-            <h3 class="text-[11px] font-bold uppercase tracking-[0.08em] text-tinta-lembut">Yang akan kamu kuasai</h3>
+            <h3 class="text-[11px] font-bold uppercase tracking-[0.08em] text-tinta-lembut">Yang akan bisa kamu lakukan</h3>
             <ul class="mt-3 space-y-2">
               {outcomes.map((outcome) => (
                 <li class="flex gap-2 text-sm leading-[1.5] text-tinta">
@@ -605,7 +605,7 @@ function actionFrom(form: FormData): OutlineAction {
 
         <section class="mt-6">
           <h3 class="text-[11px] font-bold uppercase tracking-[0.08em] text-tinta-lembut">Urutan yang diusulkan</h3>
-          <p class="mt-1 text-sm text-tinta-lembut">Sunting apa pun sebelum jalur dimulai. Perubahan tersimpan saat kamu menekan Simpan.</p>
+          <p class="mt-1 text-sm text-tinta-lembut">Sunting apa pun sebelum kursus dibuat. Ganti nama, tambah, hapus, atau ubah urutan — lalu simpan tiap bagian.</p>
 
           <div class="mt-4 space-y-4">
             {chapterViews.map((chapter, chapterIndex) => (
@@ -783,19 +783,27 @@ function actionFrom(form: FormData): OutlineAction {
         )}
       </div>
 
-      <footer class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-garis bg-kartu px-5 py-3 min-[640px]:px-6 min-[640px]:py-4">
-        <p class="mr-auto hidden text-xs text-tinta-lembut min-[640px]:block">Perubahan langsung diterapkan ke jalur ini.</p>
-        <button class="min-h-10 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:bg-kertas" type="button" data-close-tinjau>Nanti dulu</button>
+      <footer class="flex shrink-0 flex-col gap-3 border-t border-garis bg-kartu px-5 py-3 min-[640px]:px-6 min-[640px]:py-4">
         {isReady && !isActive && (
-          <form class="w-full min-[640px]:w-auto" method="post">
-            <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-            <input type="hidden" name="aksi" value="aktif" />
-            <button class="min-h-10 w-full rounded-kontrol bg-tinta px-4 text-sm font-semibold text-white transition-all hover:brightness-110" type="submit">Jadikan aktif</button>
-          </form>
+          <label class="flex cursor-pointer items-start gap-2 text-sm text-tinta">
+            <input class="mt-1 size-4 rounded border-garis text-jalur" type="checkbox" id="konfirmasi-tinjau" />
+            <span>Saya sudah meninjau jalur ini</span>
+          </label>
         )}
-        {isReady && isActive && (
-          <button class="min-h-10 rounded-kontrol bg-tinta px-4 text-sm font-semibold text-white transition-all hover:brightness-110" type="button" data-close-tinjau>Selesai meninjau</button>
-        )}
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <p class="mr-auto hidden text-xs text-tinta-lembut min-[640px]:block">Perubahan langsung diterapkan ke jalur ini.</p>
+          <button class="min-h-10 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:bg-kertas" type="button" data-close-tinjau>Nanti dulu</button>
+          {isReady && !isActive && (
+            <form class="w-full min-[640px]:w-auto" method="post" id="setujui-jalur-form">
+              <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+              <input type="hidden" name="aksi" value="aktif" />
+              <button class="min-h-10 w-full rounded-kontrol bg-tinta px-4 text-sm font-semibold text-white transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40" type="submit" id="setujui-jalur-btn" disabled>Setujui & buat</button>
+            </form>
+          )}
+          {isReady && isActive && (
+            <button class="min-h-10 rounded-kontrol bg-tinta px-4 text-sm font-semibold text-white transition-all hover:brightness-110" type="button" data-close-tinjau>Selesai meninjau</button>
+          )}
+        </div>
       </footer>
     </div>
   </dialog>
@@ -825,6 +833,15 @@ function actionFrom(form: FormData): OutlineAction {
           }
         });
       }
+      const confirm = document.getElementById('konfirmasi-tinjau');
+      const approve = document.getElementById('setujui-jalur-btn');
+      if (confirm instanceof HTMLInputElement && approve instanceof HTMLButtonElement) {
+        const sync = () => {
+          approve.disabled = !confirm.checked;
+        };
+        confirm.addEventListener('change', sync);
+        sync();
+      }
       if (sheet.dataset.open === 'true') {
         sheet.showModal();
         if (scroller instanceof HTMLElement) {
@@ -853,7 +870,8 @@ function actionFrom(form: FormData): OutlineAction {
           const data = await response.json();
           if (data.status && data.status !== 'draft') {
             clearInterval(timer);
-            location.reload();
+            const keepTinjau = new URLSearchParams(location.search).get('tinjau') === '1';
+            location.href = keepTinjau ? `${location.pathname}?tinjau=1` : location.href;
           }
         } catch {
           // Keep polling while the connection recovers.

@@ -376,24 +376,13 @@ async function writeRoadmap(
     }))
     .filter((chapter) => chapter.lessons.length > 0);
   if (trimmed.length === 0) throw new ModelError('invalid_output');
-  const active = await db
-    .select({ id: paths.id })
-    .from(paths)
-    .where(
-      and(
-        eq(paths.userId, userId),
-        eq(paths.isActive, 1),
-        eq(paths.status, 'ready'),
-      ),
-    )
-    .limit(1);
   const now = nowIso();
   await db
     .update(paths)
     .set({
       title: output.title,
       status: 'ready',
-      isActive: active[0] ? 0 : 1,
+      isActive: 0,
       updatedAt: now,
     })
     .where(eq(paths.id, pathId));

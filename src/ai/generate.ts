@@ -191,7 +191,7 @@ function mockLesson(input: unknown): LessonOutput {
   const sourced = `${title} punya langkah yang bisa dicek.`;
   const unsourced = 'Angka contoh ini tidak punya tautan.';
   return {
-    markdown: `## ${title}\n\n${objective}\n\n${sourced}\n\n${unsourced}`,
+    markdown: `## ${title}\n\n${objective}\n\n### Langkah utama\n\n${sourced}\n\n${unsourced}\n\n**Inti pelajaran:** ${objective}`,
     claims: [
       { quote: sourced, search_query: title },
       { quote: unsourced, search_query: 'tanpa-hasil' },
