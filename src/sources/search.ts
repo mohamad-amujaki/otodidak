@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { sourceProviders } from '../db/schema';
 import { MAX_WEB_SOURCES, MAX_YOUTUBE_SOURCES } from '../domain/defaults';
+import { assertAllowedSourceBaseUrl } from '../domain/provider-url';
 import { logEvent } from '../server/log';
 
 export type SourceHit = { title: string; url: string };
@@ -17,6 +18,7 @@ export async function searchWeb(
   if (!key) return [];
   if (key === 'mock' || key === 'empty' || key === 'fail')
     return mockSearch(env, key, query, 'web');
+  assertAllowedSourceBaseUrl(provider.baseUrl, 'web');
   const url = new URL(provider.baseUrl);
   url.searchParams.set('q', query);
   url.searchParams.set('count', '1');
@@ -52,6 +54,7 @@ export async function searchYouTube(
     const hits = await mockSearch(env, key, query, 'youtube');
     return hits[0] ?? null;
   }
+  assertAllowedSourceBaseUrl(provider.baseUrl, 'youtube');
   const url = new URL(provider.baseUrl);
   url.searchParams.set('part', 'snippet');
   url.searchParams.set('type', 'video');

@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { aiModels, aiProviders } from '../db/schema';
 import { AppError } from '../domain/errors';
+import { requireAllowedLlmBaseUrl } from '../domain/provider-url';
 import {
   type LessonOutput,
   lessonOutputSchema,
@@ -71,6 +72,7 @@ export async function completeJson(
   if (!apiKey) throw new ModelError('provider_timeout');
   if (apiKey === 'mock' || apiKey === 'fail')
     return mockCompletion(env, task, input, apiKey);
+  requireAllowedLlmBaseUrl(model.baseUrl);
   const base = model.baseUrl.replace(/\/$/, '');
   let response: Response;
   try {

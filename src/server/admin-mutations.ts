@@ -11,6 +11,7 @@ import {
   users,
 } from '../db/schema';
 import { AppError, errorMessage } from '../domain/errors';
+import { assertAllowedLlmBaseUrl } from '../domain/provider-url';
 import {
   adminAdjustSchema,
   adminUserSchema,
@@ -196,6 +197,8 @@ export async function updateModelForTask(
     .limit(1);
   const provider = providerRows[0];
   if (!provider) throw new AppError('not_found');
+  const nextBaseUrl = body.baseUrl ?? provider.baseUrl;
+  assertAllowedLlmBaseUrl(nextBaseUrl);
   await db.batch([
     db.update(aiModels).set({ active: 0 }).where(eq(aiModels.task, task)),
     db
@@ -210,7 +213,7 @@ export async function updateModelForTask(
     db
       .update(aiProviders)
       .set({
-        baseUrl: body.baseUrl ?? provider.baseUrl,
+        baseUrl: nextBaseUrl,
         secretName:
           body.authKind === 'workers_ai_binding'
             ? null

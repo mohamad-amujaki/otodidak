@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { z } from 'zod';
 import { debitIfEnough } from '../billing/ledger';
@@ -6,15 +6,9 @@ import {
   aiModels,
   aiProviders,
   appConfig,
-  chapters,
   creditPacks,
   generationJobs,
-  lessons,
-  paths,
   promptTemplates,
-  quizAttempts,
-  quizQuestions,
-  quizzes,
   type UserRow,
   users,
 } from '../db/schema';
@@ -24,6 +18,7 @@ import {
   errorMessage,
   errorStatus,
 } from '../domain/errors';
+import { assertAllowedLlmBaseUrl } from '../domain/provider-url';
 import {
   adminAdjustSchema,
   adminUserSchema,
@@ -80,9 +75,11 @@ import { completeLesson } from './lesson-actions';
 import { logEvent } from './log';
 import { saveOutline } from './outline-save';
 import { ownedLesson } from './owned';
+import { activateUserPath } from './path-actions';
 import { handlePaymentWebhook } from './payment-webhook';
 import { submitQuizAttempt } from './quiz-actions';
 import { lessonContent, library, mePayload, pathDetail } from './read';
+import { devRoutesEnabled } from './runtime';
 import { isSecure } from './security';
 
 function assertSuperadmin(c: { env: Env; get: (key: 'user') => UserRow }) {
@@ -98,6 +95,11 @@ export function createApp() {
       return jsonError(c, error.code, error.message);
     logEvent({ message: 'request_failed' });
     return jsonError(c, 'validation', errorMessage.validation, 500);
+  });
+
+  app.use('/api/dev/*', async (c, next) => {
+    if (!devRoutesEnabled(c.env)) throw new AppError('not_found');
+    await next();
   });
 
   app.use('/api/*', async (c, next) => {
@@ -202,27 +204,11 @@ export function createApp() {
   });
 
   app.post('/api/paths/:id/active', async (c) => {
-    const db = await database(c.env);
-    const user = c.get('user');
-    const rows = await db
-      .select()
-      .from(paths)
-      .where(
-        and(
-          eq(paths.id, c.req.param('id')),
-          eq(paths.userId, user.id),
-          eq(paths.status, 'ready'),
-        ),
-      )
-      .limit(1);
-    if (!rows[0]) throw new AppError('not_found');
-    await db.batch([
-      db.update(paths).set({ isActive: 0 }).where(eq(paths.userId, user.id)),
-      db
-        .update(paths)
-        .set({ isActive: 1, updatedAt: nowIso() })
-        .where(eq(paths.id, rows[0].id)),
-    ]);
+    await activateUserPath(
+      await database(c.env),
+      c.get('user').id,
+      c.req.param('id'),
+    );
     return c.json({ ok: true });
   });
 
@@ -592,6 +578,8 @@ export function createApp() {
       .limit(1);
     const provider = providerRows[0];
     if (!provider) throw new AppError('not_found');
+    const nextBaseUrl = body.baseUrl ?? provider.baseUrl;
+    assertAllowedLlmBaseUrl(nextBaseUrl);
     await db.batch([
       db.update(aiModels).set({ active: 0 }).where(eq(aiModels.task, task)),
       db
@@ -606,7 +594,7 @@ export function createApp() {
       db
         .update(aiProviders)
         .set({
-          baseUrl: body.baseUrl ?? provider.baseUrl,
+          baseUrl: nextBaseUrl,
           secretName:
             body.authKind === 'workers_ai_binding'
               ? null
