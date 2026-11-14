@@ -1,3 +1,5 @@
+import { activePublishableKey, clerkHost } from '../domain/guard';
+
 const CSP_REST = [
   "default-src 'self'",
   // Clerk Protect loads its bot-protection loader from protect.clerk.com and
@@ -22,12 +24,21 @@ export function htmlUsesDevViteStyles(env: Env, request: Request): boolean {
   return host === 'localhost' || host === '127.0.0.1';
 }
 
-function contentSecurityPolicy(devInlineStyles: boolean): string {
+function contentSecurityPolicy(
+  devInlineStyles: boolean,
+  clerkOrigin: string | null,
+): string {
   const styleSrc = devInlineStyles
     ? "style-src 'self' 'unsafe-inline'"
     : "style-src 'self'";
   const upgrade = devInlineStyles ? null : 'upgrade-insecure-requests';
-  return [styleSrc, upgrade, ...CSP_REST].filter(Boolean).join('; ');
+  const clerk = clerkOrigin ? ` https://${clerkOrigin}` : '';
+  const rest = CSP_REST.map((entry) =>
+    /^(script-src|connect-src|frame-src)\b/.test(entry)
+      ? `${entry}${clerk}`
+      : entry,
+  );
+  return [styleSrc, upgrade, ...rest].filter(Boolean).join('; ');
 }
 
 export function withApiSecurityHeaders(response: Response): Response {
@@ -66,9 +77,15 @@ export function withSecurityHeaders(
       headers,
     });
   }
+  const clerkOrigin = clerkHost(
+    activePublishableKey(
+      env.PUBLIC_CLERK_PUBLISHABLE_KEY,
+      env.CLERK_PUBLISHABLE_KEY,
+    ),
+  );
   headers.set(
     'content-security-policy',
-    contentSecurityPolicy(htmlUsesDevViteStyles(env, request)),
+    contentSecurityPolicy(htmlUsesDevViteStyles(env, request), clerkOrigin),
   );
   headers.set('x-content-type-options', 'nosniff');
   headers.set('referrer-policy', 'strict-origin-when-cross-origin');

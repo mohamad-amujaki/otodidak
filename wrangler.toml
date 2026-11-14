@@ -20,12 +20,13 @@ binding = "ASSETS"
 directory = "./dist/client"
 run_worker_first = true
 
-# Kunci publishable Clerk di bawah masih instance TEST (aman dipublikasikan).
-# Ganti ke instance produksi + set secret CLERK_SECRET_KEY yang cocok sebelum go-live.
 [vars]
-CLERK_PUBLISHABLE_KEY = "pk_test_bGl2aW5nLWRvdmUtNTE1LmNsZXJrLmFjY291bnRzLmRldiQ"
-# Astro reads this name. An empty value stays out of the way until .dev.vars overrides it.
+# Nilai Clerk TIDAK disimpan di repo. Isi lewat:
+#   npx wrangler secret put PUBLIC_CLERK_PUBLISHABLE_KEY
+#   npx wrangler secret put CLERK_SECRET_KEY
+# sedangkan untuk build/dev lokal dipakai .env / .dev.vars.
 PUBLIC_CLERK_PUBLISHABLE_KEY = ""
+CLERK_PUBLISHABLE_KEY = ""
 APP_ORIGIN = "https://otodidak.web.id"
 ENVIRONMENT = "production"
 SUPERADMIN_EMAILS = "mohamad.amujaki@gmail.com"
