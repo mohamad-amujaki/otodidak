@@ -1,20 +1,178 @@
 ---
 export const prerender = true;
 
+import LegalToc from '../components/LegalToc.astro';
 import Shell from '../components/Shell.astro';
+
+const sections = [
+  { id: 'kredit', title: 'Kredit', icon: 'coins' },
+  { id: 'pembelian', title: 'Pembelian', icon: 'shopping' },
+  { id: 'akun', title: 'Akun', icon: 'user' },
+  { id: 'isi', title: 'Isi', icon: 'book' },
+];
 ---
-<Shell title="Ketentuan">
-  <article class="max-w-2xl space-y-4">
-    <h1 class="text-[1.75rem] leading-[1.25]">Ketentuan</h1>
-    <p>Otodidak menyusun jalur belajar dari topik yang kamu tulis. Isi pelajaran dibuat saat dibuka, lalu ditampilkan bersama sumber yang berhasil ditemukan.</p>
-    <h2 class="text-xl">Kredit</h2>
-    <p>Kredit awal diberikan sekali saat akun dibuat. Menyusun jalur, membuka pelajaran yang belum punya isi, dan menyusun kuis mengurangi kredit sesuai angka yang berlaku saat itu. Membaca pelajaran yang sudah siap tidak mengurangi kredit. Mengirim ulang jawaban kuis yang sama juga tidak mengurangi kredit. Menyusun kuis baru mengurangi kredit.</p>
-    <p>Jika penyusunan gagal secara permanen, kredit untuk pekerjaan itu dikembalikan satu kali. Jika model berhasil tetapi pencarian sumber gagal, pelajaran tetap disimpan, klaim ditandai tanpa sumber, dan kredit tidak dikembalikan.</p>
-    <h2 class="text-xl">Pembelian</h2>
-    <p>Kredit dari pembelian masuk setelah webhook pembayaran terverifikasi dan jumlahnya cocok dengan pesanan. Halaman kembali dari pembayaran tidak menambah kredit.</p>
-    <h2 class="text-xl">Akun</h2>
-    <p>Akun yang ditahan tetap bisa membaca materi yang sudah ada, tetapi tidak bisa menyusun materi baru atau membuat pesanan. Satu akun punya satu jalur aktif.</p>
-    <h2 class="text-xl">Isi</h2>
-    <p>Kuis tidak mengunci pelajaran berikutnya. Kamu menandai pelajaran selesai sendiri. Hitungan hari hanya naik saat sebuah pelajaran ditandai selesai pada hari yang belum terhitung, dan bisa dimatikan dari profil.</p>
-  </article>
+<Shell
+  title="Ketentuan"
+  description="Ketentuan penggunaan Otodidak: aturan akun, pembelian kredit, dan penggunaan materi pembelajaran."
+>
+  <div class="mx-auto max-w-6xl">
+    <div class="grid gap-8 min-[1024px]:grid-cols-[240px_1fr]">
+      <LegalToc sections={sections} variant="aside" />
+
+      <!-- Main Content -->
+      <article class="min-w-0">
+        <!-- Header -->
+        <header class="mb-8">
+          <div class="flex items-start gap-4">
+            <div class="flex size-14 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+              <svg class="size-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <div class="min-w-0 flex-1">
+              <h1 class="judul">Ketentuan Layanan</h1>
+              <p class="mt-2 text-lg text-tinta-lembut">Terakhir diperbarui: 13 November 2026</p>
+            </div>
+          </div>
+        </header>
+
+        <LegalToc sections={sections} variant="mobile" />
+
+        <!-- Intro -->
+        <div class="prose mb-8 rounded-kartu border border-jalur/20 bg-jalur-lembut/30 p-6">
+          <p class="text-lg leading-relaxed text-tinta">
+            Otodidak menyusun jalur belajar dari topik yang kamu tulis. Isi pelajaran dibuat saat dibuka. Bila tersedia, kami menautkan video YouTube pendukung; materi tanpa rujukan ditampilkan apa adanya. Ketentuan berikut menjelaskan cara kerja layanan ini.
+          </p>
+        </div>
+
+        <!-- Sections -->
+        <div class="space-y-8">
+          <section id="kredit" class="scroll-mt-24 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+            <div class="mb-4 flex items-start gap-3">
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+                <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                </svg>
+              </div>
+              <div>
+                <h2 class="text-2xl font-bold text-tinta">Kredit</h2>
+              </div>
+            </div>
+            <div class="prose max-w-none space-y-4">
+              <p class="text-base leading-relaxed text-tinta">
+                Kredit awal diberikan sekali saat akun dibuat. Menyusun jalur, membuka pelajaran yang belum punya isi, dan menyusun kuis mengurangi kredit sesuai angka yang berlaku saat itu. Membaca pelajaran yang sudah siap tidak mengurangi kredit. Mengirim ulang jawaban kuis yang sama juga tidak mengurangi kredit. Menyusun kuis baru mengurangi kredit.
+              </p>
+              <div class="rounded-kontrol border border-garis bg-kertas/50 p-4">
+                <div class="flex items-start gap-3">
+                  <svg class="size-5 shrink-0 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div class="text-sm leading-relaxed text-tinta-lembut">
+                    <p class="font-medium text-tinta">Pengembalian Kredit:</p>
+                    <p class="mt-1">
+                      Jika penyusunan gagal secara permanen, kredit untuk pekerjaan itu dikembalikan satu kali. Jika model berhasil, pelajaran tetap disimpan meskipun rujukan video tidak ditemukan.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="pembelian" class="scroll-mt-24 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+            <div class="mb-4 flex items-start gap-3">
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+                <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
+              </div>
+              <div>
+                <h2 class="text-2xl font-bold text-tinta">Pembelian</h2>
+              </div>
+            </div>
+            <div class="prose max-w-none space-y-4">
+              <p class="text-base leading-relaxed text-tinta">
+                Kredit dari pembelian masuk setelah webhook pembayaran terverifikasi dan jumlahnya cocok dengan pesanan. Halaman kembali dari pembayaran tidak menambah kredit.
+              </p>
+              <div class="rounded-kontrol border border-garis bg-kertas/50 p-4">
+                <div class="flex items-start gap-3">
+                  <svg class="size-5 shrink-0 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p class="text-sm leading-relaxed text-tinta-lembut">
+                    Pembayaran menggunakan QRIS melalui Sumopod untuk kemudahan transaksi.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="akun" class="scroll-mt-24 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+            <div class="mb-4 flex items-start gap-3">
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+                <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <div>
+                <h2 class="text-2xl font-bold text-tinta">Akun</h2>
+              </div>
+            </div>
+            <div class="prose max-w-none space-y-4">
+              <p class="text-base leading-relaxed text-tinta">
+                Akun yang ditahan tetap bisa membaca materi yang sudah ada, tetapi tidak bisa menyusun materi baru atau membuat pesanan. Satu akun punya satu jalur aktif.
+              </p>
+            </div>
+          </section>
+
+          <section id="isi" class="scroll-mt-24 rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+            <div class="mb-4 flex items-start gap-3">
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+                <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+              </div>
+              <div>
+                <h2 class="text-2xl font-bold text-tinta">Isi</h2>
+              </div>
+            </div>
+            <div class="prose max-w-none space-y-4">
+              <p class="text-base leading-relaxed text-tinta">
+                Kuis tidak mengunci pelajaran berikutnya. Kamu menandai pelajaran selesai sendiri. Hitungan hari hanya naik saat sebuah pelajaran ditandai selesai pada hari yang belum terhitung, dan bisa dimatikan dari profil.
+              </p>
+              <div class="rounded-kontrol border border-garis bg-kertas/50 p-4">
+                <div class="flex items-start gap-3">
+                  <svg class="size-5 shrink-0 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p class="text-sm leading-relaxed text-tinta-lembut">
+                    Sistem pembelajaran dirancang fleksibel agar kamu bisa belajar dengan kecepatan dan gaya belajarmu sendiri.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Contact Section -->
+        <div class="mt-8 rounded-kartu border border-garis bg-gradient-to-br from-jalur-lembut/50 to-kartu p-6 text-center">
+          <h3 class="text-lg font-bold text-tinta">Ada pertanyaan tentang ketentuan?</h3>
+          <p class="mt-2 text-sm text-tinta-lembut">Hubungi kami melalui halaman profil atau support.</p>
+        </div>
+      </article>
+    </div>
+  </div>
 </Shell>
+
+<style>
+  .prose {
+    max-width: 100%;
+  }
+
+  @media (min-width: 1024px) {
+    aside nav a.active {
+      background: var(--color-kertas);
+      color: var(--color-tinta);
+      font-weight: 500;
+    }
+  }
+</style>

@@ -1,0 +1,98 @@
+---
+import type { AdminTrendDay } from '../../domain/admin-trend';
+import { trendBarPercent } from '../../domain/admin-trend';
+import { formatIdr } from '../../domain/format';
+
+interface Props {
+  days: AdminTrendDay[];
+}
+
+const { days } = Astro.props;
+const maxSignups = Math.max(0, ...days.map((d) => d.signups));
+const maxRevenue = Math.max(0, ...days.map((d) => d.revenueIdr));
+const totalSignups = days.reduce((sum, d) => sum + d.signups, 0);
+const totalRevenue = days.reduce((sum, d) => sum + d.revenueIdr, 0);
+---
+<section class="mt-8 rounded-kartu border border-garis bg-kartu p-4" aria-label="Aktivitas 7 hari">
+  <div class="flex flex-col gap-2 min-[640px]:flex-row min-[640px]:items-end min-[640px]:justify-between">
+    <div>
+      <h2 class="text-sm font-semibold text-tinta">Aktivitas 7 hari</h2>
+      <p class="mt-1 text-xs text-tinta-lembut">Waktu Indonesia (WIB) · pendaftaran dan pembayaran lunas</p>
+    </div>
+    <p class="text-xs text-tinta-lembut">
+      <span class="font-medium text-tinta tabular-nums">{totalSignups}</span> pendaftar ·{' '}
+      <span class="font-medium text-tinta tabular-nums">{formatIdr(totalRevenue)}</span> pendapatan
+    </p>
+  </div>
+
+  <div class="mt-6 grid gap-8 min-[900px]:grid-cols-2">
+    <div>
+      <h3 class="text-xs font-medium uppercase tracking-wide text-tinta-lembut">Pendaftaran</h3>
+      <ul
+        class="mt-3 flex h-28 items-end gap-1.5 sm:gap-2"
+        role="list"
+        aria-label="Grafik pendaftaran per hari"
+      >
+        {days.map((row) => {
+          const pct = trendBarPercent(row.signups, maxSignups);
+          return (
+            <li class="flex min-w-0 flex-1 flex-col items-center gap-1">
+              <span class="text-[10px] font-medium tabular-nums text-tinta sm:text-xs" title={row.label}>
+                {row.signups > 0 ? row.signups : '\u00a0'}
+              </span>
+              <div
+                class="flex w-full min-h-1 flex-1 items-end"
+                title={`${row.label}: ${row.signups} pendaftar`}
+              >
+                <div
+                  class:list={[
+                    'w-full min-h-1 rounded-t-sm bg-jalur transition-[height] motion-reduce:transition-none',
+                    row.signups === 0 && 'bg-garis',
+                  ]}
+                  style={`height: ${Math.max(pct, row.signups > 0 ? 8 : 4)}%`}
+                  role="presentation"
+                />
+              </div>
+              <span class="w-full truncate text-center text-[9px] text-tinta-lembut sm:text-[10px]" title={row.label}>
+                {row.label}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+
+    <div>
+      <h3 class="text-xs font-medium uppercase tracking-wide text-tinta-lembut">Pendapatan (IDR)</h3>
+      <ul
+        class="mt-3 flex h-28 items-end gap-1.5 sm:gap-2"
+        role="list"
+        aria-label="Grafik pendapatan per hari"
+      >
+        {days.map((row) => {
+          const pct = trendBarPercent(row.revenueIdr, maxRevenue);
+          return (
+            <li class="flex min-w-0 flex-1 flex-col items-center gap-1">
+              <div
+                class="flex w-full min-h-1 flex-1 items-end"
+                title={`${row.label}: ${formatIdr(row.revenueIdr)}`}
+              >
+                <div
+                  class:list={[
+                    'w-full min-h-1 rounded-t-sm bg-hangat transition-[height] motion-reduce:transition-none',
+                    row.revenueIdr === 0 && 'bg-garis',
+                  ]}
+                  style={`height: ${Math.max(pct, row.revenueIdr > 0 ? 8 : 4)}%`}
+                  role="presentation"
+                />
+              </div>
+              <span class="w-full truncate text-center text-[9px] text-tinta-lembut sm:text-[10px]" title={row.label}>
+                {row.label}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  </div>
+</section>

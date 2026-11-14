@@ -87,6 +87,35 @@ describe('putaran belajar', () => {
     expect(await balance(cookie)).toBe(before);
   });
 
+  it('menambah pelajaran dengan AI di tinjau jalur', async () => {
+    const cookie = await signIn('ai-outline@example.com');
+    const started = await startPath(cookie);
+    expect(await processGeneration(env, started.jobId, 1)).toBe('ack');
+    const detail = await api(`/api/paths/${started.pathId}`, { cookie });
+    const body = await jsonBody<{
+      chapters: { id: string; lessons: { id: string }[] }[];
+    }>(detail);
+    const chapterId = body.chapters[0]?.id;
+    if (!chapterId) throw new Error('bab tidak ada');
+    const before = await balance(cookie);
+    const added = await api(`/api/chapters/${chapterId}/lessons/ai`, {
+      method: 'POST',
+      json: {},
+      cookie,
+    });
+    expect(added.status).toBe(200);
+    const lesson = await jsonBody<{ lessonId: string; title: string }>(added);
+    expect(lesson.title.length).toBeGreaterThan(0);
+    expect(await balance(cookie)).toBe(before - 1);
+    const after = await api(`/api/paths/${started.pathId}`, { cookie });
+    const again = await jsonBody<{
+      chapters: { lessons: { id: string }[] }[];
+    }>(after);
+    expect(
+      again.chapters[0]?.lessons.some((row) => row.id === lesson.lessonId),
+    ).toBe(true);
+  });
+
   it('kunci pelajaran yang sudah ada menolak pembukaan kedua', async () => {
     const cookie = await signIn('ulang@example.com');
     const started = await startPath(cookie);
@@ -209,12 +238,11 @@ describe('putaran belajar', () => {
     expect(row?.n).toBe(3);
   });
 
-  it('klaim tanpa tautan disimpan sebagai tanpa sumber', async () => {
+  it('sumber dari model disimpan dan sitasinya dipetakan', async () => {
     const cookie = await signIn('sumber@example.com');
     const started = await startPath(cookie);
     await processGeneration(env, started.jobId, 1);
     const lessonId = await firstLesson(cookie, started.pathId);
-    await env.APP_KV.put('dev:search-mode', 'empty');
     const opened = await api(`/api/lessons/${lessonId}/open`, {
       method: 'POST',
       json: {},
@@ -228,27 +256,86 @@ describe('putaran belajar', () => {
         1,
       ),
     ).toBe('ack');
-    const unsourced = await count(
-      'select count(*) as n from lesson_claim where lesson_id = ? and unsourced = 1',
+    const web = await count(
+      "select count(*) as n from lesson_source where lesson_id = ? and kind = 'web'",
       lessonId,
     );
-    const sourced = await count(
-      'select count(*) as n from lesson_claim where lesson_id = ? and unsourced = 0',
-      lessonId,
-    );
-    expect(unsourced).toBeGreaterThan(0);
-    expect(sourced).toBe(0);
+    expect(web).toBeGreaterThan(0);
+    expect(
+      await count(
+        'select count(*) as n from lesson_claim where lesson_id = ?',
+        lessonId,
+      ),
+    ).toBe(0);
     const lesson = await env.DB.prepare(
-      'select status from lesson where id = ?',
+      'select status, body from lesson where id = ?',
     )
       .bind(lessonId)
-      .first<{ status: string }>();
+      .first<{ status: string; body: string }>();
     expect(lesson?.status).toBe('ready');
+    expect(lesson?.body).toContain('[[');
+    expect(lesson?.body).not.toContain('[[s1]]');
   });
 
   it('pelajar ditolak dari rute admin', async () => {
     const cookie = await signIn('pelajar-admin@example.com');
     const response = await api('/api/admin/users', { cookie });
+    expect(response.status).toBe(403);
+  });
+
+  it('admin melihat ringkasan operasi', async () => {
+    const cookie = await signIn('admin@example.com', 'Admin');
+    const response = await api('/api/admin/stats', { cookie });
+    expect(response.status).toBe(200);
+    const body = await jsonBody<{ users: number }>(response);
+    expect(body.users).toBeGreaterThanOrEqual(1);
+  });
+
+  it('admin tidak bisa menonaktifkan semua paket', async () => {
+    const cookie = await signIn('admin@example.com', 'Admin');
+    const list = await api('/api/admin/packs', { cookie });
+    expect(list.status).toBe(200);
+    const body = await jsonBody<{ packs: { id: string; active: number }[] }>(
+      list,
+    );
+    const packs = body.packs.map((p) => ({
+      id: p.id,
+      name: 'x',
+      credits: 10,
+      priceIdr: 10000,
+      active: false,
+      sort: 0,
+    }));
+    const response = await api('/api/admin/packs', {
+      cookie,
+      method: 'PUT',
+      json: { packs },
+    });
+    expect(response.status).toBe(400);
+  });
+
+  it('admin mengunduh ekspor buku besar', async () => {
+    const cookie = await signIn('admin@example.com', 'Admin');
+    const response = await api('/api/admin/ledger/export', { cookie });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/csv');
+    const text = await response.text();
+    expect(text.startsWith('tanggal,email,nama')).toBe(true);
+  });
+
+  it('admin biasa ditolak dari paket platform', async () => {
+    await signIn('admin-kedua@example.com', 'Admin Kedua');
+    const cookie = await signIn('admin@example.com', 'Admin');
+    await api(
+      `/api/admin/users/${await userIdFor('admin-kedua@example.com')}`,
+      {
+        cookie,
+        method: 'PATCH',
+        json: { role: 'admin' },
+      },
+    );
+    const other = await signIn('admin-kedua@example.com', 'Admin Kedua');
+    const response = await api('/api/admin/packs', { cookie: other });
     expect(response.status).toBe(403);
   });
 });

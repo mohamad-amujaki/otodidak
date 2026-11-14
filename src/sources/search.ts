@@ -1,43 +1,11 @@
 import { and, eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { sourceProviders } from '../db/schema';
-import { MAX_WEB_SOURCES, MAX_YOUTUBE_SOURCES } from '../domain/defaults';
+import { MAX_YOUTUBE_SOURCES } from '../domain/defaults';
+import { assertAllowedSourceBaseUrl } from '../domain/provider-url';
 import { logEvent } from '../server/log';
 
 export type SourceHit = { title: string; url: string };
-
-export async function searchWeb(
-  env: Env,
-  db: Database,
-  query: string,
-): Promise<SourceHit[]> {
-  const provider = await activeProvider(db, 'web');
-  if (!provider) return [];
-  const key = env.BRAVE_SEARCH_API_KEY;
-  if (!key) return [];
-  if (key === 'mock' || key === 'empty' || key === 'fail')
-    return mockSearch(env, key, query, 'web');
-  const url = new URL(provider.baseUrl);
-  url.searchParams.set('q', query);
-  url.searchParams.set('count', '1');
-  const response = await fetch(url, {
-    headers: { 'X-Subscription-Token': key },
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!response.ok) throw new Error('source_failed');
-  const payload = (await response.json()) as {
-    web?: {
-      results?: { title?: string; url?: string; description?: string }[];
-    };
-  };
-  const results: SourceHit[] = [];
-  for (const result of payload.web?.results ?? []) {
-    if (!result.url || !result.title) continue;
-    results.push({ title: result.title, url: result.url });
-    if (results.length >= MAX_WEB_SOURCES) break;
-  }
-  return results;
-}
 
 export async function searchYouTube(
   env: Env,
@@ -49,9 +17,10 @@ export async function searchYouTube(
   const key = env.YOUTUBE_API_KEY;
   if (!key) return null;
   if (key === 'mock' || key === 'empty' || key === 'fail') {
-    const hits = await mockSearch(env, key, query, 'youtube');
+    const hits = await mockSearch(env, key);
     return hits[0] ?? null;
   }
+  assertAllowedSourceBaseUrl(provider.baseUrl, 'youtube');
   const url = new URL(provider.baseUrl);
   url.searchParams.set('part', 'snippet');
   url.searchParams.set('type', 'video');
@@ -86,12 +55,7 @@ async function activeProvider(db: Database, kind: 'web' | 'youtube') {
   return rows[0] ?? null;
 }
 
-async function mockSearch(
-  env: Env,
-  key: string,
-  query: string,
-  kind: 'web' | 'youtube',
-): Promise<SourceHit[]> {
+async function mockSearch(env: Env, key: string): Promise<SourceHit[]> {
   const mode =
     key === 'empty' || key === 'fail'
       ? key
@@ -100,14 +64,11 @@ async function mockSearch(
     logEvent({ message: 'source_failed', errorCode: 'source_failed' });
     throw new Error('source_failed');
   }
-  if (mode === 'empty' || query.includes('tanpa-hasil')) return [];
-  if (kind === 'youtube') {
-    return [
-      {
-        title: 'Contoh video — Kanal Contoh',
-        url: 'https://www.youtube.com/watch?v=mockvideo0001',
-      },
-    ].slice(0, MAX_YOUTUBE_SOURCES);
-  }
-  return [{ title: 'Sumber contoh', url: 'https://example.com/sumber' }];
+  if (mode === 'empty') return [];
+  return [
+    {
+      title: 'Contoh video — Kanal Contoh',
+      url: 'https://www.youtube.com/watch?v=mockvideo0001',
+    },
+  ].slice(0, MAX_YOUTUBE_SOURCES);
 }

@@ -1,104 +1,599 @@
 ---
 import { env } from 'cloudflare:workers';
+import ChapterNav from '../../../../components/ChapterNav.astro';
+import CreditNotice from '../../../../components/credit/CreditNotice.astro';
+import GenerationWait from '../../../../components/GenerationWait.astro';
+import ShareCard from '../../../../components/ShareCard.astro';
 import Shell from '../../../../components/Shell.astro';
-import { domainOf } from '../../../../domain/format';
+import {
+  creditShortNote,
+  creditTopUpFor,
+  hasEnoughCredits,
+} from '../../../../domain/credit-ui';
+import { AppError } from '../../../../domain/errors';
+import { alphaLabel, domainOf, formatWhen } from '../../../../domain/format';
 import { isRecord, record } from '../../../../domain/guard';
-import { renderLesson } from '../../../../domain/markdown';
-import { callApi, errorOf } from '../../../../server/call';
+import { parseLessonDiagrams, renderLesson } from '../../../../domain/markdown';
+import { openLesson, startQuiz } from '../../../../server/generation';
+import {
+  completeLesson,
+  lessonForUser,
+} from '../../../../server/lesson-actions';
+import { pathDetail } from '../../../../server/read';
+import {
+  createLessonShareLink,
+  ownerShareLink,
+  revokeShareLink,
+  shareMessage,
+  whatsappHref,
+} from '../../../../server/share';
+import { pageMe } from '../../../../server/ssr';
 
 const { pathId, lessonId } = Astro.params;
 if (!pathId || !lessonId) return Astro.redirect('/dasbor');
-const meResult = await callApi(Astro.request, env, '/api/me');
-if (meResult.status !== 200) return Astro.redirect('/masuk');
-const me = record(meResult.data);
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session, me: meRaw } = page;
+const me = record(meRaw);
 const user = record(me.user);
 const config = record(me.config);
+const activeJob = isRecord(me.activeJob) ? me.activeJob : null;
+const balance = typeof me.balance === 'number' ? me.balance : 0;
+const cost = typeof config.costLesson === 'number' ? config.costLesson : 3;
+const quizCost = typeof config.costQuiz === 'number' ? config.costQuiz : 1;
+let creditShortfall: {
+  balance: number;
+  cost: number;
+  action: 'kuis' | 'pelajaran';
+} | null = null;
 let message = '';
+let messageIsInfo = false;
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
   else {
     const action = String(form.get('aksi') ?? '');
-    const path =
-      action === 'selesai'
-        ? `/api/lessons/${lessonId}/complete`
-        : `/api/lessons/${lessonId}/open`;
-    const result = await callApi(Astro.request, env, path, {
-      method: 'POST',
-      json: {},
-      csrf: Astro.locals.csrf,
-    });
-    const error = errorOf(result.data);
-    if (error && error.code !== 'generation_in_progress')
-      message = error.message;
+    try {
+      if (action === 'selesai')
+        await completeLesson(session.db, session.user, lessonId);
+      else if (action === 'bagikan') {
+        const link = await createLessonShareLink(
+          session.db,
+          session.user.id,
+          lessonId,
+        );
+        return Astro.redirect(`${Astro.url.pathname}?bagikan=${link.token}`);
+      } else if (action === 'cabut-bagikan') {
+        await revokeShareLink(
+          session.db,
+          session.user.id,
+          String(form.get('token') ?? ''),
+        );
+        message = 'Link bagikan dicabut.';
+        messageIsInfo = true;
+      } else if (action === 'kuis') {
+        await startQuiz(
+          env,
+          Astro.request,
+          session.user,
+          String(form.get('chapterId') ?? ''),
+        );
+        message = 'Kuis sedang disusun. Buka halaman kuis beberapa saat lagi.';
+        messageIsInfo = true;
+      } else await openLesson(env, Astro.request, session.user, lessonId);
+    } catch (error) {
+      if (
+        error instanceof AppError &&
+        error.code === 'generation_in_progress'
+      ) {
+        /* tetap menunggu */
+      } else if (
+        error instanceof AppError &&
+        error.code === 'insufficient_credits'
+      ) {
+        creditShortfall = {
+          balance,
+          cost: action === 'kuis' ? quizCost : cost,
+          action: action === 'kuis' ? 'kuis' : 'pelajaran',
+        };
+      } else {
+        message =
+          error instanceof AppError ? error.message : 'Permintaan gagal.';
+      }
+    }
   }
 }
-const contentResult = await callApi(
-  Astro.request,
-  env,
-  `/api/lessons/${lessonId}`,
-);
-if (contentResult.status === 404) return Astro.redirect(`/jalur/${pathId}`);
-const lesson = record(contentResult.data);
+let lessonRaw: Record<string, unknown>;
+try {
+  lessonRaw = await lessonForUser(session.db, session.user.id, lessonId);
+} catch (error) {
+  if (error instanceof AppError && error.code === 'not_found')
+    return Astro.redirect(`/jalur/${pathId}`);
+  throw error;
+}
+const lesson = record(lessonRaw);
 const claims = Array.isArray(lesson.claims)
   ? lesson.claims.filter(isRecord)
   : [];
 const sources = Array.isArray(lesson.sources)
   ? lesson.sources.filter(isRecord)
   : [];
+const diagrams = parseLessonDiagrams(lesson.diagramsJson);
+const shareToken = Astro.url.searchParams.get('bagikan') ?? '';
+const shareLink = shareToken
+  ? await ownerShareLink(session.db, session.user.id, shareToken)
+  : null;
+const siteOrigin = (Astro.site ?? new URL(Astro.url.origin)).origin;
+const shareUrl = shareLink ? `${siteOrigin}/s/${shareLink.token}` : '';
+const shareSummary =
+  typeof lesson.adds === 'string'
+    ? lesson.adds
+    : String(lesson.objective ?? '');
+const shareWhatsApp = shareLink
+  ? whatsappHref(
+      shareMessage(String(lesson.title ?? ''), shareSummary, shareUrl),
+    )
+  : '';
 const html =
   typeof lesson.body === 'string'
-    ? renderLesson(
-        lesson.body,
-        claims.map((claim) => ({
+    ? renderLesson(lesson.body, {
+        diagrams,
+        claims: claims.map((claim) => ({
           quote: String(claim.quote ?? ''),
           unsourced: claim.unsourced === true,
         })),
-      )
+        sources: sources.map((source) => ({
+          id: String(source.id),
+          url: String(source.url),
+          title: String(source.title),
+        })),
+      })
     : '';
-const cost = typeof config.costLesson === 'number' ? config.costLesson : 3;
 const minutes =
   typeof config.lessonMinuteLabel === 'number' ? config.lessonMinuteLabel : 15;
+const pathRaw = await pathDetail(session.db, session.user.id, pathId);
+const outlineChapters =
+  pathRaw && Array.isArray(pathRaw.chapters)
+    ? pathRaw.chapters.filter(isRecord)
+    : [];
+const navChapters = outlineChapters.map((chapter) => ({
+  id: String(chapter.id),
+  title: String(chapter.title ?? 'Bab'),
+  lessons: (Array.isArray(chapter.lessons)
+    ? chapter.lessons.filter(isRecord)
+    : []
+  ).map((item) => ({
+    id: String(item.id),
+    title: String(item.title ?? 'Pelajaran'),
+    completedAt: typeof item.completedAt === 'string' ? item.completedAt : null,
+  })),
+}));
+
+const pathProgress = isRecord(pathRaw?.progress) ? pathRaw.progress : null;
+const progress = pathProgress
+  ? {
+      done: Number(pathProgress.done ?? 0),
+      total: Number(pathProgress.total ?? 0),
+    }
+  : undefined;
+const currentChapterIndex = navChapters.findIndex((chapter) =>
+  chapter.lessons.some((item) => item.id === lessonId),
+);
+const currentChapter =
+  currentChapterIndex >= 0 ? navChapters[currentChapterIndex] : null;
+const currentChapterRaw =
+  currentChapterIndex >= 0 ? outlineChapters[currentChapterIndex] : null;
+const currentChapterQuiz =
+  currentChapterRaw && isRecord(currentChapterRaw.quiz)
+    ? currentChapterRaw.quiz
+    : null;
+const quizHref = currentChapter
+  ? `/jalur/${pathId}/kuis/${currentChapter.id}`
+  : null;
+const quizStatusText = String(currentChapterRaw?.quizStatusLabel ?? '').trim();
+const quizChipText = currentChapterQuiz
+  ? `Kuis · ${quizStatusText || 'siap'}`
+  : 'Kuis · belum dibuat';
+const quizAffordable = hasEnoughCredits(balance, quizCost);
+const lessonAffordable = hasEnoughCredits(balance, cost);
+const resumeAction = String(Astro.url.searchParams.get('lanjut') ?? '');
+const topUpFor = (action: string) => {
+  const target = new URL(Astro.url);
+  target.searchParams.set('lanjut', action);
+  return creditTopUpFor(`${target.pathname}${target.search}`);
+};
+const quizTopUpHref = topUpFor('kuis');
+const lessonTopUpHref = topUpFor('pelajaran');
+const resumeDismissUrl = new URL(Astro.url);
+resumeDismissUrl.searchParams.delete('lanjut');
+const resumeDismissHref = `${resumeDismissUrl.pathname}${resumeDismissUrl.search}`;
+const resumeReady =
+  resumeAction === 'kuis'
+    ? Boolean(currentChapterQuiz) || quizAffordable
+    : resumeAction === 'pelajaran'
+      ? lessonAffordable
+      : false;
+const lowCredit = !lessonAffordable || !quizAffordable;
+const currentLessonIndex = currentChapter
+  ? currentChapter.lessons.findIndex((item) => item.id === lessonId)
+  : -1;
+const lessonEyebrow =
+  currentChapter && currentLessonIndex >= 0
+    ? `Bab ${currentChapterIndex + 1} · Sub bab ${alphaLabel(currentLessonIndex)}`
+    : '';
+const orderedLessons = navChapters.flatMap((chapter) => chapter.lessons);
+const flatIndex = orderedLessons.findIndex((item) => item.id === lessonId);
+const previousLesson = flatIndex > 0 ? orderedLessons[flatIndex - 1] : null;
+const nextLesson =
+  flatIndex >= 0 && flatIndex < orderedLessons.length - 1
+    ? orderedLessons[flatIndex + 1]
+    : null;
+const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
 ---
-<Shell title={String(lesson.title ?? 'Pelajaran')} balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
-  <p class="text-sm text-tinta-lembut"><a href={`/jalur/${pathId}`}>Kembali ke jalur</a></p>
-  <h1 class="mt-2 text-[1.75rem] leading-[1.25]">{lesson.title}</h1>
-  <p class="text-sm text-tinta-lembut">Sekitar {minutes} menit</p>
-  {message && <p class="mt-3 text-sm text-bahaya">{message}</p>}
-  {lesson.status === 'queued' && <p class="mt-4">Menyusun pelajaran.</p>}
-  {!html && lesson.status !== 'queued' && (
-    <form class="mt-6" method="post">
-      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-      <input type="hidden" name="aksi" value="buka" />
-      <button class="inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-white" type="submit">Buat pelajaran</button>
-      <p class="mt-2 text-sm text-tinta-lembut">Memakai {cost} kredit. Membaca ulang tidak mengurangi kredit.</p>
-    </form>
-  )}
-  {html && (
-    <>
-      <article class="baca mt-6 max-w-3xl font-serif text-lg leading-8" set:html={html}></article>
-      <section class="mt-8">
-        <h2 class="text-xl">Sumber</h2>
-        {sources.length === 0 ? <p class="mt-2 text-sm text-tinta-lembut">Belum ada sumber yang tersimpan.</p> : (
-          <ul class="mt-2 space-y-2">
-            {sources.map((source) => (
-              <li>
-                <a class="text-jalur" href={String(source.url)}>{source.title}</a>
-                <span class="text-sm text-tinta-lembut"> {domainOf(String(source.url))}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-      {lesson.completedAt ? <p class="mt-6 text-sm text-jalur">Pelajaran ini sudah ditandai selesai.</p> : (
-        <form class="mt-6" method="post">
-          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-          <input type="hidden" name="aksi" value="selesai" />
-          <button class="inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-white" type="submit">Tandai selesai</button>
-        </form>
+<Shell title={String(lesson.title ?? 'Pelajaran')} balance={typeof me.balance === 'number' ? me.balance : 0} lowCredit={lowCredit} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
+  <div class="flex flex-wrap items-center gap-2">
+    <a class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta-lembut transition-colors hover:border-jalur/40 hover:text-tinta" href={`/jalur/${pathId}`} data-lesson-path>
+      <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+      </svg>
+      Kembali ke jalur
+    </a>
+    {html && (
+      <form method="post">
+        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        <input type="hidden" name="aksi" value="bagikan" />
+        <button
+          class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta-lembut transition-colors hover:border-jalur/40 hover:text-tinta"
+          type="submit"
+        >
+          <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.7 13.3l6.6 3.4M15.3 7.3l-6.6 3.4M18 8a3 3 0 11-6 0 3 3 0 016 0zM9 12a3 3 0 11-6 0 3 3 0 016 0zm9 4a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Bagikan
+        </button>
+      </form>
+    )}
+    <div class="ml-auto flex items-center gap-2">
+      {previousLesson ? (
+        <a class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta-lembut transition-colors hover:border-jalur/40 hover:text-tinta" href={lessonHref(previousLesson.id)} aria-keyshortcuts="ArrowLeft" title="Sebelumnya (←)" data-lesson-prev>
+          <span aria-hidden="true">←</span> Sebelumnya
+          <kbd class="kbd-hint hidden min-[1024px]:inline-flex">←</kbd>
+        </a>
+      ) : (
+        <span class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-garis/60 px-3 text-xs font-medium text-tinta-lembut/50" aria-disabled="true">
+          <span aria-hidden="true">←</span> Sebelumnya
+        </span>
       )}
-    </>
+      {nextLesson && (
+        <a class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol bg-jalur px-3 text-xs font-semibold text-white shadow-sm transition-all hover:brightness-110" href={lessonHref(nextLesson.id)} aria-keyshortcuts="ArrowRight" title="Berikutnya (→)" data-lesson-next>
+          Berikutnya <span aria-hidden="true">→</span>
+          <kbd class="kbd-hint hidden min-[1024px]:inline-flex">→</kbd>
+        </a>
+      )}
+    </div>
+  </div>
+  {lessonEyebrow && <p class="eyebrow mt-5">{lessonEyebrow}</p>}
+  <h1 class="judul mt-1.5">{lesson.title}</h1>
+  <p class="mt-2 text-sm leading-[1.4] text-tinta-lembut">Sekitar {minutes} menit</p>
+  {(lesson.completedAt || quizHref) && (
+    <div class="mt-3 flex flex-wrap items-center gap-2">
+      {lesson.completedAt && (
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-jalur-lembut px-2.5 py-1 text-[11px] font-semibold text-jalur">
+          <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+          </svg>
+          Selesai
+        </span>
+      )}
+      {quizHref && (
+        <a class="inline-flex items-center gap-1.5 rounded-full border border-garis bg-kartu px-2.5 py-1 text-[11px] font-medium text-tinta-lembut transition-colors hover:border-jalur/40 hover:text-tinta" href={quizHref}>
+          {quizChipText}
+        </a>
+      )}
+    </div>
   )}
-  {lesson.status === 'queued' && <meta http-equiv="refresh" content="4" />}
+  {creditShortfall && (
+    <div class="mt-4">
+      <CreditNotice
+        balance={creditShortfall.balance}
+        cost={creditShortfall.cost}
+        topUpHref={creditShortfall.action === 'kuis' ? quizTopUpHref : lessonTopUpHref}
+      />
+    </div>
+  )}
+  {message && (
+    <p class:list={["mt-3 text-sm", messageIsInfo ? "text-jalur" : "text-bahaya"]}>
+      {message}
+    </p>
+  )}
+  {resumeReady && !creditShortfall && (
+    <div class="mt-4 rounded-kontrol border border-jalur/30 bg-jalur-lembut p-4">
+      <p class="text-sm font-semibold text-jalur">
+        Kredit kamu sekarang {balance}.
+      </p>
+      <p class="mt-1 text-sm text-tinta-lembut">
+        {resumeAction === 'kuis'
+          ? `Menyusun kuis bab ini memakai ${quizCost} kredit.`
+          : `Menyusun pelajaran ini memakai ${cost} kredit.`}
+      </p>
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        {resumeAction === 'kuis' ? (
+          quizHref && currentChapter ? (
+            currentChapterQuiz ? (
+              <a class="inline-flex min-h-9 items-center rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white" href={quizHref}>
+                Buka kuis
+              </a>
+            ) : (
+              <form method="post">
+                <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                <input type="hidden" name="aksi" value="kuis" />
+                <input type="hidden" name="chapterId" value={currentChapter.id} />
+                <button class="min-h-9 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white" type="submit">
+                  Ya, buat kuis
+                </button>
+              </form>
+            )
+          ) : null
+        ) : (
+          <form method="post">
+            <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+            <input type="hidden" name="aksi" value="buka" />
+            <button class="min-h-9 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white" type="submit">
+              Ya, buat pelajaran
+            </button>
+          </form>
+        )}
+        <a class="inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta" href={resumeDismissHref}>
+          Nanti
+        </a>
+      </div>
+    </div>
+  )}
+  {shareLink && html && (
+    <ShareCard
+      url={shareUrl}
+      whatsappHref={shareWhatsApp}
+      token={shareLink.token}
+      views={shareLink.views}
+      expiresAt={shareLink.expiresAt}
+      csrf={Astro.locals.csrf}
+    />
+  )}
+
+  <div class:list={["mt-8", navChapters.length > 0 && "min-[1024px]:grid min-[1024px]:grid-cols-[280px_minmax(0,1fr)] min-[1024px]:items-start min-[1024px]:gap-10 min-[1280px]:grid-cols-[320px_minmax(0,1fr)] min-[1280px]:gap-12 min-[1536px]:grid-cols-[340px_minmax(0,1fr)] min-[1536px]:gap-14"]}>
+    {navChapters.length > 0 && (
+      <ChapterNav
+        pathId={pathId}
+        chapters={navChapters}
+        currentLessonId={lessonId}
+        progress={progress}
+      />
+    )}
+    <div class="min-w-0">
+      {lesson.status === 'queued' && (
+        <GenerationWait
+          title="Menyusun pelajaran"
+          description="Isi pelajaran sedang dibuat. Halaman akan diperbarui dalam beberapa detik."
+          compact
+          jobId={activeJob ? String(activeJob.id) : undefined}
+        />
+      )}
+      {!html && lesson.status !== 'queued' && (
+        lessonAffordable ? (
+          <form method="post">
+            <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+            <input type="hidden" name="aksi" value="buka" />
+            <button class="w-full rounded-kontrol bg-jalur px-4 text-white min-[768px]:w-auto" type="submit">Buat pelajaran</button>
+            <p class="mt-2 text-sm leading-[1.4] text-tinta-lembut">Memakai {cost} kredit. Membaca ulang tidak mengurangi kredit.</p>
+          </form>
+        ) : (
+          <div class="rounded-kartu border border-garis bg-kartu p-6 text-center">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-tinta-lembut">
+              Belum bisa disusun
+            </p>
+            <h2 class="mt-2 text-lg font-bold text-tinta">
+              Pelajaran ini belum punya isi
+            </h2>
+            <p class="mx-auto mt-2 max-w-md text-sm tabular-nums text-tinta-lembut">
+              Menyusunnya butuh {cost} kredit, sedangkan saldo kamu {balance}.
+              Materi yang sudah ada tetap bisa dibaca.
+            </p>
+            <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
+              <a class="btn-jalur min-h-11 px-5 text-sm" href={lessonTopUpHref}>
+                Isi kredit
+              </a>
+              <a class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40" href={`/jalur/${pathId}`}>
+                Lihat bab lain
+              </a>
+            </div>
+          </div>
+        )
+      )}
+      {html && (
+        <div class="min-w-0 max-w-[70ch]">
+          <div class="sticky top-[68px] z-10 mb-6 border-b border-garis bg-kertas/95 py-2 backdrop-blur-sm">
+            <div
+              id="reading-progress-wrap"
+              class="h-1 w-full overflow-hidden rounded-full bg-garis"
+              role="progressbar"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+              aria-label="Progres baca"
+            >
+              <div
+                id="reading-progress"
+                class="h-full bg-jalur transition-[width] duration-150 w-0"
+              />
+            </div>
+          </div>
+
+          <article class="baca" set:html={html} id="lesson-content"></article>
+          
+          <!-- Academic-Style References Section -->
+          <section class="mt-10 rounded-kartu border border-garis/70 bg-kartu/60 p-5">
+            <h2 class="mb-6 text-xs font-semibold uppercase tracking-wider text-tinta-lembut">
+              Referensi
+            </h2>
+
+            {sources.some((source) => String(source.kind) === 'web') && (
+              <p class="mb-4 text-xs leading-relaxed text-tinta-lembut">
+                Rujukan web disarankan oleh model dan belum diverifikasi. Cek tautannya sebelum diandalkan.
+              </p>
+            )}
+            
+            {sources.length === 0 ? (
+              <p class="text-sm text-tinta-lembut italic">
+                Belum ada sumber yang tersimpan
+              </p>
+            ) : (
+              <ol class="space-y-3">
+                {sources.map((source, index) => (
+                  <li class="group flex gap-3 text-sm leading-relaxed">
+                    <span class="shrink-0 rounded bg-jalur-lembut px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-jalur">
+                      [{index + 1}]
+                    </span>
+                    <div class="min-w-0 flex-1">
+                      <a 
+                        href={String(source.url)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-tinta hover:text-jalur hover:underline decoration-jalur/50 break-words inline transition-colors"
+                      >
+                        {source.title}
+                      </a>
+                      <span class="text-tinta-lembut">
+                        {' '}· {domainOf(String(source.url))}
+                      </span>
+                      <svg class="inline-block size-3 ml-1 text-tinta-lembut group-hover:text-jalur transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+          
+          <div class="mt-10 border-t border-garis pt-6">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-tinta-lembut">
+              Akhir subbab
+            </p>
+            <div class="mt-3 flex flex-col gap-2 min-[560px]:flex-row min-[560px]:items-center">
+              {lesson.completedAt ? (
+                <span class="inline-flex min-h-11 items-center justify-center gap-2 rounded-kontrol border border-jalur/30 bg-jalur-lembut px-6 font-semibold text-jalur">
+                  <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Selesai
+                </span>
+              ) : (
+                <form class="min-[560px]:w-auto" method="post" id="complete-form">
+                  <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                  <input type="hidden" name="aksi" value="selesai" />
+                  <button class="min-h-11 w-full rounded-kontrol bg-jalur px-6 font-semibold text-white transition-[filter] hover:brightness-110 min-[560px]:w-auto" type="submit">
+                    Tandai Selesai
+                  </button>
+                </form>
+              )}
+              {quizHref && currentChapter ? (
+                currentChapterQuiz ? (
+                  <a class="inline-flex min-h-11 items-center justify-center gap-2 rounded-kontrol border border-garis bg-kartu px-6 font-semibold text-tinta transition-colors hover:border-jalur/40" href={quizHref}>
+                    <svg class="size-5 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Kerjakan kuis
+                  </a>
+                ) : quizAffordable ? (
+                  <form
+                    class="min-[560px]:w-auto"
+                    method="post"
+                    data-confirm="Buat kuis bab ini?"
+                    data-confirm-detail={String(currentChapter.title)}
+                    data-confirm-cost={quizCost}
+                    data-confirm-balance={balance}
+                    data-confirm-label="Ya, buat kuis"
+                    data-confirm-impact={`Soal dibuat dari ${currentChapter.lessons.length} pelajaran di bab ini. Progres tidak terkunci, dan mengirim ulang jawaban tidak memakai kredit.`}
+                  >
+                    <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                    <input type="hidden" name="aksi" value="kuis" />
+                    <input type="hidden" name="chapterId" value={currentChapter.id} />
+                    <button class="min-h-11 w-full rounded-kontrol border border-garis bg-kartu px-6 font-semibold text-tinta transition-colors hover:border-jalur/40 disabled:cursor-not-allowed disabled:opacity-60 min-[560px]:w-auto" type="submit" disabled={Boolean(activeJob)}>
+                      Buat kuis · {quizCost} kredit
+                    </button>
+                  </form>
+                ) : (
+                  <a class="inline-flex min-h-11 items-center justify-center gap-2 rounded-kontrol border border-hangat/40 bg-hangat-lembut px-6 font-semibold text-hangat transition-colors hover:border-hangat/60" href={quizTopUpHref}>
+                    Kredit tidak cukup
+                  </a>
+                )
+              ) : null}
+            </div>
+            {!currentChapterQuiz && !quizAffordable && (
+              <p class="mt-3 text-sm text-tinta-lembut">
+                <span class="tabular-nums">{creditShortNote(balance, quizCost)}</span>
+                {' · '}
+                <a class="font-semibold text-jalur hover:underline" href={quizTopUpHref}>
+                  Isi kredit
+                </a>
+              </p>
+            )}
+          </div>
+
+          <!-- Keyboard Shortcuts Hint -->
+          <div class="mt-8 rounded-lg border border-garis bg-kertas p-4">
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-tinta-lembut">Pintasan Keyboard</p>
+            <div class="grid gap-2 text-sm min-[768px]:grid-cols-2">
+              <div class="flex items-center gap-2">
+                <kbd class="kbd-hint min-h-6 min-w-6 px-2">←</kbd>
+                <span class="text-tinta-lembut">Sebelumnya</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <kbd class="kbd-hint min-h-6 min-w-6 px-2">→</kbd>
+                <span class="text-tinta-lembut">Berikutnya</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <kbd class="kbd-hint min-h-6 min-w-6 px-2">Esc</kbd>
+                <span class="text-tinta-lembut">Kembali ke jalur</span>
+              </div>
+              {!lesson.completedAt && (
+                <div class="flex items-center gap-2">
+                  <kbd class="kbd-hint min-h-6 min-w-6 px-2">Ctrl</kbd>
+                  <span class="text-tinta-lembut">+</span>
+                  <kbd class="kbd-hint min-h-6 min-w-6 px-2">Enter</kbd>
+                  <span class="text-tinta-lembut">Tandai selesai</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {html && <script src="/scripts/lesson-reading.js" defer />}
+    </div>
+  </div>
+  <div class="fixed inset-x-0 bottom-0 z-30 border-t border-garis bg-kertas/95 p-3 backdrop-blur-sm min-[1024px]:hidden" role="region" aria-label="Navigasi pelajaran">
+    <div class="flex items-center gap-2">
+      {previousLesson ? (
+        <a class="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta" href={lessonHref(previousLesson.id)} data-lesson-prev>
+          ← Sebelumnya
+        </a>
+      ) : (
+        <span class="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-kontrol border border-garis/60 px-4 text-sm font-medium text-tinta-lembut/50" aria-disabled="true">
+          ← Sebelumnya
+        </span>
+      )}
+      {nextLesson ? (
+        <a class="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white" href={lessonHref(nextLesson.id)} data-lesson-next>
+          Berikutnya →
+        </a>
+      ) : (
+        <span class="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-kontrol border border-garis/60 px-4 text-sm font-medium text-tinta-lembut/50" aria-disabled="true">
+          Berikutnya →
+        </span>
+      )}
+    </div>
+  </div>
+  <div class="h-20 min-[1024px]:hidden" aria-hidden="true"></div>
 </Shell>

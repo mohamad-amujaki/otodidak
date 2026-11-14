@@ -1,0 +1,17 @@
+---
+interface Props {
+  tone?: 'info' | 'success' | 'warning' | 'danger';
+  message: string;
+}
+
+const { tone = 'info', message } = Astro.props;
+const tones: Record<string, string> = {
+  info: 'border-garis bg-kartu text-tinta',
+  success: 'border-jalur/30 bg-jalur-lembut text-jalur',
+  warning: 'border-hangat/30 bg-hangat-lembut/50 text-tinta',
+  danger: 'border-bahaya/30 bg-bahaya/10 text-bahaya',
+};
+---
+<p class:list={['mt-3 rounded-kontrol border px-4 py-3 text-sm', tones[tone]]} role="status">
+  {message}
+</p>

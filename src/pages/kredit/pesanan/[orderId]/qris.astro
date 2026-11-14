@@ -1,0 +1,88 @@
+---
+import { env } from 'cloudflare:workers';
+import QRCode from 'qrcode';
+import Shell from '../../../../components/Shell.astro';
+import { safeReturnPath } from '../../../../domain/credit-ui';
+import { AppError } from '../../../../domain/errors';
+import { formatIdr } from '../../../../domain/format';
+import { record } from '../../../../domain/guard';
+import { fetchUserCreditOrder } from '../../../../server/credit-orders-service';
+import { pageMe } from '../../../../server/ssr';
+
+const { orderId } = Astro.params;
+if (!orderId) return Astro.redirect('/kredit');
+
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session, me: meRaw } = page;
+const me = record(meRaw);
+const user = record(me.user);
+const kembali = safeReturnPath(Astro.url.searchParams.get('kembali'));
+const kembaliQuery = kembali ? `?kembali=${encodeURIComponent(kembali)}` : '';
+
+let orderRaw: Record<string, unknown>;
+try {
+  orderRaw = await fetchUserCreditOrder(
+    session.db,
+    session.user.id,
+    orderId,
+    env,
+  );
+} catch (error) {
+  if (error instanceof AppError && error.code === 'not_found')
+    return Astro.redirect('/kredit');
+  throw error;
+}
+const order = record(orderRaw);
+const status = String(order.status ?? '');
+
+if (status !== 'pending')
+  return Astro.redirect(`/kredit/pesanan/${orderId}${kembaliQuery}`);
+
+const paymentCode =
+  typeof order.paymentCode === 'string' ? order.paymentCode : null;
+if (!paymentCode)
+  return Astro.redirect(`/kredit/pesanan/${orderId}${kembaliQuery}`);
+
+const qrDataUrl = await QRCode.toDataURL(paymentCode, {
+  margin: 2,
+  width: 280,
+  errorCorrectionLevel: 'M',
+});
+const mock = env.SUMOPOD_API_KEY === 'mock';
+---
+<Shell title="Bayar QRIS" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
+  <div class="mx-auto max-w-md">
+    <p>
+      <a class="text-sm text-tinta-lembut hover:text-jalur" href={`/kredit/pesanan/${orderId}${kembaliQuery}`}>← Kembali ke pesanan</a>
+    </p>
+    <h1 class="judul mt-2">Scan QRIS</h1>
+    <p class="mt-2 text-sm text-tinta-lembut">
+      Total {formatIdr(Number(order.amountIdr))} · {order.credits} kredit
+    </p>
+
+    {mock && (
+      <div class="mt-4 rounded-kontrol border border-hangat/40 bg-hangat-lembut p-3 text-sm text-hangat">
+        Mode mock: QR tidak memproses transfer sungguhan. Ganti <code class="text-xs">SUMOPOD_API_KEY</code> di <code class="text-xs">.dev.vars</code> untuk QRIS nyata.
+      </div>
+    )}
+
+    <div class="mt-6 flex flex-col items-center rounded-kartu border border-garis bg-white p-6 shadow-sm">
+      <img
+        class="size-[280px] max-w-full"
+        src={qrDataUrl}
+        width="280"
+        height="280"
+        alt="Kode QRIS untuk pembayaran"
+      />
+      <p class="mt-4 text-center text-sm text-tinta-lembut">
+        Buka aplikasi e-wallet atau mobile banking, pilih bayar QRIS, lalu scan kode di atas.
+      </p>
+    </div>
+
+    <p class="mt-6 text-center text-xs text-tinta-lembut">
+      Setelah pembayaran berhasil, saldo diperbarui otomatis (via webhook Sumopod).
+    </p>
+  </div>
+  <meta http-equiv="refresh" content="5" />
+</Shell>

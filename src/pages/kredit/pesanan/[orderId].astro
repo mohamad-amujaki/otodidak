@@ -1,61 +1,340 @@
 ---
 import { env } from 'cloudflare:workers';
 import Shell from '../../../components/Shell.astro';
-import { formatIdr } from '../../../domain/format';
+import { safeReturnPath } from '../../../domain/credit-ui';
+import { AppError } from '../../../domain/errors';
+import { formatIdr, formatWhen } from '../../../domain/format';
 import { record } from '../../../domain/guard';
-import { callApi, errorOf } from '../../../server/call';
+import {
+  fetchUserCreditOrder,
+  simulateDevPaymentCompletion,
+} from '../../../server/credit-orders-service';
+import { pageMe } from '../../../server/ssr';
 
 const { orderId } = Astro.params;
 if (!orderId) return Astro.redirect('/kredit');
-const meResult = await callApi(Astro.request, env, '/api/me');
-if (meResult.status !== 200) return Astro.redirect('/masuk');
-const me = record(meResult.data);
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session, me: meRaw } = page;
+const me = record(meRaw);
 const user = record(me.user);
+const kembali = safeReturnPath(Astro.url.searchParams.get('kembali'));
+const kembaliQuery = kembali ? `?kembali=${encodeURIComponent(kembali)}` : '';
 let message = '';
 if (Astro.request.method === 'POST' && env.SUMOPOD_API_KEY === 'mock') {
   const form = await Astro.request.formData();
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
   else {
-    const result = await callApi(
-      Astro.request,
-      env,
-      `/api/dev/payments/${orderId}/complete`,
-      { method: 'POST', json: {}, csrf: Astro.locals.csrf },
-    );
-    const error = errorOf(result.data);
-    if (error) message = error.message;
+    try {
+      await simulateDevPaymentCompletion(
+        env,
+        Astro.request,
+        session.user.id,
+        orderId,
+      );
+    } catch (error) {
+      message =
+        error instanceof AppError
+          ? error.message
+          : 'Simulasi pembayaran gagal.';
+    }
   }
 }
-const orderResult = await callApi(
-  Astro.request,
-  env,
-  `/api/credit-orders/${orderId}`,
-);
-if (orderResult.status === 404) return Astro.redirect('/kredit');
-const order = record(orderResult.data);
+let orderRaw: Record<string, unknown>;
+try {
+  orderRaw = await fetchUserCreditOrder(
+    session.db,
+    session.user.id,
+    orderId,
+    env,
+  );
+} catch (error) {
+  if (error instanceof AppError && error.code === 'not_found')
+    return Astro.redirect('/kredit');
+  throw error;
+}
+const order = record(orderRaw);
 const status = String(order.status ?? '');
-const copy =
-  status === 'paid'
-    ? 'Kredit sudah masuk.'
-    : status === 'pending'
-      ? 'Menunggu pembayaran.'
-      : 'Pembayaran tidak masuk.';
+const paymentHref =
+  typeof order.paymentLinkUrl === 'string' &&
+  order.paymentLinkUrl.startsWith('/')
+    ? `${order.paymentLinkUrl}${kembaliQuery}`
+    : order.paymentLinkUrl;
+
+const statusConfig = {
+  pending: {
+    title: 'Menunggu Pembayaran',
+    description: 'Silakan selesaikan pembayaran untuk mengaktifkan kredit',
+    bgColor: 'bg-hangat-lembut',
+    borderColor: 'border-hangat',
+    textColor: 'text-hangat',
+    iconBg: 'bg-hangat',
+    icon: 'clock',
+  },
+  paid: {
+    title: 'Pembayaran Berhasil!',
+    description: 'Kredit telah ditambahkan ke akun Anda',
+    bgColor: 'bg-jalur-lembut',
+    borderColor: 'border-jalur',
+    textColor: 'text-jalur',
+    iconBg: 'bg-jalur',
+    icon: 'check',
+  },
+  failed: {
+    title: 'Pembayaran Tidak Berhasil',
+    description: 'Pembayaran tidak diterima atau waktu habis',
+    bgColor: 'bg-bahaya/10',
+    borderColor: 'border-bahaya',
+    textColor: 'text-bahaya',
+    iconBg: 'bg-bahaya',
+    icon: 'x',
+  },
+};
+
+const config =
+  statusConfig[status as keyof typeof statusConfig] || statusConfig.failed;
 ---
-<Shell title="Pesanan" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
-  <h1 class="text-[1.75rem] leading-[1.25]">Pesanan</h1>
-  <p class="mt-3 text-lg">{copy}</p>
-  <p class="mt-2 tabular-nums">{order.credits} kredit · {formatIdr(Number(order.amountIdr))}</p>
-  {message && <p class="mt-3 text-sm text-bahaya">{message}</p>}
-  {status === 'pending' && typeof order.paymentLinkUrl === 'string' && (
-    <p class="mt-4"><a class="inline-flex min-h-11 items-center text-jalur" href={order.paymentLinkUrl}>Buka halaman bayar</a></p>
-  )}
-  {status === 'pending' && env.SUMOPOD_API_KEY === 'mock' && (
-    <form class="mt-4" method="post">
-      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-      <p class="text-sm text-tinta-lembut">Tombol ini hanya ada saat kunci pembayaran masih percobaan.</p>
-      <button class="mt-2 inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-white" type="submit">Tandai pembayaran percobaan berhasil</button>
-    </form>
-  )}
+<Shell title="Pesanan" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
+  <div class="mx-auto max-w-3xl">
+    <!-- Status Header -->
+    <div class={`mb-6 overflow-hidden rounded-kartu border ${config.borderColor} ${config.bgColor} shadow-sm`}>
+      <div class="p-6 min-[768px]:p-8">
+        <div class="flex flex-col items-center text-center">
+          <div class={`flex size-16 items-center justify-center rounded-kontrol ${config.iconBg} text-white shadow-lg`}>
+            {config.icon === 'clock' && (
+              <svg class="size-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            {config.icon === 'check' && (
+              <svg class="size-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            {config.icon === 'x' && (
+              <svg class="size-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+          </div>
+          <h1 class={`mt-4 text-2xl font-bold ${config.textColor} min-[768px]:text-3xl`}>{config.title}</h1>
+          <p class="mt-2 text-tinta-lembut">{config.description}</p>
+        </div>
+      </div>
+    </div>
+
+    {message && (
+      <div class="mb-6 rounded-kontrol border border-bahaya/30 bg-bahaya/10 p-4">
+        <div class="flex gap-3">
+          <svg class="size-5 shrink-0 text-bahaya" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p class="text-sm text-bahaya">{message}</p>
+        </div>
+      </div>
+    )}
+
+    <!-- Order Details Card -->
+    <div class="mb-6 rounded-kartu border border-garis bg-kartu shadow-sm">
+      <div class="border-b border-garis p-4 min-[768px]:p-6">
+        <h2 class="text-lg font-bold text-tinta">Detail Pesanan</h2>
+      </div>
+      <div class="p-4 min-[768px]:p-6">
+        <dl class="grid gap-4">
+          <div class="flex justify-between">
+            <dt class="text-sm text-tinta-lembut">ID Pesanan</dt>
+            <dd class="font-mono text-sm font-medium text-tinta">{orderId}</dd>
+          </div>
+          <div class="flex justify-between">
+            <dt class="text-sm text-tinta-lembut">Tanggal</dt>
+            <dd class="text-sm font-medium text-tinta">{formatWhen(String(order.createdAt))}</dd>
+          </div>
+          <div class="flex justify-between">
+            <dt class="text-sm text-tinta-lembut">Status</dt>
+            <dd>
+              <span class={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold border ${config.borderColor} ${config.bgColor} ${config.textColor}`}>
+                {status === 'pending' && 'Menunggu'}
+                {status === 'paid' && 'Berhasil'}
+                {status === 'failed' && 'Gagal'}
+              </span>
+            </dd>
+          </div>
+        </dl>
+
+        <div class="my-6 border-t border-garis"></div>
+
+        <div class="space-y-3">
+          <div class="flex items-center gap-3">
+            <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+              <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+              </svg>
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="font-medium text-tinta">Paket Kredit</p>
+              <p class="text-sm text-tinta-lembut">{order.credits} Kredit</p>
+            </div>
+            <p class="font-semibold tabular-nums text-tinta">{formatIdr(Number(order.amountIdr))}</p>
+          </div>
+        </div>
+
+        <div class="my-6 border-t border-garis"></div>
+
+        <div class="flex items-center justify-between">
+          <p class="text-lg font-bold text-tinta">Total</p>
+          <p class="text-2xl font-bold tabular-nums text-tinta">{formatIdr(Number(order.amountIdr))}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Payment Instructions for Pending Orders -->
+    {status === 'pending' && typeof order.paymentLinkUrl === 'string' && (
+      <div class="mb-6 rounded-kartu border border-garis bg-kartu shadow-sm">
+        <div class="border-b border-garis p-4 min-[768px]:p-6">
+          <h2 class="text-lg font-bold text-tinta">Cara Pembayaran</h2>
+        </div>
+        <div class="p-4 min-[768px]:p-6">
+          <ol class="space-y-3">
+            <li class="flex gap-3">
+              <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-jalur text-xs font-bold text-white">1</span>
+              <p class="text-sm text-tinta">Klik tombol "Buka Halaman Pembayaran" di bawah</p>
+            </li>
+            <li class="flex gap-3">
+              <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-jalur text-xs font-bold text-white">2</span>
+              <p class="text-sm text-tinta">Scan QR Code dengan aplikasi pembayaran Anda</p>
+            </li>
+            <li class="flex gap-3">
+              <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-jalur text-xs font-bold text-white">3</span>
+              <p class="text-sm text-tinta">Selesaikan pembayaran di aplikasi</p>
+            </li>
+            <li class="flex gap-3">
+              <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-jalur text-xs font-bold text-white">4</span>
+              <p class="text-sm text-tinta">Kredit akan otomatis ditambahkan ke akun Anda</p>
+            </li>
+          </ol>
+
+          <div class="mt-6 rounded-kontrol border border-jalur/30 bg-jalur-lembut p-4">
+            <div class="flex items-start gap-3">
+              <svg class="size-5 shrink-0 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+              </svg>
+              <div class="min-w-0 flex-1">
+                <p class="text-sm font-semibold text-jalur">Pembayaran via QRIS</p>
+                <p class="mt-1 text-sm text-tinta-lembut">Diterima oleh semua aplikasi: GoPay, OVO, Dana, LinkAja, dan bank digital</p>
+              </div>
+            </div>
+          </div>
+
+          <a 
+            class="mt-6 flex w-full min-h-12 items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 text-base font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:brightness-110" 
+            href={paymentHref}
+            target={typeof order.paymentCode === 'string' ? '_self' : '_blank'}
+            rel={typeof order.paymentCode === 'string' ? undefined : 'noopener noreferrer'}
+          >
+            <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+            </svg>
+            Buka Halaman Pembayaran
+          </a>
+
+          <p class="mt-4 text-center text-xs text-tinta-lembut">
+            Halaman akan otomatis memperbarui status pembayaran
+          </p>
+        </div>
+      </div>
+    )}
+
+    <!-- Success Actions -->
+    {status === 'paid' && (
+      <div class="mb-6 grid gap-3 min-[768px]:grid-cols-2">
+        <a 
+          class="flex min-h-11 items-center justify-center gap-2 rounded-kontrol border border-garis bg-kartu font-medium text-tinta shadow-sm transition-all hover:shadow-md hover:border-jalur" 
+          href="/kredit"
+        >
+          <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+          </svg>
+          Lihat Saldo Kredit
+        </a>
+        <a 
+          class="flex min-h-11 items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110" 
+          href={kembali ?? '/dasbor'}
+        >
+          <span>{kembali ? 'Kembali ke materi' : 'Mulai Belajar'}</span>
+          <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          </svg>
+        </a>
+      </div>
+    )}
+
+    <!-- Failed/Expired Actions -->
+    {status === 'failed' && (
+      <div class="mb-6">
+        <a 
+          class="flex w-full min-h-11 items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110" 
+          href="/kredit"
+        >
+          <span>Coba Lagi</span>
+          <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </a>
+      </div>
+    )}
+
+    <!-- Development Mock Payment Button -->
+    {status === 'pending' && env.SUMOPOD_API_KEY === 'mock' && (
+      <div class="mb-6 rounded-kartu border border-hangat/30 bg-hangat-lembut p-4">
+        <div class="mb-3 flex items-start gap-3">
+          <svg class="size-5 shrink-0 text-hangat" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-semibold text-hangat">Mode Development</p>
+            <p class="mt-1 text-sm text-tinta-lembut">Tombol ini hanya muncul saat menggunakan kunci pembayaran percobaan</p>
+          </div>
+        </div>
+        <form method="post">
+          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+          <button 
+            class="w-full min-h-11 rounded-kontrol border border-hangat bg-hangat px-4 font-semibold text-white transition-all hover:brightness-110" 
+            type="submit"
+          >
+            Tandai Pembayaran Berhasil (Dev)
+          </button>
+        </form>
+      </div>
+    )}
+
+    <!-- Support Section -->
+    <div class="rounded-kartu border border-garis bg-kartu p-4 shadow-sm min-[768px]:p-6">
+      <h3 class="font-bold text-tinta">Butuh Bantuan?</h3>
+      <p class="mt-2 text-sm text-tinta-lembut">
+        Jika Anda mengalami masalah dengan pembayaran atau memiliki pertanyaan, silakan hubungi tim support kami.
+      </p>
+      <div class="mt-4 flex flex-col gap-2 min-[768px]:flex-row">
+        <a 
+          class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-kontrol border border-garis bg-kartu font-medium text-tinta transition-all hover:bg-kertas" 
+          href="/kredit"
+        >
+          <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+          Kembali ke Kredit
+        </a>
+        {kembali && (
+          <a
+            class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110"
+            href={kembali}
+          >
+            Kembali ke materi
+          </a>
+        )}
+      </div>
+    </div>
+  </div>
+
   {status === 'pending' && <meta http-equiv="refresh" content="5" />}
 </Shell>

@@ -24,7 +24,33 @@ export const users = sqliteTable(
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
-  (table) => [uniqueIndex('user_clerk_user_id').on(table.clerkUserId)],
+  (table) => [
+    uniqueIndex('user_clerk_user_id').on(table.clerkUserId),
+    uniqueIndex('user_email_lower').on(sql`lower(${table.email})`),
+  ],
+);
+
+export const shareLinks = sqliteTable(
+  'share_link',
+  {
+    id: text('id').primaryKey(),
+    token: text('token').notNull(),
+    scope: text('scope', { enum: ['lesson', 'path'] }).notNull(),
+    targetId: text('target_id').notNull(),
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => users.id),
+    createdAt: text('created_at').notNull(),
+    expiresAt: text('expires_at'),
+    revokedAt: text('revoked_at'),
+    views: integer('views').notNull().default(0),
+    ctaClicks: integer('cta_clicks').notNull().default(0),
+    lastViewedAt: text('last_viewed_at'),
+  },
+  (table) => [
+    uniqueIndex('share_link_token').on(table.token),
+    index('share_link_owner').on(table.ownerId, table.scope, table.targetId),
+  ],
 );
 
 export const creditLedger = sqliteTable(
@@ -42,19 +68,59 @@ export const creditLedger = sqliteTable(
         'roadmap',
         'lesson',
         'quiz',
+        'outline',
         'refund',
         'admin_adjust',
+        'redeem',
       ],
     }).notNull(),
     refType: text('ref_type'),
     refId: text('ref_id'),
     idempotencyKey: text('idempotency_key').notNull(),
     note: text('note'),
+    category: text('category'),
     createdAt: text('created_at').notNull(),
   },
   (table) => [
     index('credit_ledger_user_created').on(table.userId, table.createdAt),
     uniqueIndex('credit_ledger_idempotency').on(table.idempotencyKey),
+  ],
+);
+
+export const creditRedeemCodes = sqliteTable(
+  'credit_redeem_code',
+  {
+    id: text('id').primaryKey(),
+    code: text('code').notNull(),
+    credits: integer('credits').notNull(),
+    maxRedemptions: integer('max_redemptions').notNull().default(1),
+    redeemedCount: integer('redeemed_count').notNull().default(0),
+    active: integer('active').notNull().default(1),
+    expiresAt: text('expires_at'),
+    createdAt: text('created_at').notNull(),
+    createdBy: text('created_by'),
+  },
+  (table) => [uniqueIndex('credit_redeem_code_code').on(table.code)],
+);
+
+export const creditRedeemRedemptions = sqliteTable(
+  'credit_redeem_redemption',
+  {
+    id: text('id').primaryKey(),
+    codeId: text('code_id')
+      .notNull()
+      .references(() => creditRedeemCodes.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    credits: integer('credits').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('credit_redeem_redemption_code_user').on(
+      table.codeId,
+      table.userId,
+    ),
   ],
 );
 
@@ -83,6 +149,7 @@ export const creditOrders = sqliteTable(
     }).notNull(),
     sumopodPaymentId: text('sumopod_payment_id'),
     paymentLinkUrl: text('payment_link_url'),
+    paymentCode: text('payment_code'),
     createdAt: text('created_at').notNull(),
     paidAt: text('paid_at'),
   },
@@ -135,6 +202,7 @@ export const chapters = sqliteTable(
     quizStatus: text('quiz_status', {
       enum: ['unchecked', 'retry', 'understood'],
     }).notNull(),
+    caseJson: text('case_json'),
   },
   (table) => [index('chapter_path_position').on(table.pathId, table.position)],
 );
@@ -154,6 +222,9 @@ export const lessons = sqliteTable(
       enum: ['outline', 'queued', 'ready', 'failed'],
     }).notNull(),
     completedAt: text('completed_at'),
+    adds: text('adds'),
+    conceptsJson: text('concepts_json'),
+    diagramsJson: text('diagrams_json'),
     createdAt: text('created_at').notNull(),
   },
   (table) => [
@@ -229,6 +300,7 @@ export const generationJobs = sqliteTable(
     }).notNull(),
     errorCode: text('error_code'),
     attempts: integer('attempts').notNull().default(0),
+    promptVersion: integer('prompt_version'),
     createdAt: text('created_at').notNull(),
     startedAt: text('started_at'),
     finishedAt: text('finished_at'),
@@ -268,9 +340,23 @@ export const aiModels = sqliteTable('ai_model', {
 export const promptTemplates = sqliteTable('prompt_template', {
   task: text('task', { enum: ['roadmap', 'lesson', 'quiz'] }).primaryKey(),
   body: text('body').notNull(),
+  version: integer('version').notNull().default(1),
   updatedAt: text('updated_at').notNull(),
   updatedBy: text('updated_by'),
 });
+
+export const promptVersions = sqliteTable(
+  'prompt_version',
+  {
+    id: text('id').primaryKey(),
+    task: text('task', { enum: ['roadmap', 'lesson', 'quiz'] }).notNull(),
+    version: integer('version').notNull(),
+    body: text('body').notNull(),
+    createdAt: text('created_at').notNull(),
+    createdBy: text('created_by'),
+  },
+  (table) => [index('prompt_version_task').on(table.task, table.version)],
+);
 
 export const appConfig = sqliteTable('app_config', {
   id: text('id').primaryKey(),
@@ -283,6 +369,9 @@ export const appConfig = sqliteTable('app_config', {
   costQuiz: integer('cost_quiz').notNull(),
   signupCredits: integer('signup_credits').notNull(),
   lessonMinuteLabel: integer('lesson_minute_label').notNull(),
+  adminDailyCreditCap: integer('admin_daily_credit_cap')
+    .notNull()
+    .default(1000),
 });
 
 export const sourceProviders = sqliteTable('source_provider', {
@@ -293,6 +382,19 @@ export const sourceProviders = sqliteTable('source_provider', {
   secretName: text('secret_name').notNull(),
   active: integer('active').notNull(),
 });
+
+export const adminAudit = sqliteTable(
+  'admin_audit',
+  {
+    id: text('id').primaryKey(),
+    actorId: text('actor_id').notNull(),
+    action: text('action').notNull(),
+    targetId: text('target_id'),
+    detail: text('detail'),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [index('admin_audit_created').on(table.createdAt)],
+);
 
 export type UserRow = typeof users.$inferSelect;
 export type AppConfigRow = typeof appConfig.$inferSelect;

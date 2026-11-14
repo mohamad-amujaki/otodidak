@@ -1,4 +1,5 @@
 import {
+  DEFAULT_AI_BASE_URL,
   DEFAULT_MODEL_NAME,
   SEED_CONFIG,
   SEED_MODELS,
@@ -28,17 +29,17 @@ export async function ensureSeed(db: Database): Promise<void> {
     .insert(aiProviders)
     .values({
       id: SEED_PROVIDER_ID,
-      name: 'openai-compatible',
-      baseUrl: 'https://api.openai.com/v1',
+      name: 'deepseek-compatible',
+      baseUrl: DEFAULT_AI_BASE_URL,
       authKind: 'bearer',
       secretName: 'OPENAI_API_KEY',
       active: 1,
     })
     .onConflictDoNothing();
-  await db
-    .insert(aiModels)
-    .values(
-      SEED_MODELS.map((model) => ({
+  for (const model of SEED_MODELS) {
+    await db
+      .insert(aiModels)
+      .values({
         id: model.id,
         providerId: SEED_PROVIDER_ID,
         modelName: DEFAULT_MODEL_NAME,
@@ -46,43 +47,23 @@ export async function ensureSeed(db: Database): Promise<void> {
         active: 1,
         maxOutputTokens: model.maxOutputTokens,
         timeoutMs: model.timeoutMs,
-      })),
-    )
-    .onConflictDoNothing();
-  await db
-    .insert(promptTemplates)
-    .values([
-      {
-        task: 'roadmap' as const,
-        body: SEED_PROMPTS.roadmap,
+      })
+      .onConflictDoNothing();
+  }
+  for (const task of ['roadmap', 'lesson', 'quiz'] as const) {
+    await db
+      .insert(promptTemplates)
+      .values({
+        task,
+        body: SEED_PROMPTS[task],
         updatedAt: now,
         updatedBy: null,
-      },
-      {
-        task: 'lesson' as const,
-        body: SEED_PROMPTS.lesson,
-        updatedAt: now,
-        updatedBy: null,
-      },
-      {
-        task: 'quiz' as const,
-        body: SEED_PROMPTS.quiz,
-        updatedAt: now,
-        updatedBy: null,
-      },
-    ])
-    .onConflictDoNothing();
+      })
+      .onConflictDoNothing();
+  }
   await db
     .insert(sourceProviders)
     .values([
-      {
-        id: 'source_brave',
-        kind: 'web' as const,
-        name: 'brave',
-        baseUrl: 'https://api.search.brave.com/res/v1/web/search',
-        secretName: 'BRAVE_SEARCH_API_KEY',
-        active: 1,
-      },
       {
         id: 'source_youtube',
         kind: 'youtube' as const,

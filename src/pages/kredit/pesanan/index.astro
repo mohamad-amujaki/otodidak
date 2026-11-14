@@ -1,0 +1,99 @@
+---
+import { env } from 'cloudflare:workers';
+import OrderRows from '../../../components/credit/OrderRows.astro';
+import PageRange from '../../../components/credit/PageRange.astro';
+import PaginationNav from '../../../components/credit/PaginationNav.astro';
+import Shell from '../../../components/Shell.astro';
+import { orderFilterOptions } from '../../../domain/credit-ui';
+import { isRecord, record } from '../../../domain/guard';
+import { creditsPayload } from '../../../server/credits-page';
+import { pageMe } from '../../../server/ssr';
+
+const LIMIT = 20;
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session, me: meRaw } = page;
+const me = record(meRaw);
+const user = record(me.user);
+
+const offset = Math.max(0, Number(Astro.url.searchParams.get('offset') ?? 0));
+const status = Astro.url.searchParams.get('status') ?? '';
+const params = new URLSearchParams({
+  limit: '0',
+  ordersLimit: String(LIMIT),
+  ordersOffset: String(offset),
+});
+if (status) params.set('status', status);
+
+const listUrl = new URL('/kredit/pesanan', Astro.url);
+for (const [key, value] of params.entries())
+  listUrl.searchParams.set(key, value);
+const credit = record(
+  await creditsPayload(session.db, session.user, listUrl.toString()),
+);
+const orders = Array.isArray(credit.orders)
+  ? credit.orders.filter(isRecord)
+  : [];
+const ordersTotal =
+  typeof credit.ordersTotal === 'number' ? credit.ordersTotal : orders.length;
+const extraQuery: Record<string, string> = {};
+if (status) extraQuery.status = status;
+---
+<Shell
+  title="Pesanan kredit"
+  balance={typeof me.balance === 'number' ? me.balance : 0}
+  role={user.role === 'admin' ? 'admin' : 'learner'}
+  suspended={user.status === 'suspended'}
+>
+  <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <a class="text-sm text-jalur hover:underline" href="/kredit">← Kredit</a>
+      <h1 class="judul mt-2">Pesanan</h1>
+    </div>
+    <PageRange offset={offset} limit={LIMIT} total={ordersTotal} noun="pesanan" />
+  </div>
+
+  <form class="mb-6 flex flex-wrap items-end gap-3" method="get" action="/kredit/pesanan">
+    <label class="block min-w-[12rem] flex-1">
+      <span class="text-sm font-medium text-tinta">Status</span>
+      <select
+        class="mt-1 min-h-11 w-full rounded-kontrol border border-garis bg-kartu px-3 text-sm"
+        name="status"
+      >
+        {orderFilterOptions.map((opt) => (
+          <option value={opt.value} selected={status === opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </label>
+    <button
+      class="inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-5 text-sm font-semibold text-white"
+      type="submit"
+    >
+      Terapkan
+    </button>
+  </form>
+
+  {orders.length === 0 ? (
+    <div class="rounded-kartu border border-garis bg-kartu p-8 text-center">
+      <p class="font-medium text-tinta">Tidak ada pesanan</p>
+      <p class="mt-1 text-sm text-tinta-lembut">
+        {status ? 'Coba filter lain.' : 'Pesanan kredit akan muncul di sini.'}
+      </p>
+      <a class="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-jalur hover:underline" href="/kredit">
+        Beli kredit
+      </a>
+    </div>
+  ) : (
+    <OrderRows orders={orders} compact />
+  )}
+
+  <PaginationNav
+    basePath="/kredit/pesanan"
+    offset={offset}
+    limit={LIMIT}
+    total={ordersTotal}
+    extraQuery={extraQuery}
+  />
+</Shell>

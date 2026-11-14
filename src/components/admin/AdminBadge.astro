@@ -1,0 +1,18 @@
+---
+interface Props {
+  tone?: 'neutral' | 'success' | 'warning' | 'danger' | 'brand';
+  children?: unknown;
+}
+
+const { tone = 'neutral' } = Astro.props;
+const tones: Record<string, string> = {
+  neutral: 'border-garis bg-kertas text-tinta-lembut',
+  success: 'border-jalur/30 bg-jalur-lembut text-jalur',
+  warning: 'border-hangat/30 bg-hangat-lembut text-hangat',
+  danger: 'border-bahaya/30 bg-bahaya/10 text-bahaya',
+  brand: 'border-jalur/30 bg-jalur-lembut text-jalur',
+};
+---
+<span class:list={['inline-flex rounded px-2 py-0.5 text-xs font-medium border', tones[tone]]}>
+  <slot />
+</span>

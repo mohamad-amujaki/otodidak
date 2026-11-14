@@ -1,0 +1,345 @@
+---
+import { env } from 'cloudflare:workers';
+import AdminShell from '../../components/AdminShell.astro';
+import AdminAlert from '../../components/admin/AdminAlert.astro';
+import AdminBadge from '../../components/admin/AdminBadge.astro';
+import AdminBreadcrumb from '../../components/admin/AdminBreadcrumb.astro';
+import {
+  aiTaskCostHints,
+  aiTaskLabels,
+  aiTasks,
+} from '../../domain/admin-labels';
+import { MAX_PROMPT_CHARS } from '../../domain/defaults';
+import { record } from '../../domain/guard';
+import { SEED_PROMPTS } from '../../domain/prompts';
+import type { TaskName } from '../../domain/schemas';
+import { runAdminAction } from '../../server/admin-actions';
+import {
+  getActiveModelForTask,
+  getPromptForTask,
+} from '../../server/admin-data';
+import { requireSuperadminPage } from '../../server/admin-guard';
+
+const auth = await requireSuperadminPage(Astro.request, { nav: true });
+if ('redirect' in auth) return Astro.redirect(auth.redirect);
+
+let message = '';
+let messageTone: 'success' | 'danger' = 'success';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf) {
+    message = 'Muat ulang halaman, lalu kirim lagi.';
+    messageTone = 'danger';
+  } else {
+    const result = await runAdminAction(
+      Astro.request,
+      env,
+      Astro.locals.csrf,
+      form,
+    );
+    message = result;
+    messageTone =
+      result.includes('diperbarui') || result.includes('bawaan')
+        ? 'success'
+        : 'danger';
+  }
+}
+
+const taskParam = Astro.url.searchParams.get('task') ?? 'roadmap';
+const activeTask = aiTasks.includes(taskParam as (typeof aiTasks)[number])
+  ? taskParam
+  : 'roadmap';
+
+const { session } = auth;
+const taskName = activeTask as TaskName;
+const promptRow = await getPromptForTask(session.db, taskName).catch(
+  () => null,
+);
+const modelRow = await getActiveModelForTask(session.db, taskName).catch(
+  () => null,
+);
+const prompt = promptRow ? record(promptRow) : {};
+const model = modelRow ? record(modelRow) : {};
+const promptBody = String(prompt.body ?? '');
+const promptLen = promptBody.length;
+const promptNearLimit = promptLen > MAX_PROMPT_CHARS * 0.9;
+const seedBody =
+  activeTask === 'roadmap' || activeTask === 'lesson' || activeTask === 'quiz'
+    ? SEED_PROMPTS[activeTask]
+    : '';
+const differsFromSeed =
+  seedBody.length > 0 && promptBody.trim() !== seedBody.trim();
+
+function taskHref(task: string) {
+  return `/admin/ai?task=${task}`;
+}
+---
+<AdminShell title="AI" section="ai" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav} userName={String(auth.user.name)} userEmail={String(auth.user.email)}>
+  <AdminBreadcrumb
+    items={[
+      { label: 'Ringkasan', href: '/admin' },
+      { label: 'AI' },
+    ]}
+  />
+
+  <div
+    class="mt-4 min-w-0 w-full"
+    data-admin-ai
+    data-prompt-max={String(MAX_PROMPT_CHARS)}
+    data-task-code={activeTask}
+    data-model-name={String(model.modelName ?? '')}
+    data-base-url={String(model.baseUrl ?? '')}
+  >
+    <h1 class="judul mt-2">AI & generasi konten</h1>
+      <p class="mt-2 text-sm text-tinta-lembut">
+        Instruksi model dan koneksi penyedia untuk setiap langkah generasi di produk.
+      </p>
+
+      <AdminAlert
+        tone="warning"
+        message="Perubahan di sini memengaruhi semua pengguna. Uji di staging sebelum produksi."
+      />
+      {message && <AdminAlert message={message} tone={messageTone} />}
+
+      <nav class="mt-6 flex flex-wrap gap-2" aria-label="Tugas AI" role="tablist">
+        {aiTasks.map((task) => (
+          <a
+            class:list={[
+              'inline-flex min-h-10 items-center rounded-kontrol px-4 text-sm font-medium transition-colors',
+              task === activeTask
+                ? 'bg-jalur-lembut text-jalur'
+                : 'border border-garis text-tinta-lembut hover:bg-kartu',
+            ]}
+            href={taskHref(task)}
+            role="tab"
+            aria-selected={task === activeTask}
+          >
+            {aiTaskLabels[task] ?? task}
+          </a>
+        ))}
+      </nav>
+
+      <div
+        class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-kontrol border border-garis bg-kertas/40 px-4 py-3 text-sm"
+        role="navigation"
+        aria-label="Terkait tugas ini"
+      >
+        <span class="text-xs font-semibold uppercase tracking-wider text-tinta-lembut">Terkait</span>
+        <a
+          class="text-jalur hover:underline"
+          href={`/admin/antrean?jobKind=${activeTask}&jobStatus=failed`}
+        >
+          Job gagal — {aiTaskLabels[activeTask]}
+        </a>
+        <span class="hidden text-tinta-lembut sm:inline" aria-hidden="true">·</span>
+        <a class="text-jalur hover:underline" href="/admin/konfigurasi">
+          {aiTaskCostHints[activeTask] ?? 'Biaya kredit'} (konfigurasi)
+        </a>
+        <span class="w-full min-[640px]:ml-auto min-[640px]:w-auto text-xs text-tinta-lembut sm:w-auto">
+          Kode tugas: <span class="font-mono text-tinta">{activeTask}</span>
+        </span>
+      </div>
+
+      <form class="mt-6 space-y-6" method="post" data-ai-form>
+        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        <input type="hidden" name="task" value={activeTask} />
+
+        <section class="rounded-kartu border border-garis bg-kartu p-5" aria-labelledby="prompt-heading">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 id="prompt-heading" class="text-lg font-semibold text-tinta">Instruksi (prompt)</h2>
+            {differsFromSeed && (
+              <AdminBadge tone="warning">Berbeda dari bawaan</AdminBadge>
+            )}
+            {!differsFromSeed && seedBody && (
+              <AdminBadge tone="success">Sama dengan bawaan</AdminBadge>
+            )}
+          </div>
+          <p class="mt-1 text-xs text-tinta-lembut">
+            Ditinjau model sebelum menghasilkan konten untuk {aiTaskLabels[activeTask] ?? activeTask}.
+          </p>
+          <label class="mt-4 block text-sm" for={`prompt-${activeTask}`}>
+            <span class="sr-only">Isi prompt</span>
+            <textarea
+              class="mt-2 min-h-48 w-full min-[768px]:min-h-[min(50vh,28rem)] rounded-kontrol border border-garis bg-kertas px-3 py-2 font-mono text-sm leading-relaxed"
+              id={`prompt-${activeTask}`}
+              name="body"
+              maxlength={MAX_PROMPT_CHARS}
+              data-prompt
+            >{promptBody}</textarea>
+          </label>
+          <p
+            class:list={['mt-2 text-xs tabular-nums', promptNearLimit ? 'text-bahaya' : 'text-tinta-lembut']}
+            data-prompt-count
+            aria-live="polite"
+          >
+            {promptLen.toLocaleString('id-ID')} / {MAX_PROMPT_CHARS.toLocaleString('id-ID')} karakter
+          </p>
+          {seedBody && (
+            <details class="mt-4 rounded-kontrol border border-garis bg-kertas/40 px-4 py-3" data-prompt-compare-details>
+              <summary class="cursor-pointer text-sm font-medium text-tinta">Bandingkan prompt bawaan</summary>
+              <p class="mt-2 text-xs text-tinta-lembut" data-prompt-diff-meta aria-live="polite"></p>
+              <div class="mt-3 grid gap-4">
+                <div class="min-w-0">
+                  <p class="text-xs font-semibold uppercase tracking-wide text-tinta-lembut">Saat ini</p>
+                  <pre
+                    class="mt-1 max-h-[min(40vh,20rem)] overflow-auto whitespace-pre-wrap rounded-kontrol border border-garis bg-kartu p-3 font-mono text-sm leading-relaxed text-tinta"
+                    data-prompt-mirror
+                  >{promptBody}</pre>
+                </div>
+                <div class="min-w-0 min-[1024px]:mt-0">
+                  <p class="text-xs font-semibold uppercase tracking-wide text-tinta-lembut">Bawaan</p>
+                  <pre
+                    class="mt-1 max-h-[min(40vh,20rem)] overflow-auto whitespace-pre-wrap rounded-kontrol border border-garis bg-kertas p-3 font-mono text-sm leading-relaxed text-tinta-lembut"
+                    data-prompt-seed
+                  >{seedBody}</pre>
+                </div>
+              </div>
+            </details>
+          )}
+          {seedBody && differsFromSeed && (
+            <div class="mt-5 flex flex-wrap items-center gap-3 border-t border-garis pt-5">
+              <button
+                class="min-h-10 rounded-kontrol border border-hangat/40 bg-kertas px-4 text-sm font-medium text-hangat hover:bg-hangat-lembut/30"
+                type="submit"
+                name="aksi"
+                value="reset-prompt"
+                data-confirm="Kembalikan prompt ke teks bawaan untuk tugas ini?"
+              >
+                Kembalikan prompt bawaan
+              </button>
+              <p class="text-xs text-tinta-lembut">Hanya prompt; pengaturan model tidak berubah.</p>
+            </div>
+          )}
+        </section>
+
+        <section class="rounded-kartu border border-garis bg-kartu p-5" aria-labelledby="model-heading">
+          <h2 id="model-heading" class="text-lg font-semibold text-tinta">Model</h2>
+          <div class="mt-4 grid gap-4 min-[640px]:grid-cols-2">
+            <label class="block text-sm min-[640px]:col-span-2">
+              <span class="font-medium">Nama model</span>
+              <input
+                class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-3"
+                name="modelName"
+                value={String(model.modelName ?? '')}
+                required
+              />
+            </label>
+            <label class="block text-sm">
+              <span class="font-medium">Token keluaran maks.</span>
+              <input
+                class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-3"
+                name="maxOutputTokens"
+                type="number"
+                min="1"
+                value={String(model.maxOutputTokens ?? '')}
+              />
+            </label>
+            <label class="block text-sm">
+              <span class="font-medium">Timeout (ms)</span>
+              <input
+                class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-3"
+                name="timeoutMs"
+                type="number"
+                min="1000"
+                value={String(model.timeoutMs ?? '')}
+              />
+            </label>
+          </div>
+
+          <details class="mt-4 rounded-kontrol border border-garis bg-kertas/40 px-4 py-3">
+            <summary class="cursor-pointer text-sm font-medium text-tinta">Pengaturan lanjutan</summary>
+            <div class="mt-4 grid gap-4 min-[640px]:grid-cols-2">
+              <label class="block text-sm min-[640px]:col-span-2">
+                <span class="font-medium">URL dasar API</span>
+                <span class="mt-0.5 block text-xs text-tinta-lembut">Endpoint kompatibel OpenAI, mis. Sumopod.</span>
+                <input
+                  class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-3 font-mono text-sm"
+                  name="baseUrl"
+                  autocomplete="off"
+                  value={String(model.baseUrl ?? '')}
+                />
+              </label>
+              <label class="block text-sm">
+                <span class="font-medium">Nama secret</span>
+                <span class="mt-0.5 block text-xs text-tinta-lembut">Binding di Workers, bukan nilai kunci.</span>
+                <input
+                  class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-3 font-mono text-sm"
+                  name="secretName"
+                  autocomplete="off"
+                  value={String(model.secretName ?? '')}
+                />
+              </label>
+              <label class="block text-sm">
+                <span class="font-medium">Jenis autentikasi</span>
+                <select class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-2" name="authKind">
+                  <option value="bearer" selected={model.authKind === 'bearer'}>Bearer token</option>
+                  <option value="workers_ai_binding" selected={model.authKind === 'workers_ai_binding'}>
+                    Workers AI binding
+                  </option>
+                </select>
+              </label>
+            </div>
+          </details>
+        </section>
+
+        <button
+          class="min-h-11 w-full min-[640px]:w-auto rounded-kontrol bg-jalur px-8 text-sm font-semibold text-white"
+          type="submit"
+          name="aksi"
+          value="ai-task"
+        >
+          Simpan untuk {aiTaskLabels[activeTask] ?? activeTask}
+        </button>
+      </form>
+
+      <dialog
+        class="w-[min(100%,28rem)] rounded-kartu border border-garis bg-kartu p-0 shadow-lg backdrop:bg-tinta/40"
+        data-ai-confirm-dialog
+        aria-labelledby="ai-confirm-title"
+      >
+        <form method="dialog" class="p-5">
+          <h2 id="ai-confirm-title" class="text-lg font-semibold text-tinta">
+            Konfirmasi perubahan model
+          </h2>
+          <p class="mt-2 text-sm text-tinta-lembut">
+            Nama model atau URL dasar berubah. Ketik kode tugas{' '}
+            <span class="font-mono font-medium text-tinta">{activeTask}</span>{' '}
+            untuk melanjutkan.
+          </p>
+          <label class="mt-4 block text-sm" for="ai-confirm-input">
+            <span class="font-medium">Kode tugas</span>
+            <input
+              class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-3 font-mono text-sm"
+              id="ai-confirm-input"
+              type="text"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              data-ai-confirm-input
+            />
+          </label>
+          <p class="mt-2 text-xs text-bahaya" data-ai-confirm-hint>
+            Kode harus sama persis (mis. {activeTask}).
+          </p>
+          <div class="mt-5 flex flex-wrap justify-end gap-2">
+            <button
+              class="min-h-10 rounded-kontrol border border-garis px-4 text-sm"
+              type="submit"
+              value="cancel"
+            >
+              Batal
+            </button>
+            <button
+              class="min-h-10 rounded-kontrol bg-bahaya px-4 text-sm font-semibold text-white disabled:opacity-50"
+              type="button"
+              data-ai-confirm-go
+              disabled
+            >
+              Simpan perubahan
+            </button>
+          </div>
+        </form>
+      </dialog>
+  </div>
+  <script src="/scripts/admin-ai.js" defer></script>
+</AdminShell>

@@ -1,13 +1,13 @@
 import { handle } from '@astrojs/cloudflare/handler';
 import entry from './entry';
 import type { GenerationMessage } from './server/generation';
-import { withSecurityHeaders } from './server/security';
+import { withApiSecurityHeaders, withSecurityHeaders } from './server/security';
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const url = new URL(request.url);
     if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
-      return entry.fetch(request, env, ctx);
+      return withApiSecurityHeaders(await entry.fetch(request, env, ctx));
     }
     const fileName = url.pathname.split('/').pop() ?? '';
     if (fileName.includes('.')) {
@@ -19,7 +19,7 @@ export default {
       }
     }
     const response = await handle(request, env, ctx);
-    return withSecurityHeaders(response);
+    return withSecurityHeaders(response, request, env);
   },
   queue: entry.queue,
 } satisfies ExportedHandler<Env, GenerationMessage>;

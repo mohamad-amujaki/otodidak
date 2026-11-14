@@ -1,0 +1,176 @@
+---
+import { env } from 'cloudflare:workers';
+import AdminPagination from '../../components/AdminPagination.astro';
+import AdminShell from '../../components/AdminShell.astro';
+import AdminAlert from '../../components/admin/AdminAlert.astro';
+import AdminBadge from '../../components/admin/AdminBadge.astro';
+import AdminEmptyState from '../../components/admin/AdminEmptyState.astro';
+import AdminRow from '../../components/admin/AdminRow.astro';
+import AdminTable from '../../components/admin/AdminTable.astro';
+import { jobKindLabels, jobStatusLabels } from '../../domain/admin-labels';
+import { formatWhenShort } from '../../domain/format';
+import { isRecord } from '../../domain/guard';
+import { runAdminAction } from '../../server/admin-actions';
+import { listAdminJobs } from '../../server/admin-data';
+import { requireAdmin } from '../../server/admin-guard';
+
+const auth = await requireAdmin(Astro.request, { nav: true });
+if ('redirect' in auth) return Astro.redirect(auth.redirect);
+
+let message = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+    message = 'Muat ulang halaman, lalu kirim lagi.';
+  else
+    message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
+}
+
+const offset = Number(Astro.url.searchParams.get('offset') ?? 0);
+const limit = Number(Astro.url.searchParams.get('limit') ?? 20);
+const jobStatus = Astro.url.searchParams.get('jobStatus') ?? '';
+const jobKind = Astro.url.searchParams.get('jobKind') ?? '';
+const params = new URLSearchParams({
+  limit: String(limit),
+  offset: String(offset),
+});
+if (jobStatus) params.set('jobStatus', jobStatus);
+if (jobKind) params.set('jobKind', jobKind);
+
+const listUrl = new URL('/admin/antrean', Astro.url);
+for (const [key, value] of params.entries())
+  listUrl.searchParams.set(key, value);
+const jobsData = await listAdminJobs(auth.session.db, listUrl.toString());
+const jobs = Array.isArray(jobsData.jobs) ? jobsData.jobs.filter(isRecord) : [];
+const total = typeof jobsData.total === 'number' ? jobsData.total : jobs.length;
+const extraParams: Record<string, string> = {};
+if (jobStatus) extraParams.jobStatus = jobStatus;
+if (jobKind) extraParams.jobKind = jobKind;
+
+function jobStatusTone(status: string) {
+  if (status === 'failed') return 'danger';
+  if (status === 'running' || status === 'queued') return 'warning';
+  if (status === 'succeeded') return 'success';
+  return 'neutral';
+}
+---
+<AdminShell title="Antrean" section="antrean" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav} userName={String(auth.user.name)} userEmail={String(auth.user.email)}>
+  <h1 class="judul">Antrean generasi</h1>
+  <p class="mt-2 text-sm text-tinta-lembut">Job roadmap, pelajaran, dan kuis · {total} total</p>
+  {message && (
+    <AdminAlert
+      tone={message.includes('gagal') || message.includes('habis') || message.includes('valid') ? 'danger' : 'success'}
+      message={message}
+    />
+  )}
+
+  <nav class="mt-4 flex flex-wrap gap-2" aria-label="Filter cepat">
+    <a
+      class:list={[
+        'inline-flex min-h-9 items-center rounded-kontrol px-3 text-sm font-medium',
+        !jobStatus && !jobKind ? 'bg-jalur-lembut text-jalur' : 'border border-garis text-tinta-lembut hover:bg-kartu',
+      ]}
+      href="/admin/antrean"
+    >
+      Semua
+    </a>
+    <a
+      class:list={[
+        'inline-flex min-h-9 items-center gap-1.5 rounded-kontrol px-3 text-sm font-medium',
+        jobStatus === 'failed' ? 'border border-bahaya/40 bg-bahaya/10 text-bahaya' : 'border border-garis text-tinta hover:bg-kartu',
+      ]}
+      href="/admin/antrean?jobStatus=failed"
+    >
+      Gagal
+      {auth.nav.jobsFailed > 0 && (
+        <span class="rounded-full bg-bahaya/15 px-1.5 text-[11px] font-semibold tabular-nums">{auth.nav.jobsFailed}</span>
+      )}
+    </a>
+    <a
+      class:list={[
+        'inline-flex min-h-9 items-center rounded-kontrol px-3 text-sm font-medium',
+        jobStatus === 'queued' ? 'bg-hangat-lembut text-hangat' : 'border border-garis text-tinta-lembut hover:bg-kartu',
+      ]}
+      href="/admin/antrean?jobStatus=queued"
+    >
+      Antrean
+    </a>
+    <a
+      class:list={[
+        'inline-flex min-h-9 items-center rounded-kontrol px-3 text-sm font-medium',
+        jobStatus === 'running' ? 'bg-hangat-lembut text-hangat' : 'border border-garis text-tinta-lembut hover:bg-kartu',
+      ]}
+      href="/admin/antrean?jobStatus=running"
+    >
+      Berjalan
+    </a>
+  </nav>
+
+  <form method="get" class="mt-6 flex flex-wrap items-end gap-2">
+    <label class="text-sm">
+      <span class="font-medium">Status</span>
+      <select class="mt-1 min-h-10 rounded-kontrol border border-garis bg-kartu px-2" name="jobStatus">
+        <option value="">Semua</option>
+        {Object.entries(jobStatusLabels).map(([value, label]) => (
+          <option value={value} selected={jobStatus === value}>{label}</option>
+        ))}
+      </select>
+    </label>
+    <label class="text-sm">
+      <span class="font-medium">Jenis</span>
+      <select class="mt-1 min-h-10 rounded-kontrol border border-garis bg-kartu px-2" name="jobKind">
+        <option value="">Semua</option>
+        {Object.entries(jobKindLabels).map(([value, label]) => (
+          <option value={value} selected={jobKind === value}>{label}</option>
+        ))}
+      </select>
+    </label>
+    <button class="min-h-10 rounded-kontrol border border-garis bg-kartu px-4 text-sm" type="submit">Terapkan</button>
+  </form>
+
+  {jobs.length === 0 ? (
+    <AdminEmptyState message="Tidak ada job untuk filter ini." resetHref="/admin/antrean" />
+  ) : (
+    <AdminTable
+      class="mt-6 text-sm"
+      columns={[
+        { label: 'Status' },
+        { label: 'Jenis' },
+        { label: 'Pengguna' },
+        { label: 'Percobaan' },
+        { label: 'Waktu' },
+      ]}
+      grid="min-[1024px]:grid-cols-[5.5rem_5.5rem_minmax(0,1fr)_5rem_8rem] min-[1024px]:gap-4"
+    >
+      {jobs.map((job) => {
+        const status = String(job.status);
+        return (
+          <AdminRow
+            grid="min-[1024px]:grid-cols-[5.5rem_5.5rem_minmax(0,1fr)_5rem_8rem] min-[1024px]:gap-4"
+            danger={status === 'failed'}
+          >
+            <AdminBadge tone={jobStatusTone(status)}>{jobStatusLabels[status] ?? status}</AdminBadge>
+            <span class="text-tinta-lembut">{jobKindLabels[String(job.kind)] ?? job.kind}</span>
+            <div class="min-w-0">
+              <a class="font-medium text-jalur hover:underline" href={`/admin/pengguna/${String(job.userId)}`}>
+                {job.userEmail}
+              </a>
+              {job.errorCode && <p class="text-xs text-bahaya">{job.errorCode}</p>}
+            </div>
+            <span class="tabular-nums text-tinta-lembut">{job.attempts}×</span>
+            <span class="text-xs text-tinta-lembut">{formatWhenShort(String(job.createdAt ?? ''))}</span>
+          </AdminRow>
+        );
+      })}
+    </AdminTable>
+  )}
+
+  <AdminPagination
+    offset={offset}
+    limit={limit}
+    count={jobs.length}
+    total={total}
+    baseUrl="/admin/antrean"
+    extraParams={extraParams}
+  />
+</AdminShell>

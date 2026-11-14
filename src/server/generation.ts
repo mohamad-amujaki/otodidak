@@ -1,10 +1,12 @@
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import {
   completeJson,
   loadModel,
   ModelError,
   parseModelOutput,
+  parseOutlineLessonOutput,
 } from '../ai/generate';
+import { generatorTools } from '../ai/tools';
 import {
   debitIfEnough,
   findLedgerByKey,
@@ -28,21 +30,28 @@ import {
 } from '../db/schema';
 import {
   JOB_LOCK_TTL_SECONDS,
-  MAX_WEB_SOURCES,
+  MAX_LESSON_SOURCES,
   QUEUE_MAX_ATTEMPTS,
   QUIZ_SNIPPET_CHARS,
 } from '../domain/defaults';
 import { AppError } from '../domain/errors';
+import {
+  auditLessonQuality,
+  overlapRatio,
+  repeatedSentences,
+} from '../domain/lesson-quality';
+import { SEED_PROMPTS } from '../domain/prompts';
 import type {
   LessonOutput,
   QuizOutput,
   RoadmapOutput,
 } from '../domain/schemas';
 import { nowIso } from '../domain/time';
-import { searchWeb, searchYouTube } from '../sources/search';
+import { searchYouTube } from '../sources/search';
 import { database, loadConfig, requireActiveJobClear } from './account';
+import { recordAdminAudit } from './admin-audit';
 import { logEvent } from './log';
-import { allowGenerateIp, jobsWithinLimit, recordJob } from './rate';
+import { allowGenerateIp, assertUserGenerationRate } from './rate';
 
 export type GenerationMessage = { jobId: string };
 
@@ -112,9 +121,19 @@ export async function processGeneration(
       );
     else if (job.kind === 'lesson') await writeLesson(env, db, job.refId);
     else await writeQuiz(env, db, job.refId, config.quizQuestionCount);
+    const promptRow = await db
+      .select({ version: promptTemplates.version })
+      .from(promptTemplates)
+      .where(eq(promptTemplates.task, job.kind))
+      .limit(1);
     await db
       .update(generationJobs)
-      .set({ status: 'succeeded', errorCode: null, finishedAt: nowIso() })
+      .set({
+        status: 'succeeded',
+        errorCode: null,
+        finishedAt: nowIso(),
+        promptVersion: promptRow[0]?.version ?? null,
+      })
       .where(eq(generationJobs.id, job.id));
     await env.APP_KV.delete(lockKey(job.userId));
     logEvent({
@@ -127,6 +146,8 @@ export async function processGeneration(
   } catch (error) {
     const errorCode =
       error instanceof ModelError ? error.errorCode : 'provider_timeout';
+    const invalidOutput =
+      error instanceof ModelError && error.errorCode === 'invalid_output';
     logEvent({
       message: 'generation_failed',
       jobId: job.id,
@@ -134,7 +155,8 @@ export async function processGeneration(
       errorCode,
       status: String(attempt),
     });
-    if (attempt >= QUEUE_MAX_ATTEMPTS) {
+    // Output invalid tidak akan membaik dengan input yang sama: gagal cepat.
+    if (invalidOutput || attempt >= QUEUE_MAX_ATTEMPTS) {
       await refundJob(env, db, job);
       return 'ack';
     }
@@ -231,6 +253,127 @@ export async function openLesson(
   return { ready: false as const, jobId, lessonId };
 }
 
+export async function suggestChapterLesson(
+  env: Env,
+  request: Request,
+  user: UserRow,
+  chapterId: string,
+): Promise<{ lessonId: string; title: string; objective: string }> {
+  const db = await database(env);
+  const chapter = await ownedChapter(db, user.id, chapterId);
+  if (!chapter) throw new AppError('not_found');
+  const pathRows = await db
+    .select()
+    .from(paths)
+    .where(eq(paths.id, chapter.pathId))
+    .limit(1);
+  const path = pathRows[0];
+  if (path?.status !== 'ready') {
+    throw new AppError('validation', 'Jalur belum siap untuk disunting.');
+  }
+  const config = await loadConfig(db);
+  const existing = await db
+    .select({
+      title: lessons.title,
+      objective: lessons.objective,
+      position: lessons.position,
+    })
+    .from(lessons)
+    .where(eq(lessons.chapterId, chapterId))
+    .orderBy(asc(lessons.position));
+  if (existing.length >= config.maxLessonsPerChapter) {
+    throw new AppError(
+      'validation',
+      'Batas pelajaran pada bab ini sudah tercapai.',
+    );
+  }
+  if (user.status === 'suspended') throw new AppError('account_suspended');
+  if (!(await allowGenerateIp(env.APP_KV, request)))
+    throw new AppError('rate_limited');
+  await assertUserGenerationRate(db, user.id);
+  await requireActiveJobClear(db, user.id);
+
+  const attemptId = crypto.randomUUID();
+  const cost = config.costQuiz;
+  const debited = await debitIfEnough(db, {
+    userId: user.id,
+    amount: -cost,
+    reason: 'outline',
+    refType: 'outline-lesson',
+    refId: attemptId,
+    idempotencyKey: `outline-lesson:${attemptId}`,
+    note: chapter.title,
+  });
+  if (debited === 'insufficient') throw new AppError('insufficient_credits');
+  if (debited === 'duplicate') throw new AppError('generation_in_progress');
+
+  const modelInput = {
+    mode: 'outline' as const,
+    pathTitle: path.title,
+    topic: path.topic,
+    chapterTitle: chapter.title,
+    chapterSummary: chapter.summary,
+    existingLessons: existing.map((lesson) => ({
+      title: lesson.title,
+      objective: lesson.objective,
+    })),
+  };
+
+  let outline: { title: string; objective: string };
+  try {
+    const model = await loadModel(db, 'lesson', SEED_PROMPTS.outlineLesson);
+    const raw = await completeJson(env, model, modelInput, 'lesson', {
+      temperature: 0.2,
+      tool: generatorTools.outlineLesson,
+    });
+    outline = parseOutlineLessonOutput(raw);
+  } catch (error) {
+    await insertLedger(db, {
+      userId: user.id,
+      amount: cost,
+      reason: 'refund',
+      refType: 'outline-lesson',
+      refId: attemptId,
+      idempotencyKey: `refund:outline-lesson:${attemptId}`,
+    });
+    logEvent({
+      message: 'outline_lesson_failed',
+      userId: user.id,
+      errorCode:
+        error instanceof ModelError ? error.errorCode : 'generation_failed',
+    });
+    throw new AppError('generation_failed');
+  }
+
+  const lessonId = crypto.randomUUID();
+  const now = nowIso();
+  try {
+    await db.insert(lessons).values({
+      id: lessonId,
+      chapterId,
+      position: existing.length,
+      title: outline.title.trim(),
+      objective: outline.objective.trim(),
+      body: null,
+      status: 'outline',
+      completedAt: null,
+      createdAt: now,
+    });
+    await db.update(paths).set({ updatedAt: now }).where(eq(paths.id, path.id));
+  } catch {
+    await insertLedger(db, {
+      userId: user.id,
+      amount: cost,
+      reason: 'refund',
+      refType: 'outline-lesson',
+      refId: attemptId,
+      idempotencyKey: `refund:outline-lesson:${attemptId}`,
+    });
+    throw new AppError('generation_failed');
+  }
+  return { lessonId, title: outline.title, objective: outline.objective };
+}
+
 export async function startQuiz(
   env: Env,
   request: Request,
@@ -286,8 +429,7 @@ async function beginJob(
   if (user.status === 'suspended') throw new AppError('account_suspended');
   if (!(await allowGenerateIp(env.APP_KV, request)))
     throw new AppError('rate_limited');
-  if (!(await jobsWithinLimit(env.APP_KV, user.id)))
-    throw new AppError('rate_limited');
+  await assertUserGenerationRate(db, user.id);
   await clearStaleLock(env, db, user.id);
   await requireActiveJobClear(db, user.id);
   const debited = await debitIfEnough(db, {
@@ -322,7 +464,6 @@ async function beginJob(
     });
     throw new AppError('generation_in_progress');
   }
-  await recordJob(env.APP_KV, user.id);
   await env.APP_KV.put(lockKey(user.id), input.jobId, {
     expirationTtl: JOB_LOCK_TTL_SECONDS,
   });
@@ -376,24 +517,13 @@ async function writeRoadmap(
     }))
     .filter((chapter) => chapter.lessons.length > 0);
   if (trimmed.length === 0) throw new ModelError('invalid_output');
-  const active = await db
-    .select({ id: paths.id })
-    .from(paths)
-    .where(
-      and(
-        eq(paths.userId, userId),
-        eq(paths.isActive, 1),
-        eq(paths.status, 'ready'),
-      ),
-    )
-    .limit(1);
   const now = nowIso();
   await db
     .update(paths)
     .set({
       title: output.title,
       status: 'ready',
-      isActive: active[0] ? 0 : 1,
+      isActive: 0,
       updatedAt: now,
     })
     .where(eq(paths.id, pathId));
@@ -430,71 +560,93 @@ async function writeLesson(
 ): Promise<void> {
   const context = await lessonContext(db, lessonId);
   if (!context) throw new ModelError('invalid_output');
-  const output = await runModel(env, db, 'lesson', {
+  const input = {
     pathTitle: context.pathTitle,
     topic: context.topic,
     chapterTitle: context.chapterTitle,
+    chapterSummary: context.chapterSummary,
     title: context.title,
     objective: context.objective,
+    previousLessons: context.previousLessons,
+    recentTakeaways: context.recentTakeaways,
     neighbors: context.neighbors,
-  });
+    position: context.position,
+    assumed: context.assumed,
+    concepts: context.concepts,
+    runningCase: context.runningCase,
+    callback: context.callback,
+    nextTeaser: context.nextTeaser,
+  };
+  let output = await runModel(env, db, 'lesson', input);
   if (!isLesson(output)) throw new ModelError('invalid_output');
   if (output.markdown.length > 100_000) throw new ModelError('invalid_output');
-  const claims = output.claims.slice(0, 8);
+
+  // Anti-pengulangan: satu percobaan perbaikan bila terlalu mirip pelajaran lain.
+  const repeated = repeatedSentences(output.markdown, context.earlierBodies);
+  const overlap = overlapRatio(output.markdown, context.earlierBodies);
+  if (repeated.length > 0 || overlap > 0.25) {
+    logEvent({
+      message: 'lesson_overlap',
+      status: 'warn',
+      errorCode: `overlap=${overlap.toFixed(2)} duplikat=${repeated.length}`,
+    });
+    const revised = await runModel(env, db, 'lesson', {
+      ...input,
+      revision: {
+        avoid: repeated.slice(0, 5),
+        note: 'Tulis ulang tanpa mengulang kalimat tersebut dan tanpa mendefinisikan ulang istilah yang sudah ada di concepts.',
+      },
+    });
+    if (isLesson(revised)) output = revised;
+  }
   const sources: {
     id: string;
     kind: 'web' | 'youtube';
     url: string;
     title: string;
   }[] = [];
-  const claimRows: {
-    quote: string;
-    unsourced: number;
-    sourceId: string | null;
-  }[] = [];
-  let searchFailed = false;
-  for (const [index, claim] of claims.entries()) {
-    if (searchFailed || index >= MAX_WEB_SOURCES) {
-      claimRows.push({ quote: claim.quote, unsourced: 1, sourceId: null });
+  const idMap = new Map<string, string>();
+  for (const source of output.sources) {
+    if (sources.length >= MAX_LESSON_SOURCES) break;
+    const existing = sources.find((item) => item.url === source.url);
+    if (existing) {
+      idMap.set(source.id, existing.id);
       continue;
     }
-    try {
-      const hits = await searchWeb(env, db, claim.search_query);
-      const hit = hits.find((item) => item.url.startsWith('https://'));
-      if (
-        hit &&
-        sources.filter((item) => item.kind === 'web').length < MAX_WEB_SOURCES
-      ) {
-        const sourceId = crypto.randomUUID();
-        sources.push({
-          id: sourceId,
-          kind: 'web',
-          url: hit.url,
-          title: hit.title,
-        });
-        claimRows.push({ quote: claim.quote, unsourced: 0, sourceId });
-      } else {
-        claimRows.push({ quote: claim.quote, unsourced: 1, sourceId: null });
-      }
-    } catch {
-      searchFailed = true;
-      claimRows.push({ quote: claim.quote, unsourced: 1, sourceId: null });
-    }
+    const sourceId = crypto.randomUUID();
+    idMap.set(source.id, sourceId);
+    sources.push({
+      id: sourceId,
+      kind: source.kind === 'video' ? 'youtube' : 'web',
+      url: source.url,
+      title: source.title,
+    });
   }
-  if (searchFailed) {
-    for (const row of claimRows) {
-      row.unsourced = 1;
-      row.sourceId = null;
-    }
-    sources.splice(0, sources.length);
-  }
+  let markdown = output.markdown.replace(
+    /\[\[([A-Za-z0-9_-]{1,64})\]\]/g,
+    (_whole, modelId: string) => {
+      const mapped = idMap.get(modelId);
+      return mapped ? `[[${mapped}]]` : '';
+    },
+  );
+  const uncited = sources.filter(
+    (source) => !markdown.includes(`[[${source.id}]]`),
+  );
+  if (uncited.length > 0)
+    markdown = `${markdown.trimEnd()} ${uncited
+      .map((source) => `[[${source.id}]]`)
+      .join(' ')}`;
   try {
     const video = await searchYouTube(
       env,
       db,
       `${context.title} ${context.topic}`,
     );
-    if (video?.url.startsWith('https://'))
+    if (
+      video?.url.startsWith('https://') &&
+      sources.length < MAX_LESSON_SOURCES &&
+      !sources.some((item) => item.url === video.url)
+    )
       sources.push({
         id: crypto.randomUUID(),
         kind: 'youtube',
@@ -509,19 +661,35 @@ async function writeLesson(
   for (const [position, source] of sources.entries()) {
     await db.insert(lessonSources).values({ ...source, lessonId, position });
   }
-  for (const claim of claimRows) {
-    await db.insert(lessonClaims).values({
-      id: crypto.randomUUID(),
-      lessonId,
-      quote: claim.quote,
-      unsourced: claim.unsourced,
-      sourceId: claim.sourceId,
+  const quality = auditLessonQuality(markdown);
+  if (quality.issues.length > 0)
+    logEvent({
+      message: 'lesson_quality',
+      status: 'warn',
+      errorCode: quality.issues.join(' | ').slice(0, 180),
     });
-  }
   await db
     .update(lessons)
-    .set({ body: output.markdown, status: 'ready' })
+    .set({
+      body: markdown,
+      status: 'ready',
+      adds: output.adds ?? null,
+      conceptsJson:
+        output.concepts && output.concepts.length > 0
+          ? JSON.stringify(output.concepts)
+          : null,
+      diagramsJson:
+        output.diagrams && output.diagrams.length > 0
+          ? JSON.stringify(output.diagrams)
+          : null,
+    })
     .where(eq(lessons.id, lessonId));
+
+  if (!context.runningCase && output.case)
+    await db
+      .update(chapters)
+      .set({ caseJson: JSON.stringify(output.case) })
+      .where(eq(chapters.id, context.chapterId));
 }
 
 async function writeQuiz(
@@ -614,7 +782,9 @@ async function runModel(
   const prompt = prompts[0]?.body;
   if (!prompt) throw new ModelError('invalid_output');
   const model = await loadModel(db, task, prompt);
-  const raw = await completeJson(env, model, input, task);
+  const raw = await completeJson(env, model, input, task, {
+    tool: generatorTools[task],
+  });
   return parseModelOutput(task, raw);
 }
 
@@ -662,7 +832,14 @@ async function lessonContext(db: Database, lessonId: string) {
     .select()
     .from(chapters)
     .where(eq(chapters.pathId, path.id));
-  const ordered: { title: string }[] = [];
+  const ordered: {
+    id: string;
+    chapterId: string;
+    title: string;
+    objective: string;
+    body: string | null;
+    conceptsJson: string | null;
+  }[] = [];
   const sortedChapters = [...chapterRowsAll].sort(
     (left, right) => left.position - right.position,
   );
@@ -674,21 +851,127 @@ async function lessonContext(db: Database, lessonId: string) {
     for (const entry of [...chapterLessons].sort(
       (left, right) => left.position - right.position,
     ))
-      ordered.push({ title: entry.title });
+      ordered.push({
+        id: entry.id,
+        chapterId: item.id,
+        title: entry.title,
+        objective: entry.objective,
+        body: entry.body ?? null,
+        conceptsJson: entry.conceptsJson ?? null,
+      });
   }
-  const index = ordered.findIndex((item) => item.title === lesson.title);
-  const neighbors = [
-    ordered[index - 1]?.title,
-    ordered[index + 1]?.title,
-  ].filter((item): item is string => Boolean(item));
+  const index = ordered.findIndex((item) => item.id === lessonId);
+  const earlier = index > 0 ? ordered.slice(0, index) : [];
+  const previous = index > 0 ? ordered[index - 1] : undefined;
+  const next = index >= 0 ? ordered[index + 1] : undefined;
+  const chapterLessons = ordered.filter(
+    (item) => item.chapterId === lesson.chapterId,
+  );
+  const positionInChapter = chapterLessons.findIndex(
+    (item) => item.id === lessonId,
+  );
+  const concepts = new Map<string, string>();
+  for (const item of earlier) {
+    for (const concept of parseConcepts(item.conceptsJson)) {
+      if (!concepts.has(concept.term))
+        concepts.set(concept.term, concept.gloss);
+    }
+  }
   return {
+    chapterId: chapter.id,
     pathTitle: path.title,
     topic: path.topic,
     chapterTitle: chapter.title,
+    chapterSummary: chapter.summary,
     title: lesson.title,
     objective: lesson.objective,
-    neighbors,
+    previousLessons: earlier.slice(-6).map((item) => item.title),
+    recentTakeaways: earlier
+      .slice(-3)
+      .map((item) => takeawayOf(item.body))
+      .filter((item): item is string => Boolean(item)),
+    neighbors: [previous?.title, next?.title].filter((item): item is string =>
+      Boolean(item),
+    ),
+    position: {
+      index: positionInChapter + 1,
+      of: chapterLessons.length,
+    },
+    assumed: chapterLessons
+      .slice(0, Math.max(positionInChapter, 0))
+      .slice(-4)
+      .map((item) => item.objective),
+    concepts: [...concepts.entries()]
+      .slice(-10)
+      .map(([term, gloss]) => ({ term, gloss })),
+    runningCase: parseCase(chapter.caseJson),
+    callback: takeawayOf(previous?.body ?? null),
+    nextTeaser: next?.objective ?? null,
+    earlierBodies: earlier
+      .slice(-2)
+      .map((item) => item.body ?? '')
+      .filter(Boolean),
   };
+}
+
+function parseConcepts(
+  value: string | null,
+): { term: string; gloss: string }[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (item): item is { term: string; gloss: string } =>
+          Boolean(item) &&
+          typeof item === 'object' &&
+          typeof (item as { term?: unknown }).term === 'string' &&
+          typeof (item as { gloss?: unknown }).gloss === 'string',
+      )
+      .map((item) => ({ term: item.term, gloss: item.gloss }));
+  } catch {
+    return [];
+  }
+}
+
+function parseCase(value: string | null): Record<string, string> | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+      return null;
+    const caseValue = parsed as Record<string, unknown>;
+    if (typeof caseValue.role !== 'string') return null;
+    return Object.fromEntries(
+      Object.entries(caseValue).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string',
+      ),
+    );
+  } catch {
+    return null;
+  }
+}
+
+function takeawayOf(body: string | null): string | null {
+  if (!body) return null;
+  const marked = body.match(/\*\*Inti pelajaran:\*\*\s*([\s\S]+)/i);
+  const source = (marked?.[1] ?? body).trim();
+  const paragraph =
+    source
+      .split(/\n{2,}/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .pop() ?? '';
+  const clean = paragraph.replace(/\s+/g, ' ').trim();
+  if (!clean) return null;
+  const cut = clean.slice(0, 300);
+  const boundary = Math.max(
+    cut.lastIndexOf('. '),
+    cut.lastIndexOf('? '),
+    cut.lastIndexOf('! '),
+  );
+  return (boundary > 60 ? cut.slice(0, boundary + 1) : cut).trim();
 }
 
 async function ownedLesson(db: Database, userId: string, lessonId: string) {
@@ -734,7 +1017,7 @@ async function ownedChapter(db: Database, userId: string, chapterId: string) {
 
 async function hasRefund(db: Database, lessonId: string): Promise<boolean> {
   const jobs = await db
-    .select()
+    .select({ id: generationJobs.id })
     .from(generationJobs)
     .where(
       and(
@@ -743,11 +1026,39 @@ async function hasRefund(db: Database, lessonId: string): Promise<boolean> {
         eq(generationJobs.status, 'failed'),
       ),
     );
-  for (const job of jobs) {
-    const refund = await findLedgerByKey(db, `refund:${job.id}`);
-    if (refund) return true;
+  if (jobs.length === 0) return false;
+  const refunds = await db
+    .select({ id: creditLedger.id })
+    .from(creditLedger)
+    .where(
+      and(
+        inArray(
+          creditLedger.refId,
+          jobs.map((job) => job.id),
+        ),
+        eq(creditLedger.reason, 'refund'),
+      ),
+    )
+    .limit(1);
+  return refunds.length > 0;
+}
+
+/** Total debit/refund job ini, supaya setiap debit baru bisa dikembalikan sendiri. */
+async function jobRefundState(
+  db: Database,
+  jobId: string,
+): Promise<{ owed: number; debited: number }> {
+  const rows = await db
+    .select({ amount: creditLedger.amount, reason: creditLedger.reason })
+    .from(creditLedger)
+    .where(eq(creditLedger.refId, jobId));
+  let debited = 0;
+  let refunded = 0;
+  for (const row of rows) {
+    if (row.amount < 0) debited += -row.amount;
+    else if (row.reason === 'refund') refunded += row.amount;
   }
-  return false;
+  return { owed: Math.max(0, debited - refunded), debited };
 }
 
 async function refundById(env: Env, jobId: string): Promise<void> {
@@ -767,21 +1078,15 @@ export async function refundJob(
   db: Database,
   job: { id: string; userId: string; kind: GenerationKind; refId: string },
 ): Promise<void> {
-  const debits = await db
-    .select()
-    .from(creditLedger)
-    .where(
-      and(eq(creditLedger.refId, job.id), eq(creditLedger.reason, job.kind)),
-    );
-  const debit = debits.find((row) => row.amount < 0);
-  if (debit) {
+  const { owed, debited } = await jobRefundState(db, job.id);
+  if (owed > 0) {
     await insertLedger(db, {
       userId: job.userId,
-      amount: Math.abs(debit.amount),
+      amount: owed,
       reason: 'refund',
       refType: 'job',
       refId: job.id,
-      idempotencyKey: `refund:${job.id}`,
+      idempotencyKey: `refund:${job.id}:${debited}`,
     });
   }
   await db
@@ -829,6 +1134,84 @@ async function clearStaleLock(
     return;
   }
   await env.APP_KV.delete(lockKey(userId));
+}
+
+export async function adminRequeueGenerationJob(
+  env: Env,
+  db: Database,
+  jobId: string,
+  actor: UserRow,
+): Promise<void> {
+  const rows = await db
+    .select()
+    .from(generationJobs)
+    .where(eq(generationJobs.id, jobId))
+    .limit(1);
+  const job = rows[0];
+  if (job?.status !== 'failed') throw new AppError('validation');
+  await clearStaleLock(env, db, job.userId);
+  await requireActiveJobClear(db, job.userId);
+
+  if (job.errorCode === 'refunded') {
+    const config = await loadConfig(db);
+    const cost =
+      job.kind === 'roadmap'
+        ? config.costRoadmap
+        : job.kind === 'lesson'
+          ? config.costLesson
+          : config.costQuiz;
+    const reason: 'roadmap' | 'lesson' | 'quiz' =
+      job.kind === 'roadmap'
+        ? 'roadmap'
+        : job.kind === 'lesson'
+          ? 'lesson'
+          : 'quiz';
+    const prior = await db.get<{ n: number }>(sql`
+      select count(*) as n from credit_ledger
+      where ref_id = ${job.id} and idempotency_key like 'admin-requeue:%'
+    `);
+    const attempt = Number(prior?.n ?? 0) + 1;
+    const debited = await debitIfEnough(db, {
+      userId: job.userId,
+      amount: -cost,
+      reason,
+      refType: 'job',
+      refId: job.id,
+      idempotencyKey: `admin-requeue:${job.id}:${attempt}`,
+    });
+    if (debited === 'insufficient') throw new AppError('insufficient_credits');
+  }
+
+  await db
+    .update(generationJobs)
+    .set({
+      status: 'queued',
+      errorCode: null,
+      attempts: 0,
+      startedAt: null,
+      finishedAt: null,
+    })
+    .where(eq(generationJobs.id, job.id));
+  await env.APP_KV.put(lockKey(job.userId), job.id, {
+    expirationTtl: JOB_LOCK_TTL_SECONDS,
+  });
+  await enqueue(env, db, {
+    id: job.id,
+    userId: job.userId,
+    kind: job.kind,
+    refId: job.refId,
+  });
+  await recordAdminAudit(db, {
+    actorId: actor.id,
+    action: 'job_requeue',
+    targetId: job.id,
+    detail: `pemilik ${job.userId}`,
+  });
+  logEvent({
+    message: 'admin_job_requeued',
+    jobId: job.id,
+    userId: job.userId,
+  });
 }
 
 function lockKey(userId: string): string {

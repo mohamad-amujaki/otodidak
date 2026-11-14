@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import {
   chapters,
@@ -60,14 +60,14 @@ export async function saveOutline(
     .select()
     .from(chapters)
     .where(eq(chapters.pathId, pathId));
-  const existingLessons = [];
-  for (const chapter of existingChapters) {
-    const rows = await db
-      .select()
-      .from(lessons)
-      .where(eq(lessons.chapterId, chapter.id));
-    existingLessons.push(...rows);
-  }
+  const chapterIds = existingChapters.map((chapter) => chapter.id);
+  const existingLessons =
+    chapterIds.length > 0
+      ? await db
+          .select()
+          .from(lessons)
+          .where(inArray(lessons.chapterId, chapterIds))
+      : [];
   const knownChapters = new Set(existingChapters.map((chapter) => chapter.id));
   const knownLessons = new Map(
     existingLessons.map((lesson) => [lesson.id, lesson]),

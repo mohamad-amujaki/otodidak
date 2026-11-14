@@ -1,0 +1,425 @@
+import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
+import { balanceOf, balancesByUserIds } from '../billing/ledger';
+import type { Database } from '../db/client';
+import {
+  adminAudit,
+  aiModels,
+  aiProviders,
+  creditLedger,
+  creditOrders,
+  creditPacks,
+  generationJobs,
+  promptTemplates,
+  users,
+} from '../db/schema';
+import {
+  type AdminTrendDay,
+  adminTrendAxisLabel,
+  jakartaDayKeysLast7,
+  jakartaDayStartIso,
+  mergeTrendRows,
+} from '../domain/admin-trend';
+import { AppError } from '../domain/errors';
+import type { TaskName } from '../domain/schemas';
+import { jakartaDate } from '../domain/time';
+import {
+  activePacks,
+  ledgerCount,
+  ledgerPage,
+  loadConfig,
+  ordersFor,
+} from './account';
+import {
+  adminJobsTotal,
+  adminLedgerTotal,
+  adminOrdersTotal,
+  adminUsersTotal,
+  jobFiltersWhere,
+  orderFiltersWhere,
+  readAdminQuery,
+  userFiltersWhere,
+} from './admin-list';
+
+export type { AdminTrendDay };
+
+export async function fetchAdminTrend7d(
+  db: Database,
+): Promise<AdminTrendDay[]> {
+  const keys = jakartaDayKeysLast7();
+  const startIso = jakartaDayStartIso(keys[0] ?? jakartaDate(new Date()));
+
+  const signupRows = await db.all<{ day: string; total: number }>(sql`
+    select date(datetime(created_at, '+7 hours')) as day, count(*) as total
+    from user
+    where created_at >= ${startIso}
+    group by day
+  `);
+  const revenueRows = await db.all<{ day: string; total: number }>(sql`
+    select date(datetime(coalesce(paid_at, created_at), '+7 hours')) as day,
+           coalesce(sum(amount_idr), 0) as total
+    from credit_order
+    where status = 'paid'
+      and coalesce(paid_at, created_at) >= ${startIso}
+    group by day
+  `);
+
+  const signupsByDay = new Map(
+    signupRows.map((row) => [String(row.day), Number(row.total ?? 0)]),
+  );
+  const revenueByDay = new Map(
+    revenueRows.map((row) => [String(row.day), Number(row.total ?? 0)]),
+  );
+  const merged = mergeTrendRows(keys, signupsByDay, revenueByDay);
+  return merged.map((row) => ({
+    ...row,
+    label: adminTrendAxisLabel(row.day),
+  }));
+}
+
+export async function fetchAdminStats(db: Database) {
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const row = await db.get<{
+    users: number | null;
+    newUsers: number | null;
+    deletionRequests: number | null;
+    pendingOrders: number | null;
+    jobsQueued: number | null;
+    jobsFailed: number | null;
+  }>(sql`
+      select
+        (select count(*) from user) as users,
+        (select count(*) from user where created_at >= ${weekAgo}) as newUsers,
+        (select count(*) from user where deletion_requested_at is not null) as deletionRequests,
+        (select count(*) from credit_order where status = 'pending') as pendingOrders,
+        (select count(*) from generation_job where status in ('queued', 'running')) as jobsQueued,
+        (select count(*) from generation_job where status = 'failed') as jobsFailed
+    `);
+  return {
+    users: Number(row?.users ?? 0),
+    newUsers: Number(row?.newUsers ?? 0),
+    deletionRequests: Number(row?.deletionRequests ?? 0),
+    pendingOrders: Number(row?.pendingOrders ?? 0),
+    jobsQueued: Number(row?.jobsQueued ?? 0),
+    jobsFailed: Number(row?.jobsFailed ?? 0),
+  };
+}
+
+export async function listAdminUsers(db: Database, url: string) {
+  const query = readAdminQuery(url);
+  const filters = userFiltersWhere(query);
+  const [rows, total] = await Promise.all([
+    db
+      .select()
+      .from(users)
+      .where(filters)
+      .orderBy(desc(users.createdAt))
+      .limit(query.limit)
+      .offset(query.offset),
+    adminUsersTotal(db, query),
+  ]);
+  const balances = await balancesByUserIds(
+    db,
+    rows.map((user) => user.id),
+  );
+  const list = rows.map((user) => ({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    status: user.status,
+    balance: balances.get(user.id) ?? 0,
+    deletionRequestedAt: user.deletionRequestedAt,
+  }));
+  return { users: list, total };
+}
+
+async function ledgerActors(
+  db: Database,
+  rows: { refType: string | null; refId: string | null }[],
+): Promise<Map<string, { name: string; email: string }>> {
+  const ids = [
+    ...new Set(
+      rows
+        .filter((row) => row.refType === 'admin' && row.refId)
+        .map((row) => String(row.refId)),
+    ),
+  ];
+  if (ids.length === 0) return new Map();
+  const actors = await db
+    .select({ id: users.id, name: users.name, email: users.email })
+    .from(users)
+    .where(inArray(users.id, ids));
+  return new Map(
+    actors.map((actor) => [actor.id, { name: actor.name, email: actor.email }]),
+  );
+}
+
+export async function adminAuditForUser(
+  db: Database,
+  userId: string,
+  limit = 10,
+) {
+  return db
+    .select({
+      id: adminAudit.id,
+      action: adminAudit.action,
+      detail: adminAudit.detail,
+      createdAt: adminAudit.createdAt,
+      actorName: users.name,
+      actorEmail: users.email,
+    })
+    .from(adminAudit)
+    .leftJoin(users, eq(adminAudit.actorId, users.id))
+    .where(eq(adminAudit.targetId, userId))
+    .orderBy(desc(adminAudit.createdAt))
+    .limit(limit);
+}
+
+export type AdminUserDetailOptions = {
+  ledgerReason?: string;
+  ledgerLimit?: number;
+  ledgerOffset?: number;
+};
+
+export async function adminUserDetail(
+  db: Database,
+  userId: string,
+  options: AdminUserDetailOptions = {},
+) {
+  const rows = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  const user = rows[0];
+  if (!user) throw new AppError('not_found');
+  const pathCount = await db.get<{ n: number | null }>(sql`
+      select count(*) as n from path where user_id = ${userId}
+    `);
+  const ledgerLimit = options.ledgerLimit ?? 15;
+  const ledgerOffset = options.ledgerOffset ?? 0;
+  const entries = await ledgerPage(
+    db,
+    userId,
+    ledgerLimit,
+    ledgerOffset,
+    options.ledgerReason,
+  );
+  const ledgerTotal = await ledgerCount(db, userId, options.ledgerReason);
+  const balance = await balanceOf(db, user.id);
+  const actors = await ledgerActors(db, entries);
+  let running = balance;
+  const ledger = entries.map((entry) => {
+    const balanceAfter = running;
+    running -= entry.amount;
+    const actor =
+      entry.refType === 'admin' && entry.refId
+        ? actors.get(String(entry.refId))
+        : undefined;
+    return {
+      ...entry,
+      balanceAfter,
+      actorName: actor?.name ?? null,
+      actorEmail: actor?.email ?? null,
+    };
+  });
+  const orders = await ordersFor(db, userId);
+  const audit = await adminAuditForUser(db, userId);
+  const job = await db
+    .select()
+    .from(generationJobs)
+    .where(
+      and(
+        eq(generationJobs.userId, userId),
+        or(
+          eq(generationJobs.status, 'queued'),
+          eq(generationJobs.status, 'running'),
+        ),
+      ),
+    )
+    .limit(1);
+  return {
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+      balance,
+      deletionRequestedAt: user.deletionRequestedAt,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    },
+    pathCount: Number(pathCount?.n ?? 0),
+    ledger,
+    ledgerTotal,
+    orders,
+    audit,
+    activeJob: job[0] ?? null,
+  };
+}
+
+export async function listAdminJobs(db: Database, url: string) {
+  const query = readAdminQuery(url);
+  const where = jobFiltersWhere(query);
+  const [jobs, total] = await Promise.all([
+    db
+      .select({
+        id: generationJobs.id,
+        userId: generationJobs.userId,
+        kind: generationJobs.kind,
+        refId: generationJobs.refId,
+        status: generationJobs.status,
+        errorCode: generationJobs.errorCode,
+        attempts: generationJobs.attempts,
+        createdAt: generationJobs.createdAt,
+        finishedAt: generationJobs.finishedAt,
+        userEmail: users.email,
+        userName: users.name,
+      })
+      .from(generationJobs)
+      .innerJoin(users, eq(generationJobs.userId, users.id))
+      .where(where)
+      .orderBy(desc(generationJobs.createdAt))
+      .limit(query.limit)
+      .offset(query.offset),
+    adminJobsTotal(db, query),
+  ]);
+  return { jobs, total };
+}
+
+export async function listAdminLedger(db: Database, url: string) {
+  const query = readAdminQuery(url);
+  const filters = query.userId
+    ? eq(creditLedger.userId, query.userId)
+    : undefined;
+  const [entries, total] = await Promise.all([
+    db
+      .select({
+        id: creditLedger.id,
+        userId: creditLedger.userId,
+        amount: creditLedger.amount,
+        reason: creditLedger.reason,
+        note: creditLedger.note,
+        createdAt: creditLedger.createdAt,
+        refType: creditLedger.refType,
+        refId: creditLedger.refId,
+        userEmail: users.email,
+        userName: users.name,
+      })
+      .from(creditLedger)
+      .innerJoin(users, eq(creditLedger.userId, users.id))
+      .where(filters)
+      .orderBy(desc(creditLedger.createdAt))
+      .limit(query.limit)
+      .offset(query.offset),
+    adminLedgerTotal(db, query),
+  ]);
+  const actors = await ledgerActors(db, entries);
+  return {
+    entries: entries.map((entry) => {
+      const actor =
+        entry.refType === 'admin' && entry.refId
+          ? actors.get(String(entry.refId))
+          : undefined;
+      return {
+        ...entry,
+        actorName: actor?.name ?? null,
+        actorEmail: actor?.email ?? null,
+      };
+    }),
+    total,
+  };
+}
+
+export async function listAdminOrders(db: Database, url: string) {
+  const query = readAdminQuery(url);
+  const where = orderFiltersWhere(query);
+  const [orders, total] = await Promise.all([
+    db
+      .select({
+        id: creditOrders.id,
+        userId: creditOrders.userId,
+        packId: creditOrders.packId,
+        orderId: creditOrders.orderId,
+        amountIdr: creditOrders.amountIdr,
+        credits: creditOrders.credits,
+        status: creditOrders.status,
+        createdAt: creditOrders.createdAt,
+        paidAt: creditOrders.paidAt,
+        userEmail: users.email,
+        userName: users.name,
+      })
+      .from(creditOrders)
+      .innerJoin(users, eq(creditOrders.userId, users.id))
+      .where(where)
+      .orderBy(desc(creditOrders.createdAt))
+      .limit(query.limit)
+      .offset(query.offset),
+    adminOrdersTotal(db, query),
+  ]);
+  return { orders, total };
+}
+
+export async function listAllPacks(db: Database) {
+  return db.select().from(creditPacks).orderBy(asc(creditPacks.sort));
+}
+
+export async function publicCreditPacks(db: Database) {
+  return activePacks(db);
+}
+
+export async function getPromptForTask(db: Database, task: TaskName) {
+  const rows = await db
+    .select()
+    .from(promptTemplates)
+    .where(eq(promptTemplates.task, task))
+    .limit(1);
+  if (!rows[0]) throw new AppError('not_found');
+  return rows[0];
+}
+
+const activeModelSelect = {
+  task: aiModels.task,
+  modelName: aiModels.modelName,
+  maxOutputTokens: aiModels.maxOutputTokens,
+  timeoutMs: aiModels.timeoutMs,
+  baseUrl: aiProviders.baseUrl,
+  secretName: aiProviders.secretName,
+  authKind: aiProviders.authKind,
+} as const;
+
+export async function getActiveModelForTask(db: Database, task: TaskName) {
+  const rows = await db
+    .select(activeModelSelect)
+    .from(aiModels)
+    .innerJoin(aiProviders, eq(aiModels.providerId, aiProviders.id))
+    .where(and(eq(aiModels.task, task), eq(aiModels.active, 1)))
+    .limit(1);
+  if (!rows[0]) throw new AppError('not_found');
+  const { task: _task, ...rest } = rows[0];
+  return rest;
+}
+
+export async function listActiveModelsForTasks(
+  db: Database,
+  tasks: TaskName[],
+): Promise<Map<TaskName, Awaited<ReturnType<typeof getActiveModelForTask>>>> {
+  if (tasks.length === 0) return new Map();
+  const rows = await db
+    .select(activeModelSelect)
+    .from(aiModels)
+    .innerJoin(aiProviders, eq(aiModels.providerId, aiProviders.id))
+    .where(and(inArray(aiModels.task, tasks), eq(aiModels.active, 1)));
+  const map = new Map<
+    TaskName,
+    Awaited<ReturnType<typeof getActiveModelForTask>>
+  >();
+  for (const row of rows) {
+    const { task, ...rest } = row;
+    map.set(task, rest);
+  }
+  return map;
+}
+
+export { loadConfig };

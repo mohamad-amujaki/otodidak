@@ -1,4 +1,4 @@
-import { and, desc, eq, or } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, or, type SQL, sql } from 'drizzle-orm';
 import { balanceOf, insertLedger } from '../billing/ledger';
 import { createDb, type Database } from '../db/client';
 import {
@@ -24,9 +24,21 @@ import { AppError } from '../domain/errors';
 import { nowIso } from '../domain/time';
 import type { Identity } from './auth';
 
+let seedPromise: Promise<void> | null = null;
+
+/**
+ * Seeds defaults once per Worker isolate. Seeding on every request wrote ~10
+ * statements (and used to reset admin AI/prompt config) on each API call.
+ */
 export async function database(env: Env): Promise<Database> {
   const db = createDb(env.DB);
-  await ensureSeed(db);
+  if (!seedPromise) {
+    seedPromise = ensureSeed(db).catch((error: unknown) => {
+      seedPromise = null;
+      throw error;
+    });
+  }
+  await seedPromise;
   return db;
 }
 
@@ -48,7 +60,36 @@ export async function ensureUser(
     .from(users)
     .where(eq(users.clerkUserId, identity.clerkUserId))
     .limit(1);
-  const found = existing[0];
+  let found = existing[0];
+  if (!found) {
+    // Clerk ID bisa berganti untuk orang yang sama (mis. pindah instance test
+    // ke produksi). Adopsi baris lama berdasarkan email supaya tidak muncul
+    // dua akun untuk satu pengguna.
+    const byEmail = await db
+      .select()
+      .from(users)
+      .where(sql`lower(${users.email}) = ${identity.email.toLowerCase()}`)
+      .limit(1);
+    const legacy = byEmail[0];
+    if (legacy) {
+      await db
+        .update(users)
+        .set({
+          clerkUserId: identity.clerkUserId,
+          email: identity.email,
+          name: identity.name,
+          updatedAt: now,
+        })
+        .where(eq(users.id, legacy.id));
+      found = {
+        ...legacy,
+        clerkUserId: identity.clerkUserId,
+        email: identity.email,
+        name: identity.name,
+        updatedAt: now,
+      };
+    }
+  }
   if (found) {
     if (found.email !== identity.email || found.name !== identity.name) {
       await db
@@ -87,13 +128,37 @@ export async function ensureUser(
       updatedAt: now,
     });
   } catch {
+    // Insert bisa kalah oleh unique clerk_user_id atau unique lower(email)
+    // (dua login bersamaan). Ambil baris yang sudah menang.
     const again = await db
       .select()
       .from(users)
       .where(eq(users.clerkUserId, identity.clerkUserId))
       .limit(1);
-    if (!again[0]) throw new AppError('forbidden');
-    return again[0];
+    if (again[0]) return again[0];
+    const byEmail = await db
+      .select()
+      .from(users)
+      .where(sql`lower(${users.email}) = ${identity.email.toLowerCase()}`)
+      .limit(1);
+    const existingByEmail = byEmail[0];
+    if (!existingByEmail) throw new AppError('forbidden');
+    await db
+      .update(users)
+      .set({
+        clerkUserId: identity.clerkUserId,
+        email: identity.email,
+        name: identity.name,
+        updatedAt: now,
+      })
+      .where(eq(users.id, existingByEmail.id));
+    return {
+      ...existingByEmail,
+      clerkUserId: identity.clerkUserId,
+      email: identity.email,
+      name: identity.name,
+      updatedAt: now,
+    };
   }
   if (config.signupCredits > 0) {
     await insertLedger(db, {
@@ -187,28 +252,111 @@ export async function deletePath(db: Database, pathId: string): Promise<void> {
   await db.delete(paths).where(eq(paths.id, pathId));
 }
 
+const usageReasons = ['roadmap', 'lesson', 'quiz', 'outline'] as const;
+
+function ledgerReasonWhere(userId: string, reason?: string): SQL | undefined {
+  if (!reason) return eq(creditLedger.userId, userId);
+  if (reason === 'usage') {
+    return and(
+      eq(creditLedger.userId, userId),
+      inArray(creditLedger.reason, [...usageReasons]),
+    );
+  }
+  return and(
+    eq(creditLedger.userId, userId),
+    eq(
+      creditLedger.reason,
+      reason as (typeof creditLedger.$inferSelect)['reason'],
+    ),
+  );
+}
+
+function orderStatusWhere(userId: string, status?: string): SQL | undefined {
+  if (!status) return eq(creditOrders.userId, userId);
+  return and(
+    eq(creditOrders.userId, userId),
+    eq(
+      creditOrders.status,
+      status as (typeof creditOrders.$inferSelect)['status'],
+    ),
+  );
+}
+
 export async function ledgerPage(
   db: Database,
   userId: string,
   limit: number,
   offset: number,
+  reason?: string,
 ) {
+  if (limit < 1) return [];
+  const where = ledgerReasonWhere(userId, reason);
   return db
     .select()
     .from(creditLedger)
-    .where(eq(creditLedger.userId, userId))
+    .where(where)
     .orderBy(desc(creditLedger.createdAt))
     .limit(limit)
     .offset(offset);
 }
 
-export async function ordersFor(db: Database, userId: string) {
+export async function ledgerCount(
+  db: Database,
+  userId: string,
+  reason?: string,
+) {
+  const where = ledgerReasonWhere(userId, reason);
+  const rows = await db
+    .select({ total: count() })
+    .from(creditLedger)
+    .where(where);
+  return Number(rows[0]?.total ?? 0);
+}
+
+export async function ordersPage(
+  db: Database,
+  userId: string,
+  limit: number,
+  offset: number,
+  status?: string,
+) {
+  if (limit < 1) return [];
+  const where = orderStatusWhere(userId, status);
   return db
     .select()
     .from(creditOrders)
-    .where(eq(creditOrders.userId, userId))
+    .where(where)
     .orderBy(desc(creditOrders.createdAt))
-    .limit(20);
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function ordersCount(
+  db: Database,
+  userId: string,
+  status?: string,
+) {
+  const where = orderStatusWhere(userId, status);
+  const rows = await db
+    .select({ total: count() })
+    .from(creditOrders)
+    .where(where);
+  return Number(rows[0]?.total ?? 0);
+}
+
+export async function pendingOrdersFor(db: Database, userId: string) {
+  return db
+    .select()
+    .from(creditOrders)
+    .where(
+      and(eq(creditOrders.userId, userId), eq(creditOrders.status, 'pending')),
+    )
+    .orderBy(desc(creditOrders.createdAt));
+}
+
+/** @deprecated Gunakan {@link ordersPage} dengan limit/offset. */
+export async function ordersFor(db: Database, userId: string) {
+  return ordersPage(db, userId, 20, 0);
 }
 
 export async function activePacks(db: Database) {

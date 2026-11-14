@@ -1,90 +1,363 @@
 ---
 import { env } from 'cloudflare:workers';
+import LedgerRows from '../components/credit/LedgerRows.astro';
+import OrderRows from '../components/credit/OrderRows.astro';
 import Shell from '../components/Shell.astro';
-import { formatIdr, formatWhen } from '../domain/format';
+import { safeReturnPath } from '../domain/credit-ui';
+import { AppError } from '../domain/errors';
+import { formatIdr } from '../domain/format';
 import { isRecord, record } from '../domain/guard';
-import { callApi, errorOf } from '../server/call';
+import { publicCreditPacks } from '../server/admin-data';
+import { redeemCreditCode } from '../server/credit-codes';
+import { createCreditPackOrder } from '../server/credit-orders-service';
+import { creditsPayload } from '../server/credits-page';
+import { pageMe } from '../server/ssr';
 
-const meResult = await callApi(Astro.request, env, '/api/me');
-if (meResult.status !== 200) return Astro.redirect('/masuk');
-const me = record(meResult.data);
+const SNIPPET_ENTRIES = 6;
+const SNIPPET_ORDERS = 3;
+const PENDING_SNIPPET = 3;
+
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session, me: meRaw } = page;
+const me = record(meRaw);
 const user = record(me.user);
+const kembali = safeReturnPath(Astro.url.searchParams.get('kembali'));
+const returnQuery = (value: string) => {
+  const target = safeReturnPath(value) ?? kembali;
+  return target ? `?kembali=${encodeURIComponent(target)}` : '';
+};
 let message = '';
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
-  else {
-    const result = await callApi(Astro.request, env, '/api/credit-orders', {
-      method: 'POST',
-      json: { packId: String(form.get('packId') ?? '') },
-      csrf: Astro.locals.csrf,
-    });
-    const error = errorOf(result.data);
-    if (error) message = error.message;
-    else if (isRecord(result.data) && typeof result.data.id === 'string')
-      return Astro.redirect(`/kredit/pesanan/${result.data.id}`);
+  else if (String(form.get('aksi') ?? '') === 'kode') {
+    const result = await redeemCreditCode(
+      session.db,
+      session.user.id,
+      String(form.get('kode') ?? ''),
+    );
+    if (result.status === 'redeemed')
+      return Astro.redirect(`/kredit?kode=redeemed&jumlah=${result.credits}`);
+    message =
+      result.status === 'duplicate'
+        ? 'Kode ini sudah pernah kamu tukar.'
+        : result.status === 'exhausted'
+          ? 'Kuota kode ini sudah habis.'
+          : result.status === 'expired'
+            ? 'Kode ini sudah kedaluwarsa.'
+            : 'Kode tidak dikenali. Periksa lagi penulisannya.';
+  } else {
+    try {
+      const created = await createCreditPackOrder(
+        env,
+        Astro.request,
+        session.db,
+        session.user,
+        String(form.get('packId') ?? ''),
+      );
+      return Astro.redirect(
+        `/kredit/pesanan/${created.id}${returnQuery(String(form.get('kembali') ?? ''))}`,
+      );
+    } catch (error) {
+      message =
+        error instanceof AppError ? error.message : 'Gagal membuat pesanan.';
+    }
   }
 }
-const packsResult = await callApi(Astro.request, env, '/api/credit-packs');
-const creditResult = await callApi(Astro.request, env, '/api/credits');
-const packs =
-  isRecord(packsResult.data) && Array.isArray(packsResult.data.packs)
-    ? packsResult.data.packs.filter(isRecord)
-    : [];
-const credit = record(creditResult.data);
+const packs = (await publicCreditPacks(session.db)).filter(isRecord);
+const creditUrl = new URL('/kredit', Astro.url);
+creditUrl.searchParams.set('limit', String(SNIPPET_ENTRIES));
+creditUrl.searchParams.set(
+  'ordersLimit',
+  String(SNIPPET_ORDERS + PENDING_SNIPPET),
+);
+creditUrl.searchParams.set('includePending', '1');
+const credit = record(
+  await creditsPayload(session.db, session.user, creditUrl.toString()),
+);
 const entries = Array.isArray(credit.entries)
   ? credit.entries.filter(isRecord)
   : [];
-const orders = Array.isArray(credit.orders)
-  ? credit.orders.filter(isRecord)
+const pendingOrders = Array.isArray(credit.pendingOrders)
+  ? credit.pendingOrders.filter(isRecord)
   : [];
-const reasons: Record<string, string> = {
-  signup_grant: 'Kredit awal',
-  purchase: 'Pembelian',
-  roadmap: 'Jalur',
-  lesson: 'Pelajaran',
-  quiz: 'Kuis',
-  refund: 'Pengembalian',
-  admin_adjust: 'Penyesuaian',
+const pendingIds = new Set(pendingOrders.map((o) => String(o.id)));
+const recentOrders = (
+  Array.isArray(credit.orders) ? credit.orders.filter(isRecord) : []
+)
+  .filter((o) => !pendingIds.has(String(o.id)))
+  .slice(0, SNIPPET_ORDERS);
+const pendingSnippet = pendingOrders.slice(0, PENDING_SNIPPET);
+const entriesTotal =
+  typeof credit.entriesTotal === 'number'
+    ? credit.entriesTotal
+    : entries.length;
+const ordersTotal =
+  typeof credit.ordersTotal === 'number' ? credit.ordersTotal : 0;
+const pendingTotal =
+  typeof credit.pendingOrdersTotal === 'number'
+    ? credit.pendingOrdersTotal
+    : pendingOrders.length;
+const summaryBlock = isRecord(credit.summary30d) ? credit.summary30d : {};
+const summary = {
+  added: Number(summaryBlock.added ?? 0),
+  used: Number(summaryBlock.used ?? 0),
+  net: Number(summaryBlock.net ?? 0),
 };
+const showSummary = summary.added > 0 || summary.used < 0;
+const balance = typeof me.balance === 'number' ? me.balance : 0;
+const kodeStatus = Astro.url.searchParams.get('kode') ?? '';
+const kodeJumlah = Number(Astro.url.searchParams.get('jumlah') ?? 0);
 ---
-<Shell title="Kredit" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
-  <h1 class="text-[1.75rem] leading-[1.25]">Kredit</h1>
-  <p class="mt-2 text-3xl tabular-nums">{me.balance}</p>
-  {message && <p class="mt-3 text-sm text-bahaya">{message}</p>}
-  <ul class="mt-6 grid gap-3">
-    {packs.map((pack) => (
-      <li class="rounded-kartu border border-garis bg-kartu p-4">
-        <p class="text-lg">{pack.name}</p>
-        <p class="tabular-nums">{pack.credits} kredit · {formatIdr(Number(pack.priceIdr))}</p>
-        <form method="post" class="mt-2">
-          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-          <input type="hidden" name="packId" value={String(pack.id)} />
-          <button class="inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-white" type="submit" disabled={user.status === 'suspended'}>Bayar dengan QRIS</button>
-        </form>
-      </li>
-    ))}
-  </ul>
-  <section class="mt-8">
-    <h2 class="text-xl">Buku besar</h2>
-    <ul class="mt-3 space-y-2">
-      {entries.map((entry) => (
-        <li class="flex justify-between gap-3 text-sm">
-          <span>{reasons[String(entry.reason)] ?? entry.reason}</span>
-          <span class="tabular-nums">{entry.amount}</span>
-        </li>
-      ))}
-    </ul>
-  </section>
-  <section class="mt-8">
-    <h2 class="text-xl">Pesanan</h2>
-    <ul class="mt-3 space-y-2">
-      {orders.map((order) => (
-        <li>
-          <a href={`/kredit/pesanan/${String(order.id)}`}>{formatWhen(String(order.createdAt))} · {order.status}</a>
-        </li>
-      ))}
-    </ul>
-  </section>
+<Shell title="Kredit" sectionLabel="Kredit" balance={balance} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
+  <div class="mx-auto w-full max-w-6xl space-y-8">
+    <div>
+      <h1 class="judul">Kredit</h1>
+      <div class="mt-4 rounded-kartu border border-garis bg-gradient-to-br from-jalur-lembut to-kartu p-5 shadow-sm min-[640px]:p-6">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <div class="flex size-12 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+              <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm text-tinta-lembut">Saldo kredit</p>
+              <p
+                class="text-3xl font-bold tabular-nums tracking-tight text-tinta min-[768px]:text-4xl"
+                data-count-up={balance}
+                aria-live="polite"
+              >
+                {balance}
+              </p>
+              {showSummary && (
+                <p class="mt-1 text-xs text-tinta-lembut min-[480px]:text-sm">
+                  30 hari:{' '}
+                  <span class="text-jalur">+{summary.added}</span>
+                  {' · '}
+                  <span class="text-bahaya">{summary.used}</span>
+                  {' · net '}
+                  <span class={summary.net >= 0 ? 'text-jalur' : 'text-bahaya'}>
+                    {summary.net >= 0 ? '+' : ''}{summary.net}
+                  </span>
+                </p>
+              )}
+            </div>
+          </div>
+          <a
+            class="inline-flex min-h-11 items-center rounded-kontrol border border-jalur bg-jalur px-4 text-sm font-semibold text-white shadow-sm hover:brightness-110"
+            href="#paket-kredit"
+          >
+            Beli kredit
+          </a>
+        </div>
+        <nav class="mt-4 flex flex-wrap gap-2 border-t border-garis pt-4" aria-label="Pintasan kredit">
+          <a class="rounded-kontrol border border-garis bg-kartu px-3 py-1.5 text-sm font-medium text-tinta transition-colors hover:border-jalur/40 hover:bg-kertas" href="/kredit/riwayat">
+            Buku besar
+          </a>
+          <a class="rounded-kontrol border border-garis bg-kartu px-3 py-1.5 text-sm font-medium text-tinta transition-colors hover:border-jalur/40 hover:bg-kertas" href="/kredit/pesanan">
+            Pesanan
+          </a>
+          <a class="rounded-kontrol border border-garis bg-kartu px-3 py-1.5 text-sm font-medium text-tinta transition-colors hover:border-jalur/40 hover:bg-kertas" href="/api/credits/ledger/export">
+            Unduh CSV
+          </a>
+        </nav>
+      </div>
+    </div>
+
+    {kembali && (
+      <div class="flex flex-wrap items-center gap-3 rounded-kontrol border border-jalur/30 bg-jalur-lembut px-4 py-3">
+        <p class="min-w-0 flex-1 text-sm text-tinta">
+          Kredit belum cukup untuk menyusun materi. Setelah kredit masuk, kamu bisa melanjutkan dari halaman tadi.
+        </p>
+        <a
+          class="inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta transition-colors hover:border-jalur/40"
+          href={kembali}
+        >
+          Kembali ke materi
+        </a>
+      </div>
+    )}
+
+    {kodeStatus === 'redeemed' && (
+      <div class="flex flex-wrap items-center gap-3 rounded-kontrol border border-jalur/30 bg-jalur-lembut px-4 py-3" role="status">
+        <p class="min-w-0 flex-1 text-sm tabular-nums text-tinta">
+          Kode berhasil ditukar. <span class="font-semibold text-jalur">+{kodeJumlah} kredit</span> sudah masuk ke saldo kamu.
+        </p>
+        <a class="inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta" href="/kredit">
+          Lihat saldo
+        </a>
+      </div>
+    )}
+
+    <section class="rounded-kartu border border-garis bg-kartu p-4 shadow-sm min-[640px]:p-5">
+      <h2 class="text-lg font-bold text-tinta">Punya kode akses?</h2>
+      <p class="mt-1 text-sm text-tinta-lembut">
+        Masukkan kode dari admin. Setiap kode hanya bisa ditukar sekali per akun dan langsung menambah saldo.
+      </p>
+      <form class="mt-3 flex flex-col gap-2 min-[640px]:flex-row" method="post">
+        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        <input type="hidden" name="aksi" value="kode" />
+        <input
+          class="min-h-11 flex-1 rounded-kontrol border border-garis bg-kartu px-3 font-mono tracking-wider uppercase"
+          name="kode"
+          required
+          placeholder="XXXX-XXXX-XXXX"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Kode akses"
+        />
+        <button class="min-h-11 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white transition-[filter] hover:brightness-110" type="submit">
+          Tukar kode
+        </button>
+      </form>
+    </section>
+
+    {pendingTotal > 0 && (
+      <a
+        class="flex items-center gap-3 rounded-kontrol border border-hangat/30 bg-hangat-lembut px-4 py-3 transition-colors hover:border-hangat/50"
+        href="/kredit/pesanan?status=pending"
+      >
+        <svg class="size-5 shrink-0 text-hangat" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p class="min-w-0 flex-1 text-sm font-semibold text-tinta">
+          {pendingTotal === 1
+            ? '1 pesanan menunggu pembayaran'
+            : `${pendingTotal} pesanan menunggu pembayaran`}
+        </p>
+        <svg class="size-5 shrink-0 text-hangat" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    )}
+
+    {message && (
+      <div class="rounded-kontrol border border-bahaya/30 bg-bahaya/10 p-4">
+        <p class="text-sm text-bahaya">{message}</p>
+      </div>
+    )}
+
+    <section id="paket-kredit">
+      <h2 class="text-xl font-bold text-tinta">Paket kredit</h2>
+      <ul class="mt-4 grid gap-4 min-[768px]:grid-cols-2 min-[1100px]:grid-cols-3">
+        {packs.map((pack, index) => {
+          const isPopular = index === 1;
+          const isBestValue = index === 2;
+          return (
+            <li class="group relative flex flex-col overflow-hidden rounded-kartu border border-garis bg-kartu shadow-sm transition-all hover:border-jalur/30 hover:shadow-md">
+              {isPopular && (
+                <div class="absolute right-0 top-0 z-10">
+                  <div class="rounded-bl-kontrol bg-hangat px-3 py-1 text-xs font-semibold text-white">Paling populer</div>
+                </div>
+              )}
+              {isBestValue && (
+                <div class="absolute right-0 top-0 z-10">
+                  <div class="rounded-bl-kontrol bg-jalur px-3 py-1 text-xs font-semibold text-white">Best value</div>
+                </div>
+              )}
+              <div class="flex flex-1 flex-col p-5">
+                <h3 class="text-lg font-semibold text-tinta">{pack.name}</h3>
+                <p class="mt-2 text-3xl font-bold tabular-nums text-jalur">{pack.credits}</p>
+                <p class="text-sm text-tinta-lembut">kredit</p>
+                <p class="mt-3 text-xl font-bold text-tinta">{formatIdr(Number(pack.priceIdr))}</p>
+                <p class="mt-1 text-xs text-tinta-lembut">
+                  {formatIdr(Math.round(Number(pack.priceIdr) / Number(pack.credits)))} / kredit
+                </p>
+                <form method="post" class="mt-auto pt-4">
+                  <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                  <input type="hidden" name="kembali" value={kembali ?? ''} />
+                  <input type="hidden" name="packId" value={String(pack.id)} />
+                  <button
+                    class="flex w-full min-h-11 items-center justify-center gap-2 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white shadow-md transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                    type="submit"
+                    disabled={user.status === 'suspended'}
+                  >
+                    Bayar dengan QRIS
+                  </button>
+                </form>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <p class="mt-4 flex items-start gap-2 rounded-kontrol border border-garis bg-kartu px-4 py-3 text-sm text-tinta-lembut">
+        <svg class="mt-0.5 size-4 shrink-0 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+        Pembayaran aman melalui QRIS. Kredit masuk otomatis setelah pembayaran berhasil.
+      </p>
+    </section>
+
+    <div class="grid gap-6 min-[900px]:grid-cols-2 min-[900px]:gap-8">
+      <section class="rounded-kartu border border-garis bg-kartu p-4 shadow-sm min-[640px]:p-5">
+        <div class="mb-3 flex items-baseline justify-between gap-2">
+          <h2 class="text-lg font-bold text-tinta">Aktivitas terakhir</h2>
+          <a class="text-sm font-medium text-jalur hover:underline" href="/kredit/riwayat">
+            Semua ({entriesTotal})
+          </a>
+        </div>
+        {entriesTotal === 0 ? (
+          <div class="rounded-kontrol border border-dashed border-garis bg-kertas/50 p-6 text-center">
+            <p class="text-sm font-medium text-tinta">Belum ada transaksi</p>
+            <p class="mt-1 text-sm text-tinta-lembut">
+              Aktivitas kredit muncul setelah kamu membuat jalur, pelajaran, atau membeli paket.
+            </p>
+            <a class="btn-jalur mt-4 text-sm" href="#paket-kredit">
+              Lihat paket kredit
+            </a>
+          </div>
+        ) : (
+          <>
+            <LedgerRows entries={entries} dense linkable />
+            <p class="mt-2 text-xs text-tinta-lembut">
+              Menampilkan {Math.min(SNIPPET_ENTRIES, entries.length)} dari {entriesTotal} transaksi
+            </p>
+          </>
+        )}
+      </section>
+
+      <section class="rounded-kartu border border-garis bg-kartu p-4 shadow-sm min-[640px]:p-5">
+        <div class="mb-3 flex items-baseline justify-between gap-2">
+          <h2 class="text-lg font-bold text-tinta">Pesanan</h2>
+          <a class="text-sm font-medium text-jalur hover:underline" href="/kredit/pesanan">
+            Semua ({ordersTotal})
+          </a>
+        </div>
+        {pendingSnippet.length === 0 && recentOrders.length === 0 ? (
+          <div class="rounded-kontrol border border-dashed border-garis bg-kertas/50 p-6 text-center">
+            <p class="text-sm font-medium text-tinta">Belum ada pesanan</p>
+            <p class="mt-1 text-sm text-tinta-lembut">
+              Beli paket kredit untuk menambah saldo lewat QRIS.
+            </p>
+          </div>
+        ) : (
+          <div class="space-y-4">
+            {pendingSnippet.length > 0 && (
+              <div>
+                <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-hangat">Menunggu bayar</p>
+                <OrderRows orders={pendingSnippet} dense />
+                {pendingTotal > PENDING_SNIPPET && (
+                  <a class="mt-2 inline-block text-sm font-medium text-jalur hover:underline" href="/kredit/pesanan?status=pending">
+                    +{pendingTotal - PENDING_SNIPPET} lainnya
+                  </a>
+                )}
+              </div>
+            )}
+            {recentOrders.length > 0 && (
+              <div>
+                {pendingSnippet.length > 0 && (
+                  <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-tinta-lembut">Terbaru</p>
+                )}
+                <OrderRows orders={recentOrders} dense />
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+    </div>
+  </div>
+  <script src="/scripts/count-up.js" defer></script>
 </Shell>

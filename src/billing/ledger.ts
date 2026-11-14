@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { creditLedger } from '../db/schema';
 import { nowIso } from '../domain/time';
@@ -9,14 +9,35 @@ export type LedgerReason =
   | 'roadmap'
   | 'lesson'
   | 'quiz'
+  | 'outline'
   | 'refund'
-  | 'admin_adjust';
+  | 'admin_adjust'
+  | 'redeem';
 
 export async function balanceOf(db: Database, userId: string): Promise<number> {
   const row = await db.get<{ balance: number | null }>(sql`
     select coalesce(sum(amount), 0) as balance from credit_ledger where user_id = ${userId}
   `);
   return Number(row?.balance ?? 0);
+}
+
+export async function balancesByUserIds(
+  db: Database,
+  userIds: string[],
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (userIds.length === 0) return map;
+  const rows = await db
+    .select({
+      userId: creditLedger.userId,
+      balance: sql<number>`coalesce(sum(${creditLedger.amount}), 0)`,
+    })
+    .from(creditLedger)
+    .where(inArray(creditLedger.userId, userIds))
+    .groupBy(creditLedger.userId);
+  for (const row of rows) map.set(row.userId, Number(row.balance));
+  for (const id of userIds) if (!map.has(id)) map.set(id, 0);
+  return map;
 }
 
 export async function debitIfEnough(
@@ -29,14 +50,15 @@ export async function debitIfEnough(
     refId: string | null;
     idempotencyKey: string;
     note?: string | null;
+    category?: string | null;
   },
 ): Promise<'inserted' | 'duplicate' | 'insufficient'> {
   const id = crypto.randomUUID();
   const createdAt = nowIso();
   try {
     const result = await db.run(sql`
-      insert into credit_ledger (id, user_id, amount, reason, ref_type, ref_id, idempotency_key, note, created_at)
-      select ${id}, ${input.userId}, ${input.amount}, ${input.reason}, ${input.refType}, ${input.refId}, ${input.idempotencyKey}, ${input.note ?? null}, ${createdAt}
+      insert into credit_ledger (id, user_id, amount, reason, ref_type, ref_id, idempotency_key, note, category, created_at)
+      select ${id}, ${input.userId}, ${input.amount}, ${input.reason}, ${input.refType}, ${input.refId}, ${input.idempotencyKey}, ${input.note ?? null}, ${input.category ?? null}, ${createdAt}
       where (select coalesce(sum(amount), 0) from credit_ledger where user_id = ${input.userId}) + ${input.amount} >= 0
         and not exists (select 1 from credit_ledger where idempotency_key = ${input.idempotencyKey})
     `);
@@ -61,6 +83,7 @@ export async function insertLedger(
     refId: string | null;
     idempotencyKey: string;
     note?: string | null;
+    category?: string | null;
   },
 ): Promise<boolean> {
   const inserted = await db
@@ -74,6 +97,7 @@ export async function insertLedger(
       refId: input.refId,
       idempotencyKey: input.idempotencyKey,
       note: input.note ?? null,
+      category: input.category ?? null,
       createdAt: nowIso(),
     })
     .onConflictDoNothing()

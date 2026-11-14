@@ -1,0 +1,109 @@
+---
+interface Props {
+  title: string;
+  description: string;
+  /** Garis skeleton: path (3), lesson/quiz (5) */
+  lines?: 3 | 5;
+  compact?: boolean;
+  /** Polling status job lewat /api/jobs/:id */
+  jobId?: string;
+  intervalSeconds?: number;
+  timeoutSeconds?: number;
+  doneHref?: string;
+}
+
+const {
+  title,
+  description,
+  lines = 5,
+  compact = false,
+  jobId,
+  intervalSeconds = 4,
+  timeoutSeconds = 120,
+  doneHref,
+} = Astro.props;
+const interval = Math.max(2, Math.round(intervalSeconds));
+const lineWidths =
+  lines === 3
+    ? ['w-3/4', 'w-full', 'w-5/6']
+    : ['w-full', 'w-11/12', 'w-4/5', 'w-full', 'w-2/3'];
+---
+<section
+  class:list={[
+    'overflow-hidden rounded-xl border border-garis bg-kartu shadow-sm',
+    compact ? 'p-5' : 'p-8 min-[768px]:p-12',
+  ]}
+  aria-busy="true"
+  aria-live="polite"
+  data-generation-wait
+  data-job-id={jobId}
+  data-interval={String(interval)}
+  data-timeout={String(Math.max(15, Math.round(timeoutSeconds)))}
+  data-done-href={doneHref}
+>
+  <div class="mx-auto flex max-w-md flex-col items-center text-center" data-wait-loading>
+    <div class="flex size-14 items-center justify-center rounded-kontrol bg-jalur-lembut" aria-hidden="true">
+      <svg
+        class="size-7 animate-spin text-jalur motion-reduce:animate-none"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+        />
+      </svg>
+    </div>
+    <h2 class="mt-4 text-xl font-bold text-tinta">{title}</h2>
+    <p class="mt-2 text-sm leading-[1.6] text-tinta-lembut">{description}</p>
+    <p class="sr-only">Konten sedang dibuat. Halaman dapat diperbarui otomatis.</p>
+    <div class="mt-6 w-full space-y-3" aria-hidden="true">
+      {lineWidths.map((width) => (
+        <div class={`skeleton h-4 ${width}`} />
+      ))}
+    </div>
+    <p class="mt-4 text-xs tabular-nums text-tinta-lembut" data-elapsed aria-hidden="true"></p>
+    <div
+      class="mt-4 hidden w-full rounded-kontrol border border-hangat/30 bg-hangat-lembut/40 p-3 text-sm"
+      data-wait-timeout
+    >
+      <p class="text-tinta">Masih diproses lebih lama dari biasanya.</p>
+      <button
+        class="mt-2 inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta transition-colors hover:border-jalur/40"
+        type="button"
+        data-wait-reload
+      >
+        Muat ulang sekarang
+      </button>
+    </div>
+  </div>
+
+  <div class="mx-auto hidden max-w-md flex-col items-center text-center" data-wait-failed>
+    <div class="flex size-14 items-center justify-center rounded-kontrol bg-bahaya/10" aria-hidden="true">
+      <svg class="size-7 text-bahaya" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+    </div>
+    <h2 class="mt-4 text-lg font-bold text-tinta">Pembuatan gagal</h2>
+    <p class="mt-2 text-sm leading-[1.6] text-tinta-lembut">
+      Kredit otomatis dikembalikan bila pembuatan gagal. Coba susun ulang dari halaman sebelumnya.
+    </p>
+    <p class="mt-1 text-xs text-bahaya" data-wait-code></p>
+    <button
+      class="mt-4 inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-5 text-sm font-semibold text-white transition-all hover:brightness-110"
+      type="button"
+      data-wait-reload
+    >
+      Muat ulang halaman
+    </button>
+  </div>
+
+  <noscript>
+    <meta http-equiv="refresh" content={String(interval)} />
+  </noscript>
+</section>
+
+<script type="module" src="/scripts/generation-wait.js"></script>

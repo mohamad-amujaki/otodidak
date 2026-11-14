@@ -1,0 +1,297 @@
+---
+import { env } from 'cloudflare:workers';
+import AdminShell from '../../../components/AdminShell.astro';
+import AdminAlert from '../../../components/admin/AdminAlert.astro';
+import AdminBreadcrumb from '../../../components/admin/AdminBreadcrumb.astro';
+import {
+  adminAdjustCategories,
+  adminAdjustCategoryLabels,
+  adminAuditActionLabel,
+  adminMessageTone,
+  ledgerReasonLabels,
+} from '../../../domain/admin-labels';
+import { ledgerFilterOptions } from '../../../domain/credit-ui';
+import { AppError } from '../../../domain/errors';
+import { formatWhen } from '../../../domain/format';
+import { isRecord, record } from '../../../domain/guard';
+import {
+  roleLabel,
+  runAdminAction,
+  statusLabel,
+} from '../../../server/admin-actions';
+import { adminUserDetail } from '../../../server/admin-data';
+import { requireAdmin } from '../../../server/admin-guard';
+
+const auth = await requireAdmin(Astro.request, { nav: true });
+if ('redirect' in auth) return Astro.redirect(auth.redirect);
+
+const { userId } = Astro.params;
+if (!userId) return Astro.redirect('/admin/pengguna');
+
+let message = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+    message = 'Muat ulang halaman, lalu kirim lagi.';
+  else
+    message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
+}
+
+const alasan = Astro.url.searchParams.get('alasan') ?? '';
+let detail: Record<string, unknown>;
+try {
+  detail = record(
+    await adminUserDetail(auth.session.db, userId, {
+      ledgerReason: alasan || undefined,
+    }),
+  );
+} catch (error) {
+  if (error instanceof AppError && error.code === 'not_found')
+    return Astro.redirect('/admin/pengguna');
+  throw error;
+}
+const adjustNonce = crypto.randomUUID();
+const messageTone = adminMessageTone(message);
+const profile = record(detail.user);
+const ledger = Array.isArray(detail.ledger)
+  ? detail.ledger.filter(isRecord)
+  : [];
+const ledgerTotal = Number(detail.ledgerTotal ?? ledger.length);
+const orders = Array.isArray(detail.orders)
+  ? detail.orders.filter(isRecord)
+  : [];
+const audit = Array.isArray(detail.audit) ? detail.audit.filter(isRecord) : [];
+const activeJob = isRecord(detail.activeJob) ? detail.activeJob : null;
+const pathCount = Number(detail.pathCount ?? 0);
+---
+<AdminShell title="Detail pengguna" section="pengguna-detail" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav} userName={String(auth.user.name)} userEmail={String(auth.user.email)}>
+  <AdminBreadcrumb
+    items={[
+      { label: 'Ringkasan', href: '/admin' },
+      { label: 'Pengguna', href: '/admin/pengguna' },
+      { label: String(profile.name ?? 'Pengguna') },
+    ]}
+  />
+  <h1 class="judul mt-3">{profile.name}</h1>
+  <p class="text-sm break-all text-tinta-lembut">{profile.email}</p>
+  {message && (
+    <AdminAlert message={message} tone={messageTone} />
+  )}
+
+  <div class="mt-6 grid gap-4 min-[768px]:grid-cols-3">
+    <div class="rounded-kartu border border-garis bg-kartu p-4">
+      <p class="text-2xl font-bold tabular-nums">{profile.balance}</p>
+      <p class="text-sm text-tinta-lembut">Saldo kredit</p>
+    </div>
+    <div class="rounded-kartu border border-garis bg-kartu p-4">
+      <p class="text-2xl font-bold tabular-nums">{pathCount}</p>
+      <p class="text-sm text-tinta-lembut">Jalur</p>
+    </div>
+    <div class="rounded-kartu border border-garis bg-kartu p-4">
+      <p class="text-sm font-medium">{roleLabel(profile.role)} · {statusLabel(profile.status)}</p>
+      <p class="mt-1 text-xs text-tinta-lembut">Daftar {formatWhen(String(profile.createdAt ?? ''))}</p>
+    </div>
+  </div>
+
+  {profile.deletionRequestedAt && (
+    <div class="mt-6 rounded-lg border border-bahaya/30 bg-bahaya/5 p-4">
+      <p class="text-sm font-medium text-bahaya">Pengguna meminta penghapusan materi belajar</p>
+      <form class="mt-3" method="post">
+        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        <input type="hidden" name="aksi" value="hapus" />
+        <input type="hidden" name="userId" value={userId} />
+        <button class="rounded-kontrol border border-bahaya/40 bg-white px-4 py-2 text-sm text-bahaya hover:bg-bahaya/10" type="submit">
+          Hapus materi belajar
+        </button>
+      </form>
+    </div>
+  )}
+
+  {activeJob && (
+    <p class="mt-4 text-sm text-tinta-lembut">
+      Job aktif: {activeJob.kind} ({activeJob.status})
+    </p>
+  )}
+
+  <section class="mt-8">
+    <h2 class="text-lg font-semibold">Peran & status</h2>
+    <form class="mt-3 grid gap-2 max-w-lg min-[768px]:grid-cols-2" method="post">
+      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+      <input type="hidden" name="aksi" value="pengguna" />
+      <input type="hidden" name="userId" value={userId} />
+      {profile.role === 'admin' && !auth.superadmin ? (
+        <input type="hidden" name="role" value="admin" />
+        <p class="min-h-11 flex items-center text-sm text-tinta-lembut min-[768px]:col-span-2">Peran Admin (hanya superadmin yang bisa mengubah)</p>
+      ) : (
+        <select class="min-h-11 rounded-kontrol border border-garis bg-kartu px-2" name="role">
+          <option value="learner" selected={profile.role === 'learner'}>Pelajar</option>
+          {auth.superadmin && (
+            <option value="admin" selected={profile.role === 'admin'}>Admin</option>
+          )}
+        </select>
+      )}
+      <select class="min-h-11 rounded-kontrol border border-garis bg-kartu px-2" name="status">
+        <option value="active" selected={profile.status === 'active'}>Aktif</option>
+        <option value="suspended" selected={profile.status === 'suspended'}>Ditahan</option>
+      </select>
+      <button class="min-h-11 rounded-kontrol bg-jalur px-4 text-white min-[768px]:col-span-2 min-[768px]:w-fit" type="submit">Simpan</button>
+    </form>
+    {!auth.superadmin && profile.role === 'learner' && (
+      <p class="mt-2 text-xs text-tinta-lembut">Hanya superadmin yang bisa menaikkan peran ke Admin.</p>
+    )}
+  </section>
+
+  <section class="mt-8">
+    <h2 class="text-lg font-semibold">Riwayat tindakan admin</h2>
+    {audit.length === 0 ? (
+      <p class="mt-2 text-sm text-tinta-lembut">Belum ada tindakan admin untuk pengguna ini.</p>
+    ) : (
+      <ul class="mt-3 space-y-2 text-sm">
+        {audit.map((row) => (
+          <li class="rounded-kontrol border border-garis bg-kartu p-3">
+            <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span class="font-medium">{adminAuditActionLabel(String(row.action ?? ''))}</span>
+              {row.detail && <span class="text-tinta-lembut">{String(row.detail)}</span>}
+            </div>
+            <p class="mt-1 text-xs text-tinta-lembut">
+              {formatWhen(String(row.createdAt ?? ''))}
+              {row.actorName
+                ? ` · oleh ${String(row.actorName)}${row.actorEmail ? ` (${String(row.actorEmail)})` : ''}`
+                : ' · aktor tidak dikenal'}
+            </p>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+
+  <section class="mt-8">
+    <h2 class="text-lg font-semibold">Sesuaikan kredit</h2>
+    {!auth.superadmin ? (
+      <p class="mt-2 text-sm text-tinta-lembut">
+        Hanya superadmin yang bisa menambah atau mengurangi kredit.
+      </p>
+    ) : (
+      <form
+        class="mt-3 max-w-xl"
+        method="post"
+        data-credit-form
+        data-credit-balance={String(profile.balance ?? 0)}
+      >
+        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        <input type="hidden" name="aksi" value="sesuaikan" />
+        <input type="hidden" name="userId" value={userId} />
+        <input type="hidden" name="nonce" value={adjustNonce} />
+
+        <div class="flex flex-wrap items-center gap-2">
+          {[10, 50, 100].map((preset) => (
+            <button class="rounded-kontrol border border-garis bg-kartu px-3 py-1.5 text-sm font-medium text-tinta tabular-nums transition-colors hover:border-jalur/40" type="button" data-credit-preset={String(preset)}>
+              +{preset}
+            </button>
+          ))}
+          <button class="rounded-kontrol border border-garis bg-kartu px-3 py-1.5 text-sm font-medium text-tinta tabular-nums transition-colors hover:border-hangat/40" type="button" data-credit-preset="-10">−10</button>
+        </div>
+
+        <div class="mt-3 grid gap-2 min-[768px]:grid-cols-[5rem_minmax(0,1fr)] min-[768px]:items-center">
+          <label class="text-sm text-tinta-lembut" for="kredit-jumlah">Jumlah</label>
+          <input id="kredit-jumlah" class="min-h-11 rounded-kontrol border border-garis bg-kartu px-3 tabular-nums" name="amount" type="number" inputmode="numeric" step="1" min="-1000000" max="1000000" required data-credit-amount />
+          <label class="text-sm text-tinta-lembut" for="kredit-kategori">Kategori</label>
+          <select id="kredit-kategori" class="min-h-11 rounded-kontrol border border-garis bg-kartu px-2" name="category">
+            {adminAdjustCategories.map((category) => (
+              <option value={category.value}>{category.label}</option>
+            ))}
+          </select>
+          <label class="text-sm text-tinta-lembut" for="kredit-catatan">Catatan</label>
+          <input id="kredit-catatan" class="min-h-11 rounded-kontrol border border-garis bg-kartu px-3" name="note" minlength="3" maxlength="500" required placeholder="Contoh: kompensasi generate gagal" />
+        </div>
+
+        <p class="mt-3 text-sm text-tinta-lembut" data-credit-result aria-live="polite">
+          Saldo sekarang <span class="font-semibold tabular-nums text-tinta">{profile.balance}</span>. Isi jumlah untuk melihat saldo baru.
+        </p>
+
+        <div class="mt-3 flex flex-wrap items-center gap-3">
+          <button class="min-h-11 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white transition-[filter] hover:brightness-110" type="submit" data-credit-submit>Terapkan</button>
+          <span class="text-xs text-tinta-lembut">Setiap perubahan tercatat di buku kredit dan tidak bisa dihapus.</span>
+        </div>
+      </form>
+    )}
+  </section>
+
+  <section class="mt-10">
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+      <h2 class="text-lg font-semibold">Riwayat kredit</h2>
+      <a class="text-sm font-medium text-jalur hover:underline" href={`/admin/kredit?tab=buku&userId=${userId}`}>
+        Buku besar global
+      </a>
+    </div>
+
+    <nav class="mt-3 flex flex-wrap gap-2" aria-label="Filter alasan">
+      {ledgerFilterOptions.map((option) => (
+        <a
+          class:list={[
+            'rounded-kontrol border px-3 py-1.5 text-sm font-medium transition-colors',
+            alasan === option.value
+              ? 'border-jalur/40 bg-jalur-lembut text-jalur'
+              : 'border-garis bg-kartu text-tinta-lembut hover:border-jalur/40',
+          ]}
+          href={`/admin/pengguna/${userId}${option.value ? `?alasan=${option.value}` : ''}`}
+        >
+          {option.label}
+        </a>
+      ))}
+    </nav>
+
+    {ledger.length === 0 ? (
+      <p class="mt-2 text-sm text-tinta-lembut">Belum ada baris.</p>
+    ) : (
+      <>
+        <ul class="mt-3 space-y-2 text-sm">
+          {ledger.map((entry) => {
+            const amount = Number(entry.amount);
+            const actorName = typeof entry.actorName === 'string' ? entry.actorName : '';
+            const actorEmail = typeof entry.actorEmail === 'string' ? entry.actorEmail : '';
+            return (
+              <li class="rounded-kontrol border border-garis bg-kartu p-3">
+                <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span class="font-medium">{ledgerReasonLabels[String(entry.reason)] ?? entry.reason}</span>
+                  <span class:list={['font-semibold tabular-nums', amount >= 0 ? 'text-jalur' : 'text-bahaya']}>
+                    {amount >= 0 ? '+' : ''}{amount}
+                  </span>
+                  <span class="tabular-nums text-tinta-lembut">sisa {Number(entry.balanceAfter ?? 0)}</span>
+                  {typeof entry.category === 'string' && entry.category && (
+                    <span class="rounded-full border border-garis bg-kertas px-2 py-0.5 text-[11px] font-medium text-tinta-lembut">
+                      {adminAdjustCategoryLabels[entry.category] ?? entry.category}
+                    </span>
+                  )}
+                </div>
+                {entry.note && <p class="mt-1 text-tinta-lembut">{entry.note}</p>}
+                <p class="mt-1 text-xs text-tinta-lembut">
+                  {formatWhen(String(entry.createdAt ?? ''))}
+                  {actorName && ` · diubah oleh ${actorName}${actorEmail ? ` (${actorEmail})` : ''}`}
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+        <p class="mt-2 text-xs text-tinta-lembut">
+          Menampilkan {ledger.length} dari {ledgerTotal} baris
+          {ledgerTotal > ledger.length && ' — lihat buku besar global untuk sisanya'}.
+        </p>
+      </>
+    )}
+  </section>
+
+  {orders.length > 0 && (
+    <section class="mt-10">
+      <h2 class="text-lg font-semibold">Pesanan</h2>
+      <ul class="mt-3 space-y-2 text-sm">
+        {orders.map((order) => (
+          <li class="rounded-kontrol border border-garis bg-kartu p-3">
+            {order.status} · {order.credits} kredit · {order.amountIdr} IDR
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+  <script src="/scripts/admin-credit-form.js" defer></script>
+</AdminShell>

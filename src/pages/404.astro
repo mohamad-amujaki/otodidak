@@ -1,7 +1,40 @@
 ---
 import Shell from '../components/Shell.astro';
+
+const links = [
+  { href: '/dasbor', label: 'Dasbor' },
+  { href: '/pustaka', label: 'Pustaka' },
+  { href: '/kredit', label: 'Kredit' },
+  { href: '/', label: 'Beranda' },
+];
 ---
 <Shell title="Tidak ketemu">
-  <h1 class="text-[1.75rem] leading-[1.25]">Halaman tidak ketemu</h1>
-  <p class="mt-3"><a class="text-jalur" href="/">Kembali ke beranda</a></p>
+  <div class="mx-auto max-w-lg text-center">
+    <p class="eyebrow">404</p>
+    <h1 class="judul mt-2">Halaman tidak ketemu</h1>
+    <p class="mt-3 text-tinta-lembut">
+      Tautan mungkin sudah tidak dipakai atau alamatnya salah.
+    </p>
+    <div class="mt-8 flex flex-col gap-3 min-[480px]:flex-row min-[480px]:justify-center">
+      <a class="btn-jalur" href="/">Kembali ke beranda</a>
+      <a
+        class="inline-flex min-h-12 items-center justify-center rounded-kontrol border border-garis bg-kartu px-6 font-medium text-tinta transition-colors hover:border-jalur/40"
+        href="/masuk"
+      >
+        Masuk
+      </a>
+    </div>
+    <nav class="mt-10 text-left" aria-label="Tautan berguna">
+      <p class="text-sm font-semibold text-tinta">Mungkin kamu mencari</p>
+      <ul class="mt-3 space-y-2">
+        {links.map((item) => (
+          <li>
+            <a class="text-sm text-jalur hover:underline" href={item.href}>
+              {item.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  </div>
 </Shell>

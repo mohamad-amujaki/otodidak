@@ -1,0 +1,176 @@
+---
+import { env } from 'cloudflare:workers';
+import Shell from '../../components/Shell.astro';
+import { alphaLabel, domainOf } from '../../domain/format';
+import { parseLessonDiagrams, renderLesson } from '../../domain/markdown';
+import { database } from '../../server/account';
+import {
+  publicLessonPayload,
+  publicPathPayload,
+  resolveShareLink,
+} from '../../server/share';
+
+const { token } = Astro.params;
+const db = await database(env);
+const link = token ? await resolveShareLink(db, String(token)) : null;
+const lesson =
+  link?.scope === 'lesson'
+    ? await publicLessonPayload(db, link.targetId)
+    : null;
+const sharedPath =
+  link?.scope === 'path' ? await publicPathPayload(db, link.targetId) : null;
+
+const title = lesson
+  ? lesson.title
+  : sharedPath
+    ? sharedPath.title
+    : 'Link tidak aktif';
+const description = lesson
+  ? (lesson.adds ?? lesson.objective).replace(/\s+/g, ' ').slice(0, 150)
+  : sharedPath
+    ? `Jalur belajar: ${sharedPath.topic}`.slice(0, 150)
+    : 'Link bagikan ini sudah tidak berlaku.';
+const diagrams = lesson ? parseLessonDiagrams(lesson.diagramsJson) : [];
+const html = lesson
+  ? renderLesson(lesson.body ?? '', {
+      diagrams,
+      claims: lesson.claims.map((claim) => ({
+        quote: claim.quote,
+        unsourced: claim.unsourced === 1,
+      })),
+      sources: lesson.sources.map((source) => ({
+        id: source.id,
+        url: source.url,
+        title: source.title,
+      })),
+    })
+  : '';
+const ctaHref = link ? `/s/${link.token}/go` : '/';
+const lessonTotal = sharedPath
+  ? sharedPath.chapters.reduce(
+      (sum, chapter) => sum + chapter.lessons.length,
+      0,
+    )
+  : 0;
+---
+
+<Shell title={title} description={description} noindex>
+  <div class="mx-auto w-full max-w-[72ch]">
+    {lesson ? (
+      <>
+        <p class="eyebrow mt-2">{lesson.pathTitle} · {lesson.chapterTitle}</p>
+        <h1 class="judul mt-1.5">{lesson.title}</h1>
+        <p class="mt-2 text-sm text-tinta-lembut">
+          Dibagikan lewat Otodidak · {lesson.sources.length} referensi
+        </p>
+
+        <article class="baca mt-8" set:html={html} />
+
+        {lesson.sources.length > 0 && (
+          <section class="mt-10 rounded-kartu border border-garis/70 bg-kartu/60 p-5">
+            <h2 class="mb-4 text-xs font-semibold uppercase tracking-wider text-tinta-lembut">
+              Referensi
+            </h2>
+            <ol class="space-y-3">
+              {lesson.sources.map((source, index) => (
+                <li class="flex gap-3 text-sm leading-relaxed">
+                  <span class="shrink-0 rounded bg-jalur-lembut px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-jalur">
+                    [{index + 1}]
+                  </span>
+                  <div class="min-w-0 flex-1">
+                    <a
+                      class="break-words text-tinta transition-colors hover:text-jalur hover:underline"
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                    >
+                      {source.title}
+                    </a>
+                    <span class="text-tinta-lembut"> · {domainOf(source.url)}</span>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+      </>
+    ) : sharedPath ? (
+      <>
+        <p class="eyebrow mt-2">Jalur belajar</p>
+        <h1 class="judul mt-1.5">{sharedPath.title}</h1>
+        <p class="mt-2 text-sm text-tinta-lembut">
+          {sharedPath.topic} · {sharedPath.chapters.length} bab · {lessonTotal} pelajaran
+        </p>
+
+        <ol class="mt-8 space-y-3">
+          {sharedPath.chapters.map((chapter, chapterIndex) => (
+            <li class="rounded-kartu border border-garis bg-kartu p-4">
+              <div class="flex items-start gap-3">
+                <span class="flex size-8 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-sm font-bold tabular-nums text-jalur">
+                  {chapterIndex + 1}
+                </span>
+                <div class="min-w-0">
+                  <h2 class="text-sm font-semibold leading-snug text-tinta">
+                    {chapter.title}
+                  </h2>
+                  {chapter.summary && (
+                    <p class="mt-1 text-sm leading-relaxed text-tinta-lembut">
+                      {chapter.summary}
+                    </p>
+                  )}
+                </div>
+              </div>
+              {chapter.lessons.length > 0 && (
+                <ul class="mt-3 space-y-1 pl-11">
+                  {chapter.lessons.map((entry, lessonIndex) => (
+                    <li class="flex gap-2 text-sm leading-snug text-tinta">
+                      <span class="font-medium tabular-nums text-tinta-lembut">
+                        {alphaLabel(lessonIndex)}.
+                      </span>
+                      <span class="min-w-0 flex-1">{entry.title}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ol>
+      </>
+    ) : (
+      <section class="mt-8 rounded-kartu border border-garis bg-kartu p-6 text-center">
+        <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-tinta-lembut">
+          Link tidak aktif
+        </p>
+        <h1 class="mt-2 text-xl font-bold text-tinta">
+          Materi ini sudah tidak dibagikan
+        </h1>
+        <p class="mx-auto mt-2 max-w-md text-sm text-tinta-lembut">
+          Link bisa kedaluwarsa atau dicabut oleh pemiliknya. Kamu tetap bisa membuat jalur belajar sendiri dari satu topik.
+        </p>
+        <a class="btn-jalur mt-4 min-h-11 px-5 text-sm" href="/">Buat jalur gratis</a>
+      </section>
+    )}
+
+    {link && (
+      <section class="mt-10 rounded-kartu border border-jalur/30 bg-jalur-lembut p-5">
+        <h2 class="text-lg font-bold text-tinta">
+          Ingin jalur seperti ini untuk topikmu?
+        </h2>
+        <p class="mt-1 text-sm text-tinta-lembut">
+          Tulis satu topik, Otodidak menyusun roadmap, pelajaran, dan kuisnya. Mulai dari 24 kredit, tanpa langganan.
+        </p>
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+          <a class="btn-jalur min-h-11 px-5 text-sm" href={ctaHref}>
+            Buat jalur gratis
+          </a>
+          <a
+            class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40"
+            href="/privasi"
+          >
+            Tentang Otodidak
+          </a>
+        </div>
+      </section>
+    )}
+  </div>
+</Shell>

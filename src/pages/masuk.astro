@@ -1,12 +1,20 @@
 ---
 import { env } from 'cloudflare:workers';
 import Shell from '../components/Shell.astro';
-import { clerkHost } from '../domain/guard';
-import { callApi, errorOf } from '../server/call';
+import { clerkHost, clerkPublishableKeyFromEnv } from '../domain/guard';
+import { devSessionSchema } from '../domain/schemas';
+import { database, ensureUser } from '../server/account';
+import { devIdentityFor } from '../server/auth';
+import { signInDevSession } from '../server/profile-actions';
+import { pageSession } from '../server/ssr';
 
 const mock = env.CLERK_SECRET_KEY === 'mock';
-const session = await callApi(Astro.request, env, '/api/me');
-if (session.status === 200) return Astro.redirect('/dasbor');
+const existing = await pageSession(Astro.request, env);
+const topik = String(Astro.url.searchParams.get('topik') ?? '').trim();
+if (existing)
+  return Astro.redirect(
+    topik ? `/dasbor?topik=${encodeURIComponent(topik)}` : '/dasbor',
+  );
 
 let message = '';
 if (Astro.request.method === 'POST') {
@@ -14,46 +22,69 @@ if (Astro.request.method === 'POST') {
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
   else if (mock) {
-    const result = await callApi(Astro.request, env, '/api/dev/session', {
-      method: 'POST',
-      json: {
-        email: String(form.get('email') ?? ''),
-        name: String(form.get('name') ?? ''),
-      },
-      csrf: Astro.locals.csrf,
+    const parsed = devSessionSchema.safeParse({
+      email: String(form.get('email') ?? ''),
+      name: String(form.get('name') ?? ''),
     });
-    const error = errorOf(result.data);
-    if (error) message = error.message;
+    if (!parsed.success) message = 'Email dan nama tidak valid.';
     else {
+      const identity = await devIdentityFor(
+        parsed.data.email,
+        parsed.data.name,
+      );
+      const db = await database(env);
+      await ensureUser(db, env, identity);
       const headers = new Headers({ Location: '/dasbor' });
-      for (const cookie of result.setCookie)
-        headers.append('set-cookie', cookie);
+      headers.append(
+        'set-cookie',
+        await signInDevSession(Astro.request, env, identity),
+      );
       return new Response(null, { status: 303, headers });
     }
   }
 }
-const host = clerkHost(env.CLERK_PUBLISHABLE_KEY);
+const publishableKey = clerkPublishableKeyFromEnv(env);
+const host = clerkHost(publishableKey);
 ---
-<Shell title="Masuk">
-  <h1 class="text-[1.75rem] leading-[1.25]">Masuk</h1>
-  <p class="mt-2 text-tinta-lembut">Tidak ada kata sandi.</p>
-  {mock ? (
-    <form class="mt-6 max-w-md space-y-3" method="post">
-      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-      <p class="text-sm text-tinta-lembut">Lingkungan lokal memakai sesi percobaan sampai kunci Clerk diisi.</p>
-      <label class="block text-sm" for="email">Email</label>
-      <input class="min-h-11 w-full rounded-kontrol border border-garis bg-kartu px-3" id="email" name="email" type="email" required />
-      <label class="block text-sm" for="name">Nama</label>
-      <input class="min-h-11 w-full rounded-kontrol border border-garis bg-kartu px-3" id="name" name="name" required />
-      {message && <p class="text-sm text-bahaya">{message}</p>}
-      <button class="inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-white" type="submit">Masuk dengan Google</button>
-    </form>
-  ) : (
-    <>
-      <meta name="clerk-key" content={env.CLERK_PUBLISHABLE_KEY} />
-      {host && <meta name="clerk-host" content={host} />}
-      <button class="mt-6 inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-white" id="google" type="button">Masuk dengan Google</button>
-      <script type="module" src="/scripts/masuk.js"></script>
-    </>
-  )}
+<Shell
+  title="Masuk"
+  description="Masuk ke Otodidak dengan Google. Tanpa kata sandi — langsung mulai menyusun jalur belajarmu."
+>
+  <div class="max-w-md pb-24 min-[768px]:pb-0">
+    <h1 class="judul">Masuk</h1>
+    <p class="mt-2 text-tinta-lembut">Tidak ada kata sandi.</p>
+    {mock ? (
+      <form class="mt-6 grid gap-4" method="post">
+        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        <p class="text-sm leading-[1.4] text-tinta-lembut">Lingkungan lokal memakai sesi percobaan sampai kunci Clerk diisi.</p>
+        <div>
+          <label class="block text-sm" for="email">Email</label>
+          <input class="mt-1 rounded-kontrol border border-garis bg-kartu" id="email" name="email" type="email" required />
+        </div>
+        <div>
+          <label class="block text-sm" for="name">Nama</label>
+          <input class="mt-1 rounded-kontrol border border-garis bg-kartu" id="name" name="name" required />
+        </div>
+        {message && <p class="text-sm text-bahaya">{message}</p>}
+        <button class="w-full rounded-kontrol bg-jalur px-4 text-white min-[768px]:w-auto" type="submit">Masuk dengan Google</button>
+      </form>
+    ) : (
+      <>
+        <meta name="clerk-key" content={publishableKey} />
+        <meta name="masuk-topik" content={topik} />
+        {host && <meta name="clerk-host" content={host} />}
+        <button class="js-google-signin btn-jalur mt-6 w-full min-[768px]:w-auto" id="google" type="button">Masuk dengan Google</button>
+        <script type="module" src="/scripts/masuk.js"></script>
+        <div
+          class="fixed inset-x-0 bottom-0 z-30 border-t border-garis bg-kertas/95 p-4 backdrop-blur-sm min-[768px]:hidden"
+          role="region"
+          aria-label="Masuk cepat"
+        >
+          <button class="js-google-signin btn-jalur w-full" id="google-sticky" type="button">
+            Masuk dengan Google
+          </button>
+        </div>
+      </>
+    )}
+  </div>
 </Shell>

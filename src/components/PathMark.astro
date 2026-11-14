@@ -1,12 +1,16 @@
 ---
 interface Props {
-  class?: string;
+  last?: boolean;
 }
-const { class: className = 'h-28 w-6 text-jalur' } = Astro.props;
+const { last = false } = Astro.props;
 ---
-<svg class={className} viewBox="0 0 24 112" fill="none" aria-hidden="true">
-  <path d="M12 8v96" stroke="currentColor" stroke-width="2"></path>
-  <circle cx="12" cy="12" r="4" fill="currentColor"></circle>
-  <circle cx="12" cy="56" r="4" fill="currentColor"></circle>
-  <circle cx="12" cy="100" r="4" fill="currentColor"></circle>
-</svg>
+<span class="relative min-h-6 w-4 shrink-0 self-stretch text-jalur" aria-hidden="true">
+  {!last && (
+    <svg class="absolute top-3 right-0 bottom-0 left-0 w-4" viewBox="0 0 16 100" preserveAspectRatio="none">
+      <path d="M8 0v100" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+    </svg>
+  )}
+  <svg class="absolute top-1 left-0 size-4" viewBox="0 0 16 16">
+    <circle cx="8" cy="8" r="4" fill="currentColor"></circle>
+  </svg>
+</span>
