@@ -79,14 +79,14 @@ if (Astro.request.method === 'POST') {
   else if (String(form.get('aksi') ?? '') === 'ulang') {
     try {
       await startQuiz(env, Astro.request, session.user, lessonId);
-      message = 'Kuis sedang disusun. Halaman ini akan diperbarui otomatis.';
+      message = 'Quiz sedang disusun. Halaman ini akan diperbarui otomatis.';
       messageIsInfo = true;
     } catch (error) {
       if (error instanceof AppError && error.code === 'insufficient_credits')
         creditShortfall = { balance, cost };
       else
         message =
-          error instanceof AppError ? error.message : 'Gagal memulai kuis.';
+          error instanceof AppError ? error.message : 'Gagal memulai quiz.';
     }
   } else if (quiz) {
     const answers = questions.map((_, index) =>
@@ -143,11 +143,11 @@ const bestScore = attempts.reduce(
     ),
   0,
 );
-const lessonTitle = String(lesson?.title ?? 'Kuis sub-bab');
+const lessonTitle = String(lesson?.title ?? 'Quiz sub-bab');
 const chapterNumber = chapters.findIndex((item) => item.id === chapter?.id) + 1;
 ---
 
-<Shell title={`Kuis sub-bab: ${lessonTitle}`} balance={typeof me.balance === 'number' ? me.balance : 0} lowCredit={lowCredit} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
+<Shell title={`Quiz sub-bab: ${lessonTitle}`} balance={typeof me.balance === 'number' ? me.balance : 0} lowCredit={lowCredit} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
   <div class="mx-auto w-full max-w-[44rem]">
     <a
       class="inline-flex min-h-11 items-center gap-1.5 text-sm text-tinta-lembut transition-colors hover:text-jalur"
@@ -160,7 +160,7 @@ const chapterNumber = chapters.findIndex((item) => item.id === chapter?.id) + 1;
     </a>
 
     <p class="eyebrow mt-4">
-      Kuis sub-bab{chapterNumber > 0 ? ` · Bab ${chapterNumber}` : ''}{lessonPosition >= 0 ? ` · Sub-bab ${alphaLabel(lessonPosition)}` : ''}
+      Quiz sub-bab{chapterNumber > 0 ? ` · Bab ${chapterNumber}` : ''}{lessonPosition >= 0 ? ` · Sub-bab ${alphaLabel(lessonPosition)}` : ''}
     </p>
     <h1 class="judul mt-1.5">{lessonTitle}</h1>
     <div class="mt-3 flex flex-wrap items-center gap-2">
@@ -207,7 +207,7 @@ const chapterNumber = chapters.findIndex((item) => item.id === chapter?.id) + 1;
       <div class="mt-4 rounded-kontrol border border-jalur/30 bg-jalur-lembut p-4">
         <p class="text-sm font-semibold text-jalur">Kredit kamu sekarang {balance}.</p>
         <p class="mt-1 text-sm text-tinta-lembut">
-          Pakai tombol “Susun ulang kuis sub-bab” di bawah untuk menyusun ulang.
+          Pakai tombol “Susun ulang quiz sub-bab” di bawah untuk menyusun ulang.
         </p>
         <a class="mt-3 inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta" href={resumeDismissHref}>
           Tutup
@@ -218,11 +218,11 @@ const chapterNumber = chapters.findIndex((item) => item.id === chapter?.id) + 1;
     {!quiz && (
       <section class="mt-6 rounded-kartu border border-garis bg-kartu p-6 text-center">
         <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-tinta-lembut">
-          Kuis sub-bab belum disusun
+          Quiz sub-bab belum disusun
         </p>
         <h2 class="mt-2 text-lg font-bold text-tinta">Uji pemahaman sub-bab ini</h2>
         <p class="mx-auto mt-2 max-w-sm text-sm text-tinta-lembut">
-          Soal dibuat dari materi sub-bab ini, lalu bisa diulang tanpa kredit tambahan. Menyusun kuis memakai {cost} kredit.
+          Soal dibuat dari materi sub-bab ini, lalu bisa diulang tanpa kredit tambahan. Menyusun quiz memakai {cost} kredit.
         </p>
         <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
           {quizAffordable ? (
@@ -230,7 +230,7 @@ const chapterNumber = chapters.findIndex((item) => item.id === chapter?.id) + 1;
               <input type="hidden" name="csrf" value={Astro.locals.csrf} />
               <input type="hidden" name="aksi" value="ulang" />
               <button class="btn-jalur min-h-11 px-5 text-sm" type="submit">
-                Susun kuis sub-bab
+                Susun quiz sub-bab
               </button>
             </form>
           ) : (
@@ -251,7 +251,7 @@ const chapterNumber = chapters.findIndex((item) => item.id === chapter?.id) + 1;
     {quiz && questions.length === 0 && (
       <div class="mt-6 space-y-3">
         <GenerationWait
-          title="Menyusun kuis"
+          title="Menyusun quiz"
           description="Soal sedang dibuat dari materi sub-bab ini."
           compact
           jobId={activeJob ? String(activeJob.id) : undefined}
@@ -298,7 +298,7 @@ const chapterNumber = chapters.findIndex((item) => item.id === chapter?.id) + 1;
           aria-valuemin="0"
           aria-valuemax="100"
           aria-valuenow={scorePercent ?? 0}
-          aria-label="Skor kuis"
+          aria-label="Skor quiz"
         >
           <div
             class:list={['h-full', passed ? 'bg-jalur' : 'bg-hangat']}
@@ -306,7 +306,7 @@ const chapterNumber = chapters.findIndex((item) => item.id === chapter?.id) + 1;
           />
         </div>
         <p class="mt-3 text-sm text-tinta-lembut">
-          Sub-bab berikutnya tetap terbuka. Kuis ini memeriksa pemahaman sub-bab ini, bukan syarat lanjut.
+          Sub-bab berikutnya tetap terbuka. Quiz ini memeriksa pemahaman sub-bab ini, bukan syarat lanjut.
         </p>
         <div class="mt-4 flex flex-wrap items-center gap-2">
           <a class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40" href={`/jalur/${pathId}/kuis/${lessonId}?ulang=1`}>
@@ -453,7 +453,7 @@ const chapterNumber = chapters.findIndex((item) => item.id === chapter?.id) + 1;
         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
         {redoMode && (
           <p class="rounded-kontrol border border-garis bg-kertas px-3 py-2 text-sm text-tinta-lembut">
-            Kerjakan ulang kuis yang sama. Mengirim jawaban tidak memakai kredit dan tidak mengunci pelajaran berikutnya.
+            Kerjakan ulang quiz yang sama. Mengirim jawaban tidak memakai kredit dan tidak mengunci pelajaran berikutnya.
           </p>
         )}
         {questions.length > 1 && (
@@ -559,7 +559,7 @@ const chapterNumber = chapters.findIndex((item) => item.id === chapter?.id) + 1;
       <form
         class="mt-8 rounded-kartu border border-garis bg-kartu p-4"
         method="post"
-        data-confirm="Susun ulang kuis sub-bab ini?"
+        data-confirm="Susun ulang quiz sub-bab ini?"
         data-confirm-detail={lessonTitle}
         data-confirm-cost={cost}
         data-confirm-balance={balance}
@@ -568,7 +568,7 @@ const chapterNumber = chapters.findIndex((item) => item.id === chapter?.id) + 1;
       >
         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
         <input type="hidden" name="aksi" value="ulang" />
-        <p class="text-sm font-medium text-tinta">Susun ulang kuis sub-bab</p>
+        <p class="text-sm font-medium text-tinta">Susun ulang quiz sub-bab</p>
         <p class="mt-1 text-sm text-tinta-lembut">
           Membuat set soal baru dari materi sub-bab ini. Percobaan lama tetap tersimpan.
         </p>
@@ -581,7 +581,7 @@ const chapterNumber = chapters.findIndex((item) => item.id === chapter?.id) + 1;
             ? 'Kredit tidak cukup'
             : activeJob
               ? 'Sedang menyusun…'
-              : `Susun ulang kuis sub-bab · ${cost} kredit`}
+              : `Susun ulang quiz sub-bab · ${cost} kredit`}
         </button>
         {!quizAffordable && (
           <p class="mt-2 text-sm tabular-nums text-tinta-lembut">

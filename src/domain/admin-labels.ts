@@ -44,7 +44,7 @@ export const ledgerReasonLabels: Record<string, string> = {
   purchase: 'Pembelian',
   roadmap: 'Jalur',
   lesson: 'Pelajaran',
-  quiz: 'Kuis',
+  quiz: 'Quiz',
   refund: 'Pengembalian',
   admin_adjust: 'Penyesuaian admin',
   redeem: 'Kode akses',
@@ -54,11 +54,11 @@ export const ledgerReasonLabels: Record<string, string> = {
 export const configFieldLabels: Record<string, string> = {
   maxChapters: 'Maksimal bab per jalur',
   maxLessonsPerChapter: 'Maksimal pelajaran per bab',
-  quizQuestionCount: 'Jumlah soal kuis sub-bab',
-  quizPassPercent: 'Nilai lulus kuis (%)',
+  quizQuestionCount: 'Jumlah soal quiz sub-bab',
+  quizPassPercent: 'Nilai lulus quiz (%)',
   costRoadmap: 'Biaya buat jalur (kredit)',
   costLesson: 'Biaya buka pelajaran (kredit)',
-  costQuiz: 'Biaya buat kuis sub-bab (kredit)',
+  costQuiz: 'Biaya buat quiz sub-bab (kredit)',
   signupCredits: 'Kredit daftar baru',
   lessonMinuteLabel: 'Label menit per pelajaran',
   adminDailyCreditCap: 'Batas harian kredit admin',
@@ -88,19 +88,19 @@ export const jobStatusLabels: Record<string, string> = {
 export const jobKindLabels: Record<string, string> = {
   roadmap: 'Jalur',
   lesson: 'Pelajaran',
-  quiz: 'Kuis',
+  quiz: 'Quiz',
 };
 
 export const aiTaskLabels: Record<string, string> = {
   roadmap: 'Peta jalur',
   lesson: 'Pelajaran',
-  quiz: 'Kuis',
+  quiz: 'Quiz',
 };
 
 export const aiTaskCostHints: Record<string, string> = {
   roadmap: 'Biaya buat jalur (kredit)',
   lesson: 'Biaya buka pelajaran (kredit)',
-  quiz: 'Biaya buat kuis (kredit)',
+  quiz: 'Biaya buat quiz (kredit)',
 };
 
 export const aiTasks = ['roadmap', 'lesson', 'quiz'] as const;

@@ -396,7 +396,7 @@ export async function startQuiz(
   if (lesson.status !== 'ready' || !lesson.body)
     throw new AppError(
       'validation',
-      'Kuis bisa disusun setelah materi sub-bab ini siap.',
+      'Quiz bisa disusun setelah materi sub-bab ini siap.',
     );
   const config = await loadConfig(db);
   const quizId = crypto.randomUUID();

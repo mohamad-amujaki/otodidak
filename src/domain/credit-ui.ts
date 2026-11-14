@@ -3,7 +3,7 @@ export const ledgerReasonLabels: Record<string, string> = {
   purchase: 'Pembelian',
   roadmap: 'Jalur',
   lesson: 'Pelajaran',
-  quiz: 'Kuis',
+  quiz: 'Quiz',
   outline: 'Kerangka pelajaran',
   refund: 'Pengembalian',
   admin_adjust: 'Penyesuaian',

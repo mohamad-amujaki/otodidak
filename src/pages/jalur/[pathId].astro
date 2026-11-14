@@ -99,14 +99,14 @@ if (Astro.request.method === 'POST') {
           session.user,
           String(form.get('chapterId') ?? ''),
         );
-        message = 'Menyusun kuis. Muat ulang halaman ini beberapa saat lagi.';
+        message = 'Menyusun quiz. Muat ulang halaman ini beberapa saat lagi.';
         messageIsInfo = true;
       } catch (error) {
         if (error instanceof AppError && error.code === 'insufficient_credits')
           creditShortfall = { balance, cost: quizCost, action: 'kuis' };
         else
           message =
-            error instanceof AppError ? error.message : 'Gagal memulai kuis.';
+            error instanceof AppError ? error.message : 'Gagal memulai quiz.';
       }
     } else if (action === 'bagikan') {
       const link = await createPathShareLink(
@@ -656,10 +656,10 @@ function actionFrom(form: FormData): OutlineAction {
                             ? "border-jalur/30 bg-jalur-lembut text-jalur"
                             : "border-hangat/30 bg-hangat-lembut text-hangat",
                         ]}>
-                          Kuis sub-bab · {chapter.quizPassed}/{chapter.quizCount} lulus
+                          Quiz sub-bab · {chapter.quizPassed}/{chapter.quizCount} lulus
                         </span>
                       ) : (
-                        <span>Kuis sub-bab belum dibuat</span>
+                        <span>Quiz sub-bab belum dibuat</span>
                       )}
                     </div>
                     {chapter.lessons[0] ? (
