@@ -1,12 +1,16 @@
 ---
 import { env } from 'cloudflare:workers';
 import Shell from '../components/Shell.astro';
+import { AppError } from '../domain/errors';
 import { isRecord, record } from '../domain/guard';
-import { callApi, errorOf } from '../server/call';
+import { activateUserPath } from '../server/path-actions';
+import { library } from '../server/read';
+import { pageMe } from '../server/ssr';
 
-const meResult = await callApi(Astro.request, env, '/api/me');
-if (meResult.status !== 200) return Astro.redirect('/masuk');
-const me = record(meResult.data);
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session, me: meRaw } = page;
+const me = record(meRaw);
 const user = record(me.user);
 let message = '';
 if (Astro.request.method === 'POST') {
@@ -14,36 +18,113 @@ if (Astro.request.method === 'POST') {
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
   else {
-    const result = await callApi(
-      Astro.request,
-      env,
-      `/api/paths/${String(form.get('pathId') ?? '')}/active`,
-      { method: 'POST', json: {}, csrf: Astro.locals.csrf },
-    );
-    const error = errorOf(result.data);
-    if (error) message = error.message;
-    else return Astro.redirect('/pustaka');
+    try {
+      await activateUserPath(
+        session.db,
+        session.user.id,
+        String(form.get('pathId') ?? ''),
+      );
+      return Astro.redirect('/pustaka');
+    } catch (error) {
+      message =
+        error instanceof AppError ? error.message : 'Gagal mengaktifkan jalur.';
+    }
   }
 }
-const library = await callApi(Astro.request, env, '/api/paths');
-const paths =
-  isRecord(library.data) && Array.isArray(library.data.paths)
-    ? library.data.paths.filter(isRecord)
-    : [];
+const pathsRaw = (await library(session.db, session.user.id)).filter(isRecord);
+const sort = Astro.url.searchParams.get('urut') ?? 'terbaru';
+const query = (Astro.url.searchParams.get('cari') ?? '').trim();
+const queryLower = query.toLowerCase();
+function progressPercent(path: Record<string, unknown>): number {
+  const progress = record(path.progress);
+  const done = Number(progress.done ?? 0);
+  const total = Number(progress.total ?? 0);
+  return total > 0 ? Math.round((done / total) * 100) : 0;
+}
+function pathIsComplete(path: Record<string, unknown>): boolean {
+  const progress = record(path.progress);
+  const done = Number(progress.done ?? 0);
+  const total = Number(progress.total ?? 0);
+  return done === total && total > 0;
+}
+function pathIsInProgress(path: Record<string, unknown>): boolean {
+  return path.isActive !== true && !pathIsComplete(path);
+}
+const STATUS_IDS = ['semua', 'aktif', 'berjalan', 'selesai'] as const;
+type StatusId = (typeof STATUS_IDS)[number];
+const statusRaw = Astro.url.searchParams.get('status') ?? 'semua';
+const status: StatusId = STATUS_IDS.includes(statusRaw as StatusId)
+  ? (statusRaw as StatusId)
+  : 'semua';
+const searched = queryLower
+  ? pathsRaw.filter((path) => {
+      const title = String(path.title ?? '').toLowerCase();
+      const topic = String(path.topic ?? '').toLowerCase();
+      return title.includes(queryLower) || topic.includes(queryLower);
+    })
+  : pathsRaw;
+const filtered =
+  status === 'semua'
+    ? searched
+    : searched.filter((path) => {
+        if (status === 'aktif') return path.isActive === true;
+        if (status === 'selesai') return pathIsComplete(path);
+        return pathIsInProgress(path);
+      });
+const paths = [...filtered].sort((left, right) => {
+  if (sort === 'judul')
+    return String(left.title ?? '').localeCompare(
+      String(right.title ?? ''),
+      'id',
+    );
+  if (sort === 'progress')
+    return progressPercent(right) - progressPercent(left);
+  return 0;
+});
+function listHref(parts?: {
+  urut?: string;
+  status?: StatusId;
+  clearSearch?: boolean;
+}): string {
+  const url = new URL('/pustaka', Astro.url);
+  const urut = parts?.urut ?? sort;
+  const statusVal = parts?.status ?? status;
+  const cari = parts?.clearSearch ? '' : query;
+  if (urut !== 'terbaru') url.searchParams.set('urut', urut);
+  if (cari) url.searchParams.set('cari', cari);
+  if (statusVal !== 'semua') url.searchParams.set('status', statusVal);
+  const search = url.searchParams.toString();
+  return search ? `${url.pathname}?${search}` : url.pathname;
+}
+const sortOptions = [
+  { id: 'terbaru', label: 'Terbaru' },
+  { id: 'progress', label: 'Progress' },
+  { id: 'judul', label: 'A–Z' },
+] as const;
+const statusOptions = [
+  { id: 'semua', label: 'Semua' },
+  { id: 'aktif', label: 'Aktif' },
+  { id: 'berjalan', label: 'Berjalan' },
+  { id: 'selesai', label: 'Selesai' },
+] as const;
+const statusLabel =
+  statusOptions.find((o) => o.id === status)?.label ?? 'Semua';
+const filtering = Boolean(query) || status !== 'semua';
 ---
-<Shell title="Pustaka" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
+<Shell title="Pustaka" sectionLabel="Pustaka" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
   <!-- Header Section -->
   <div class="mb-6 flex flex-col gap-4 min-[768px]:flex-row min-[768px]:items-center min-[768px]:justify-between">
     <div>
       <h1 class="judul">Pustaka</h1>
       <p class="mt-1 text-tinta-lembut">
-        {paths.length === 0 ? 'Koleksi jalur pembelajaran kosong' : `${paths.length} jalur pembelajaran`}
+        {pathsRaw.length === 0
+          ? 'Koleksi jalur pembelajaran kosong'
+          : filtering
+            ? `${paths.length} dari ${pathsRaw.length} jalur ditampilkan`
+            : `${paths.length} jalur pembelajaran`}
       </p>
     </div>
-    <a 
-      class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110 min-[768px]:w-auto" 
-      href="/dasbor?baru=1"
-    >
+    <a class="btn-jalur w-full min-[768px]:w-auto" href="/dasbor?baru=1">
       <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
       </svg>
@@ -62,7 +143,7 @@ const paths =
     </div>
   )}
 
-  {paths.length === 0 ? (
+  {pathsRaw.length === 0 ? (
     <div class="rounded-kartu border border-garis bg-kartu p-8 text-center shadow-sm min-[768px]:p-12">
       <div class="mx-auto flex size-16 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
         <svg class="size-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -84,6 +165,79 @@ const paths =
       </a>
     </div>
   ) : (
+    <>
+    <form class="mb-4 flex flex-col gap-2 min-[640px]:flex-row" method="get" role="search">
+      {sort !== 'terbaru' && <input type="hidden" name="urut" value={sort} />}
+      {status !== 'semua' && <input type="hidden" name="status" value={status} />}
+      <label class="sr-only" for="cari-jalur">Cari jalur pembelajaran</label>
+      <input
+        id="cari-jalur"
+        class="min-h-11 flex-1 rounded-kontrol border border-garis bg-kartu px-3 text-tinta placeholder:text-tinta-lembut focus:border-jalur"
+        type="search"
+        name="cari"
+        value={query}
+        placeholder="Cari judul atau topik…"
+        autocomplete="off"
+      />
+      <button
+        class="min-h-11 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta hover:border-jalur/40"
+        type="submit"
+      >
+        Cari
+      </button>
+    </form>
+    <div class="mb-4 flex flex-wrap items-center gap-2" role="group" aria-label="Urutkan jalur">
+      <span class="text-sm text-tinta-lembut">Urutkan:</span>
+      {sortOptions.map((option) => (
+        <a
+          class:list={[
+            'rounded-kontrol border px-3 py-1.5 text-sm font-medium transition-colors',
+            sort === option.id
+              ? 'border-jalur bg-jalur-lembut text-jalur'
+              : 'border-garis bg-kartu text-tinta hover:border-jalur/40',
+          ]}
+          href={listHref({ urut: option.id })}
+          aria-current={sort === option.id ? 'true' : undefined}
+        >
+          {option.label}
+        </a>
+      ))}
+    </div>
+    <div class="mb-4 flex flex-wrap items-center gap-2" role="group" aria-label="Filter status jalur">
+      <span class="text-sm text-tinta-lembut">Status:</span>
+      {statusOptions.map((option) => (
+        <a
+          class:list={[
+            'rounded-kontrol border px-3 py-1.5 text-sm font-medium transition-colors',
+            status === option.id
+              ? 'border-jalur bg-jalur-lembut text-jalur'
+              : 'border-garis bg-kartu text-tinta hover:border-jalur/40',
+          ]}
+          href={listHref({ status: option.id })}
+          aria-current={status === option.id ? 'true' : undefined}
+        >
+          {option.label}
+        </a>
+      ))}
+    </div>
+    {paths.length === 0 ? (
+      <div class="rounded-kartu border border-garis bg-kartu p-8 text-center shadow-sm">
+        {query ? (
+          <p class="text-tinta-lembut">
+            Tidak ada jalur yang cocok dengan “{query}”
+            {status !== 'semua' ? ` (status: ${statusLabel.toLowerCase()})` : ''}.
+          </p>
+        ) : (
+          <p class="text-tinta-lembut">Tidak ada jalur berstatus “{statusLabel}”.</p>
+        )}
+        <a
+          class="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-jalur hover:underline"
+          href={listHref({ status: 'semua', clearSearch: true })}
+        >
+          Reset filter
+        </a>
+      </div>
+    ) : (
     <ul class="grid gap-4 min-[768px]:grid-cols-2 min-[1100px]:grid-cols-3">
       {paths.map((path) => {
         const progress = record(path.progress);
@@ -103,7 +257,7 @@ const paths =
         const iconStyle = isActive ? 'bg-jalur text-white' : 'bg-kartu text-jalur';
         
         return (
-          <li class="group flex flex-col overflow-hidden rounded-kartu border border-garis bg-kartu shadow-sm transition-all hover:shadow-md hover:border-jalur/30">
+          <li class="group hover-lift flex flex-col overflow-hidden rounded-kartu border border-garis bg-kartu shadow-sm transition-[box-shadow,border-color] hover:shadow-md hover:border-jalur/30">
             <div class={`relative flex h-32 items-center justify-center ${headerBg}`}>
               <div class={`flex size-16 items-center justify-center rounded-kontrol ${iconStyle} shadow-md`}>
                 <svg class="size-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -190,5 +344,7 @@ const paths =
         );
       })}
     </ul>
+    )}
+    </>
   )}
 </Shell>

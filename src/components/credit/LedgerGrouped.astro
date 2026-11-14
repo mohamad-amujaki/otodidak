@@ -1,0 +1,26 @@
+---
+import { isRecord } from '../../domain/guard';
+import { groupEntriesByMonth } from '../../domain/ledger-group';
+import LedgerRows from './LedgerRows.astro';
+
+interface Props {
+  entries: unknown[];
+  compact?: boolean;
+}
+
+const { entries, compact = true } = Astro.props;
+const rows = entries.filter(isRecord);
+const groups = groupEntriesByMonth(
+  rows.map((r) => ({ ...r, createdAt: String(r.createdAt) })),
+);
+---
+<div class="space-y-6">
+  {groups.map((group) => (
+    <section>
+      <h2 class="sticky top-16 z-10 mb-3 border-b border-garis bg-kertas/95 py-2 text-sm font-semibold text-tinta backdrop-blur-sm">
+        {group.label}
+      </h2>
+      <LedgerRows entries={group.entries} compact={compact} linkable />
+    </section>
+  ))}
+</div>

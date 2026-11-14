@@ -1,0 +1,40 @@
+---
+interface Summary {
+  added: number;
+  used: number;
+  net: number;
+}
+
+interface Props {
+  summary: Summary;
+  compact?: boolean;
+}
+
+const { summary, compact = false } = Astro.props;
+---
+<div
+  class:list={[
+    'grid gap-3 rounded-kartu border border-garis bg-kartu',
+    compact ? 'p-4 min-[640px]:grid-cols-3' : 'p-5 min-[640px]:grid-cols-3',
+  ]}
+>
+  <div>
+    <p class="text-xs font-medium uppercase tracking-wide text-tinta-lembut">30 hari · ditambah</p>
+    <p class="mt-1 text-xl font-bold tabular-nums text-jalur">+{summary.added}</p>
+  </div>
+  <div>
+    <p class="text-xs font-medium uppercase tracking-wide text-tinta-lembut">30 hari · dipakai</p>
+    <p class="mt-1 text-xl font-bold tabular-nums text-bahaya">{summary.used}</p>
+  </div>
+  <div>
+    <p class="text-xs font-medium uppercase tracking-wide text-tinta-lembut">30 hari · neto</p>
+    <p
+      class:list={[
+        'mt-1 text-xl font-bold tabular-nums',
+        summary.net >= 0 ? 'text-jalur' : 'text-bahaya',
+      ]}
+    >
+      {summary.net >= 0 ? '+' : ''}{summary.net}
+    </p>
+  </div>
+</div>

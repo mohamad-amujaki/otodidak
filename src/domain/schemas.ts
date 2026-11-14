@@ -49,6 +49,53 @@ export const pageSchema = z.strictObject({
   q: z.string().trim().min(1).max(120).optional(),
 });
 
+const ledgerReason = z.enum([
+  'signup_grant',
+  'purchase',
+  'roadmap',
+  'lesson',
+  'quiz',
+  'outline',
+  'refund',
+  'admin_adjust',
+  'usage',
+]);
+
+const orderStatus = z.enum(['pending', 'paid', 'failed', 'expired']);
+
+const emptyToUndefined = (value: unknown) =>
+  value === '' || value === undefined ? undefined : value;
+
+const adminUserRole = z.enum(['learner', 'admin']);
+const adminUserStatus = z.enum(['active', 'suspended']);
+const adminJobStatus = z.enum(['queued', 'running', 'succeeded', 'failed']);
+const adminJobKind = z.enum(['roadmap', 'lesson', 'quiz']);
+
+export const adminPageSchema = pageSchema.extend({
+  role: z.preprocess(emptyToUndefined, adminUserRole.optional()),
+  status: z.preprocess(emptyToUndefined, adminUserStatus.optional()),
+  orderStatus: z.preprocess(emptyToUndefined, orderStatus.optional()),
+  jobStatus: z.preprocess(emptyToUndefined, adminJobStatus.optional()),
+  jobKind: z.preprocess(emptyToUndefined, adminJobKind.optional()),
+  deletion: z
+    .union([z.literal('1'), z.literal('true'), z.literal('')])
+    .optional()
+    .transform((v) => v === '1' || v === 'true'),
+});
+
+export const creditsQuerySchema = z.strictObject({
+  limit: z.coerce.number().int().min(0).max(50).default(20),
+  offset: z.coerce.number().int().min(0).max(10_000).default(0),
+  ordersLimit: z.coerce.number().int().min(0).max(50).default(20),
+  ordersOffset: z.coerce.number().int().min(0).max(10_000).default(0),
+  reason: z.preprocess(emptyToUndefined, ledgerReason.optional()),
+  status: z.preprocess(emptyToUndefined, orderStatus.optional()),
+  includePending: z
+    .union([z.literal('1'), z.literal('true'), z.literal('')])
+    .optional()
+    .transform((v) => v === '1' || v === 'true'),
+});
+
 export const adminUserSchema = z
   .strictObject({
     role: z.enum(['learner', 'admin']).optional(),
@@ -58,6 +105,16 @@ export const adminUserSchema = z
     message: 'Pilih peran atau status.',
   });
 
+export const adminAdjustCategoryValues = [
+  'bonus',
+  'kompensasi',
+  'dukungan',
+  'uji',
+  'koreksi',
+] as const;
+
+export type AdminAdjustCategory = (typeof adminAdjustCategoryValues)[number];
+
 export const adminAdjustSchema = z.strictObject({
   amount: z
     .number()
@@ -66,6 +123,21 @@ export const adminAdjustSchema = z.strictObject({
     .max(1_000_000)
     .refine((value) => value !== 0, 'Jumlah tidak boleh nol.'),
   note: z.string().trim().min(3).max(500),
+  category: z.enum(adminAdjustCategoryValues).optional(),
+  nonce: z.string().trim().min(8).max(64).optional(),
+});
+
+export const adminBulkAdjustSchema = z.strictObject({
+  userIds: z.array(z.string().trim().min(1)).min(1).max(50),
+  amount: z
+    .number()
+    .int()
+    .min(-1_000_000)
+    .max(1_000_000)
+    .refine((value) => value !== 0, 'Jumlah tidak boleh nol.'),
+  note: z.string().trim().min(3).max(500),
+  category: z.enum(adminAdjustCategoryValues).optional(),
+  nonce: z.string().trim().min(8).max(64).optional(),
 });
 
 export const configSchema = z.strictObject({
@@ -78,6 +150,7 @@ export const configSchema = z.strictObject({
   costQuiz: z.number().int().min(0).max(100),
   signupCredits: z.number().int().min(0).max(1000),
   lessonMinuteLabel: z.number().int().min(1).max(60),
+  adminDailyCreditCap: z.number().int().min(0).max(100000),
 });
 
 export const promptSchema = z.strictObject({
@@ -128,16 +201,66 @@ export const outlineLessonOutputSchema = z.strictObject({
   objective,
 });
 
-export const lessonOutputSchema = z.strictObject({
-  markdown: z.string().trim().min(1).max(100_000),
-  claims: z
+const lessonSourceKind = z.enum([
+  'article',
+  'video',
+  'documentation',
+  'course',
+  'paper',
+  'book',
+  'other',
+]);
+
+const lessonConceptSchema = z.strictObject({
+  term: z.string().trim().min(1).max(80),
+  gloss: z.string().trim().min(1).max(160),
+});
+
+const lessonCaseSchema = z.strictObject({
+  role: z.string().trim().min(1).max(120),
+  numbers: z.string().trim().min(1).max(160),
+  artifact: z.string().trim().min(1).max(160),
+  dilemma: z.string().trim().min(1).max(200),
+});
+
+const lessonDiagramSchema = z.strictObject({
+  after: z.number().int().min(1).max(20),
+  kind: z.enum(['flow', 'hierarchy', 'compare', 'steps']),
+  title: z.string().trim().min(1).max(120),
+  nodes: z
     .array(
       z.strictObject({
-        quote: z.string().trim().min(1).max(500),
-        search_query: z.string().trim().min(1).max(200),
+        label: z.string().trim().min(1).max(80),
+        detail: z.string().trim().max(120).optional(),
       }),
     )
+    .min(2)
     .max(8),
+  edges: z
+    .array(z.array(z.number().int().min(0).max(7)).length(2))
+    .max(12)
+    .optional(),
+});
+
+export const lessonOutputSchema = z.strictObject({
+  markdown: z.string().trim().min(1).max(100_000),
+  adds: z.string().trim().min(3).max(200).optional(),
+  buildsOn: z.array(z.string().trim().min(1).max(80)).max(6).optional(),
+  concepts: z.array(lessonConceptSchema).max(6).optional(),
+  case: lessonCaseSchema.optional(),
+  diagrams: z.array(lessonDiagramSchema).max(2).optional(),
+  sources: z
+    .array(
+      z.strictObject({
+        id: z.string().trim().min(1).max(64),
+        url: z.url().max(2048),
+        title: z.string().trim().min(1).max(180),
+        publisher: z.string().trim().max(120).optional(),
+        kind: lessonSourceKind,
+      }),
+    )
+    .max(6)
+    .default([]),
 });
 
 export const quizOutputSchema = z.strictObject({

@@ -1,5 +1,6 @@
 import { createApp } from './app';
 import { readCookie } from './crypto';
+import { CSRF_COOKIE, CSRF_HEADER } from './csrf';
 
 const app = createApp();
 
@@ -13,15 +14,12 @@ export async function callApi(
 ): Promise<ApiResult> {
   const headers = new Headers();
   const incoming = request.headers.get('cookie') ?? '';
-  const csrf = init?.csrf ?? readCookie(incoming, 'otodidak_csrf');
-  const cookies = incoming ? [incoming] : [];
-  if (csrf && !readCookie(incoming, 'otodidak_csrf'))
-    cookies.push(`otodidak_csrf=${encodeURIComponent(csrf)}`);
-  if (cookies.length > 0) headers.set('cookie', cookies.join('; '));
+  const csrf = init?.csrf ?? readCookie(incoming, CSRF_COOKIE);
+  if (incoming) headers.set('cookie', incoming);
   const method = init?.method ?? 'GET';
   if (method !== 'GET' && method !== 'HEAD') {
     headers.set('content-type', 'application/json');
-    if (csrf) headers.set('x-csrf-token', csrf);
+    if (csrf) headers.set(CSRF_HEADER, csrf);
   }
   const response = await app.fetch(
     new Request(new URL(path, request.url), {

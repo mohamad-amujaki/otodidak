@@ -1,0 +1,46 @@
+---
+interface Column {
+  label: string;
+  srOnly?: boolean;
+}
+
+interface Props {
+  columns?: Column[];
+  grid: string;
+  sticky?: boolean;
+  class?: string;
+  ulAttrs?: Record<string, string>;
+}
+
+const {
+  columns = [],
+  grid,
+  sticky = true,
+  class: className = '',
+  ulAttrs = {},
+} = Astro.props;
+---
+<div class:list={['rounded-kartu border border-garis bg-kartu shadow-sm', className]}>
+  <slot name="atas" />
+  {columns.length > 0 && (
+    <div
+      class:list={[
+        'hidden min-[1024px]:grid min-[1024px]:rounded-t-[11px] min-[1024px]:border-b min-[1024px]:border-garis min-[1024px]:bg-kertas/95 min-[1024px]:px-4 min-[1024px]:py-2.5 min-[1024px]:text-xs min-[1024px]:font-semibold min-[1024px]:uppercase min-[1024px]:tracking-wide min-[1024px]:text-tinta-lembut min-[1024px]:backdrop-blur-sm',
+        sticky && 'min-[1024px]:sticky min-[1024px]:top-16 min-[1024px]:z-10',
+        grid,
+      ]}
+    >
+      {columns.map((column) => (
+        <span>
+          {column.srOnly ? <span class="sr-only">{column.label}</span> : column.label}
+        </span>
+      ))}
+    </div>
+  )}
+  <ul
+    class="divide-y divide-garis overflow-hidden rounded-[11px]"
+    {...ulAttrs}
+  >
+    <slot />
+  </ul>
+</div>

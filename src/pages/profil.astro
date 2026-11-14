@@ -1,12 +1,19 @@
 ---
 import { env } from 'cloudflare:workers';
 import Shell from '../components/Shell.astro';
-import { record } from '../domain/guard';
-import { callApi, errorOf } from '../server/call';
+import { AppError } from '../domain/errors';
+import { isRecord, record } from '../domain/guard';
+import {
+  requestAccountDeletion,
+  setStreakEnabled,
+} from '../server/profile-actions';
+import { mePayload } from '../server/read';
+import { pageMe } from '../server/ssr';
 
-const meResult = await callApi(Astro.request, env, '/api/me');
-if (meResult.status !== 200) return Astro.redirect('/masuk');
-let me = record(meResult.data);
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session } = page;
+let me = record(page.me);
 const user = record(me.user);
 let message = '';
 if (Astro.request.method === 'POST') {
@@ -14,45 +21,39 @@ if (Astro.request.method === 'POST') {
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
   else if (String(form.get('aksi') ?? '') === 'keluar') {
-    const result = await callApi(Astro.request, env, '/api/session/logout', {
-      method: 'POST',
-      json: {},
-      csrf: Astro.locals.csrf,
+    return new Response(null, {
+      status: 303,
+      headers: { Location: '/keluar' },
     });
-    const headers = new Headers({ Location: '/' });
-    for (const cookie of result.setCookie) headers.append('set-cookie', cookie);
-    return new Response(null, { status: 303, headers });
   } else if (String(form.get('aksi') ?? '') === 'hapus') {
-    const result = await callApi(
-      Astro.request,
-      env,
-      '/api/profile/deletion-request',
-      { method: 'POST', json: {}, csrf: Astro.locals.csrf },
-    );
-    const error = errorOf(result.data);
-    message = error
-      ? error.message
-      : 'Permintaan penghapusan tercatat. Admin yang menyelesaikan penghapusan materi.';
-    const again = await callApi(Astro.request, env, '/api/me');
-    if (isRecord(again.data)) me = again.data;
+    try {
+      await requestAccountDeletion(session.db, session.user.id);
+      message =
+        'Permintaan penghapusan tercatat. Admin yang menyelesaikan penghapusan materi.';
+      me = record(await mePayload(session.db, session.user));
+    } catch (error) {
+      message = error instanceof AppError ? error.message : 'Permintaan gagal.';
+    }
   } else {
-    const result = await callApi(Astro.request, env, '/api/profile/streak', {
-      method: 'POST',
-      json: { enabled: form.get('enabled') === '1' },
-      csrf: Astro.locals.csrf,
-    });
-    const error = errorOf(result.data);
-    if (error) message = error.message;
-    else return Astro.redirect('/profil');
+    try {
+      await setStreakEnabled(
+        session.db,
+        session.user.id,
+        form.get('enabled') === '1',
+      );
+      return Astro.redirect('/profil');
+    } catch (error) {
+      message =
+        error instanceof AppError ? error.message : 'Gagal menyimpan streak.';
+    }
   }
 }
 const enabled = record(me.user).streakEnabled === true;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object';
-}
+const streak = isRecord(me.streak) ? me.streak : null;
+const streakCount =
+  streak && typeof streak.count === 'number' ? streak.count : 0;
 ---
-<Shell title="Profil" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
+<Shell title="Profil" sectionLabel="Profil" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
   <div class="mx-auto max-w-3xl">
     <h1 class="judul">Profil</h1>
     <p class="mt-2 text-tinta-lembut">Kelola informasi akun dan preferensi belajarmu</p>
@@ -106,26 +107,56 @@ function isRecord(value: unknown): value is Record<string, unknown> {
         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
         <input type="hidden" name="aksi" value="runtun" />
         <input type="hidden" name="enabled" value={enabled ? '0' : '1'} />
-        <button class="flex w-full items-center justify-between gap-3 rounded-kontrol border border-garis bg-kertas/50 p-4 text-left transition-colors hover:bg-kertas" type="submit">
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-2">
-              <svg class="size-5 text-hangat" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
-              </svg>
-              <span class="font-medium text-tinta">Hitung hari belajar</span>
+        <div class="rounded-kontrol border border-garis bg-kertas/50 p-4">
+          <div class="flex flex-col gap-4 min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <svg class="size-5 shrink-0 text-hangat" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
+                </svg>
+                <span class="font-medium text-tinta" id="streak-label">Runtun belajar harian</span>
+              </div>
+              <p class="mt-1 text-sm text-tinta-lembut">
+                Hitung hari berturut-turut saat kamu menyelesaikan pelajaran. Bukan kompetisi—hanya penanda ritme.
+              </p>
+              {enabled && streakCount > 0 && (
+                <p class="mt-2 text-sm text-tinta">
+                  Saat ini:{' '}
+                  <span class="font-semibold tabular-nums text-hangat">{streakCount} hari</span>
+                </p>
+              )}
             </div>
-            <p class="mt-1 text-sm text-tinta-lembut">Lacak runtun belajar harianmu untuk motivasi</p>
+            <button
+              class="flex shrink-0 items-center gap-3 rounded-kontrol border border-garis bg-kartu px-4 py-2 transition-colors hover:bg-kertas"
+              type="submit"
+              aria-labelledby="streak-label"
+            >
+              <span class="text-sm font-medium text-tinta">{enabled ? 'Nyala' : 'Mati'}</span>
+              <span
+                class:list={[
+                  'relative h-7 w-12 shrink-0 rounded-full border-2 transition-colors',
+                  enabled ? 'border-jalur bg-jalur' : 'border-garis bg-kertas',
+                ]}
+                role="switch"
+                aria-checked={enabled ? 'true' : 'false'}
+                aria-label={enabled ? 'Runtun belajar nyala' : 'Runtun belajar mati'}
+              >
+                <span
+                  class:list={[
+                    'absolute top-1/2 size-5 -translate-y-1/2 rounded-full bg-kartu shadow-sm transition-all',
+                    enabled ? 'right-0.5' : 'left-0.5',
+                  ]}
+                />
+              </span>
+            </button>
           </div>
-          <div class="flex shrink-0 items-center gap-3">
-            <span class="text-sm font-medium text-tinta">{enabled ? 'Nyala' : 'Mati'}</span>
-            <span class:list={["relative h-7 w-12 shrink-0 rounded-full border-2 transition-colors", enabled ? "border-jalur bg-jalur" : "border-garis bg-kertas"]}>
-              <span class:list={["absolute top-1/2 size-5 -translate-y-1/2 rounded-full bg-kartu shadow-sm transition-all", enabled ? "right-0.5" : "left-0.5"]}></span>
-            </span>
-          </div>
-        </button>
+        </div>
       </form>
-      <p class="mt-3 text-sm leading-relaxed text-tinta-lembut">Hitungan yang dimatikan tidak berubah dan tidak ditampilkan di dashboard.</p>
+      <ul class="mt-3 list-inside list-disc space-y-1 text-sm text-tinta-lembut">
+        <li>Jeda mingguan (freeze) otomatis sekali per minggu kalender Jakarta.</li>
+        <li>Mematikan hitungan menyembunyikan angka di dasbor; data tidak dihapus.</li>
+      </ul>
     </section>
 
     <!-- Account Actions Card -->

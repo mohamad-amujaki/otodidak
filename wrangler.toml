@@ -17,37 +17,39 @@ enabled = true
 
 [assets]
 binding = "ASSETS"
+directory = "./dist/client"
 run_worker_first = true
 
-# Ganti sebelum produksi. Nilai lokal ditimpa .dev.vars.
 [vars]
-CLERK_PUBLISHABLE_KEY = "pk_test_mock"
-# Astro reads this name. An empty value stays out of the way until .dev.vars overrides it.
-PUBLIC_CLERK_PUBLISHABLE_KEY = ""
-APP_ORIGIN = "http://localhost:8787"
-SUPERADMIN_EMAILS = ""
+# Kunci Clerk hanya berupa SECRET Worker (tidak boleh jadi var, tidak di repo):
+#   npx wrangler secret put PUBLIC_CLERK_PUBLISHABLE_KEY
+#   npx wrangler secret put CLERK_SECRET_KEY
+# sedangkan untuk build/dev lokal dipakai .env / .dev.vars.
+APP_ORIGIN = "https://otodidak.web.id"
+ENVIRONMENT = "production"
+SUPERADMIN_EMAILS = "mohamad.amujaki@gmail.com"
 
 [secrets]
 required = [
+  "PUBLIC_CLERK_PUBLISHABLE_KEY",
   "CLERK_SECRET_KEY",
   "BOOTSTRAP_ADMIN_EMAIL",
   "SUMOPOD_API_KEY",
   "SUMOPOD_WEBHOOK_SECRET",
   "SUMOPOD_API_BASE",
   "OPENAI_API_KEY",
-  "BRAVE_SEARCH_API_KEY",
   "YOUTUBE_API_KEY",
 ]
 
 [[d1_databases]]
 binding = "DB"
 database_name = "otodidak"
-database_id = "a3c1e8b0-7d4f-4e2a-9b6c-1f0d8e7a6b51"
+database_id = "fd1acffd-2888-43a4-b689-b2e4ad33de26"
 migrations_dir = "migrations"
 
 [[kv_namespaces]]
 binding = "APP_KV"
-id = "b7e2c4d1-8a5f-4c3b-9d0e-2a1b3c4d5e6f"
+id = "96eb38579d7f482f861ac51ba3bd6e08"
 
 [[queues.producers]]
 binding = "GENERATION_QUEUE"
@@ -64,3 +66,7 @@ dead_letter_queue = "generation-dlq"
 queue = "generation-dlq"
 max_batch_size = 1
 max_retries = 1
+
+[[routes]]
+pattern = "otodidak.web.id"
+custom_domain = true

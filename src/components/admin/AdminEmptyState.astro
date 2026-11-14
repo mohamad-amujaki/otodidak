@@ -1,0 +1,17 @@
+---
+interface Props {
+  message: string;
+  resetHref?: string;
+  resetLabel?: string;
+}
+
+const { message, resetHref, resetLabel = 'Reset filter' } = Astro.props;
+---
+<div class="mt-6 rounded-kartu border border-dashed border-garis bg-kertas/40 p-6 text-center">
+  <p class="text-sm text-tinta-lembut">{message}</p>
+  {resetHref && (
+    <a class="mt-3 inline-flex min-h-10 items-center text-sm font-medium text-jalur hover:underline" href={resetHref}>
+      {resetLabel}
+    </a>
+  )}
+</div>

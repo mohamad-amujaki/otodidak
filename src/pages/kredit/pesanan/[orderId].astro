@@ -1,40 +1,66 @@
 ---
 import { env } from 'cloudflare:workers';
 import Shell from '../../../components/Shell.astro';
+import { safeReturnPath } from '../../../domain/credit-ui';
+import { AppError } from '../../../domain/errors';
 import { formatIdr, formatWhen } from '../../../domain/format';
 import { record } from '../../../domain/guard';
-import { callApi, errorOf } from '../../../server/call';
+import {
+  fetchUserCreditOrder,
+  simulateDevPaymentCompletion,
+} from '../../../server/credit-orders-service';
+import { pageMe } from '../../../server/ssr';
 
 const { orderId } = Astro.params;
 if (!orderId) return Astro.redirect('/kredit');
-const meResult = await callApi(Astro.request, env, '/api/me');
-if (meResult.status !== 200) return Astro.redirect('/masuk');
-const me = record(meResult.data);
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session, me: meRaw } = page;
+const me = record(meRaw);
 const user = record(me.user);
+const kembali = safeReturnPath(Astro.url.searchParams.get('kembali'));
+const kembaliQuery = kembali ? `?kembali=${encodeURIComponent(kembali)}` : '';
 let message = '';
 if (Astro.request.method === 'POST' && env.SUMOPOD_API_KEY === 'mock') {
   const form = await Astro.request.formData();
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
   else {
-    const result = await callApi(
-      Astro.request,
-      env,
-      `/api/dev/payments/${orderId}/complete`,
-      { method: 'POST', json: {}, csrf: Astro.locals.csrf },
-    );
-    const error = errorOf(result.data);
-    if (error) message = error.message;
+    try {
+      await simulateDevPaymentCompletion(
+        env,
+        Astro.request,
+        session.user.id,
+        orderId,
+      );
+    } catch (error) {
+      message =
+        error instanceof AppError
+          ? error.message
+          : 'Simulasi pembayaran gagal.';
+    }
   }
 }
-const orderResult = await callApi(
-  Astro.request,
-  env,
-  `/api/credit-orders/${orderId}`,
-);
-if (orderResult.status === 404) return Astro.redirect('/kredit');
-const order = record(orderResult.data);
+let orderRaw: Record<string, unknown>;
+try {
+  orderRaw = await fetchUserCreditOrder(
+    session.db,
+    session.user.id,
+    orderId,
+    env,
+  );
+} catch (error) {
+  if (error instanceof AppError && error.code === 'not_found')
+    return Astro.redirect('/kredit');
+  throw error;
+}
+const order = record(orderRaw);
 const status = String(order.status ?? '');
+const paymentHref =
+  typeof order.paymentLinkUrl === 'string' &&
+  order.paymentLinkUrl.startsWith('/')
+    ? `${order.paymentLinkUrl}${kembaliQuery}`
+    : order.paymentLinkUrl;
 
 const statusConfig = {
   pending: {
@@ -69,7 +95,7 @@ const statusConfig = {
 const config =
   statusConfig[status as keyof typeof statusConfig] || statusConfig.failed;
 ---
-<Shell title="Pesanan" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'}>
+<Shell title="Pesanan" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
   <div class="mx-auto max-w-3xl">
     <!-- Status Header -->
     <div class={`mb-6 overflow-hidden rounded-kartu border ${config.borderColor} ${config.bgColor} shadow-sm`}>
@@ -202,7 +228,7 @@ const config =
 
           <a 
             class="mt-6 flex w-full min-h-12 items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 text-base font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:brightness-110" 
-            href={order.paymentLinkUrl}
+            href={paymentHref}
             target={typeof order.paymentCode === 'string' ? '_self' : '_blank'}
             rel={typeof order.paymentCode === 'string' ? undefined : 'noopener noreferrer'}
           >
@@ -233,9 +259,9 @@ const config =
         </a>
         <a 
           class="flex min-h-11 items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110" 
-          href="/dasbor"
+          href={kembali ?? '/dasbor'}
         >
-          <span>Mulai Belajar</span>
+          <span>{kembali ? 'Kembali ke materi' : 'Mulai Belajar'}</span>
           <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
           </svg>
@@ -298,6 +324,14 @@ const config =
           </svg>
           Kembali ke Kredit
         </a>
+        {kembali && (
+          <a
+            class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110"
+            href={kembali}
+          >
+            Kembali ke materi
+          </a>
+        )}
       </div>
     </div>
   </div>

@@ -1,3 +1,5 @@
+import { AppError } from '../domain/errors';
+
 function parseList(value: string | undefined): string[] {
   if (!value?.trim()) return [];
   return value
@@ -11,4 +13,11 @@ export function isSuperadmin(env: Env, email: string): boolean {
   const allowed =
     list.length > 0 ? list : [env.BOOTSTRAP_ADMIN_EMAIL.toLowerCase()];
   return allowed.includes(email.toLowerCase());
+}
+
+export function assertSuperadmin(
+  env: Env,
+  actor: { email: string },
+): asserts actor is { email: string } {
+  if (!isSuperadmin(env, actor.email)) throw new AppError('forbidden');
 }

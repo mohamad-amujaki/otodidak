@@ -2,16 +2,25 @@
 import { env } from 'cloudflare:workers';
 import AdminPagination from '../../../components/AdminPagination.astro';
 import AdminShell from '../../../components/AdminShell.astro';
+import AdminAlert from '../../../components/admin/AdminAlert.astro';
+import AdminBadge from '../../../components/admin/AdminBadge.astro';
+import AdminEmptyState from '../../../components/admin/AdminEmptyState.astro';
+import AdminRow from '../../../components/admin/AdminRow.astro';
+import AdminTable from '../../../components/admin/AdminTable.astro';
+import {
+  adminAdjustCategories,
+  adminMessageTone,
+} from '../../../domain/admin-labels';
 import { isRecord } from '../../../domain/guard';
 import {
   roleLabel,
   runAdminAction,
   statusLabel,
 } from '../../../server/admin-actions';
+import { listAdminUsers } from '../../../server/admin-data';
 import { requireAdmin } from '../../../server/admin-guard';
-import { callApi } from '../../../server/call';
 
-const auth = await requireAdmin(Astro.request);
+const auth = await requireAdmin(Astro.request, { nav: true });
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
 
 let message = '';
@@ -24,6 +33,9 @@ if (Astro.request.method === 'POST') {
 }
 
 const q = Astro.url.searchParams.get('q') ?? '';
+const role = Astro.url.searchParams.get('role') ?? '';
+const status = Astro.url.searchParams.get('status') ?? '';
+const deletion = Astro.url.searchParams.get('deletion') === '1';
 const offset = Number(Astro.url.searchParams.get('offset') ?? 0);
 const limit = Number(Astro.url.searchParams.get('limit') ?? 20);
 const params = new URLSearchParams({
@@ -31,75 +43,226 @@ const params = new URLSearchParams({
   offset: String(offset),
 });
 if (q) params.set('q', q);
+if (role) params.set('role', role);
+if (status) params.set('status', status);
+if (deletion) params.set('deletion', '1');
 
-const usersResult = await callApi(
-  Astro.request,
-  env,
-  `/api/admin/users?${params}`,
-);
-const users =
-  isRecord(usersResult.data) && Array.isArray(usersResult.data.users)
-    ? usersResult.data.users.filter(isRecord)
-    : [];
+const listUrl = new URL('/admin/pengguna', Astro.url);
+for (const [key, value] of params.entries())
+  listUrl.searchParams.set(key, value);
+const usersData = await listAdminUsers(auth.session.db, listUrl.toString());
+const users = Array.isArray(usersData.users)
+  ? usersData.users.filter(isRecord)
+  : [];
+const total =
+  typeof usersData.total === 'number' ? usersData.total : users.length;
+const extraParams: Record<string, string> = {};
+if (q) extraParams.q = q;
+if (role) extraParams.role = role;
+if (status) extraParams.status = status;
+if (deletion) extraParams.deletion = '1';
+const hasFilter = Boolean(q || role || status || deletion);
+const bulkNonce = crypto.randomUUID();
+const canBulk = auth.superadmin;
+const messageTone = adminMessageTone(message);
+const rowGrid = canBulk
+  ? 'min-[1024px]:grid-cols-[2rem_minmax(0,1fr)_6.5rem_6.5rem_7rem_2rem] min-[1024px]:gap-4'
+  : 'min-[1024px]:grid-cols-[minmax(0,1fr)_6.5rem_6.5rem_7rem_2rem] min-[1024px]:gap-4';
+
+function roleTone(r: string) {
+  return r === 'admin' ? 'brand' : 'neutral';
+}
+function statusTone(s: string) {
+  return s === 'suspended' ? 'danger' : 'success';
+}
+function initial(value: unknown) {
+  const text = String(value ?? '').trim();
+  return text ? text.charAt(0).toUpperCase() : '?';
+}
 ---
-<AdminShell title="Pengguna" section="pengguna" balance={auth.balance} superadmin={auth.superadmin}>
-  <h1 class="judul">Pengguna</h1>
-  {message && <p class="mt-3 text-sm">{message}</p>}
+<AdminShell title="Pengguna" section="pengguna" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav} userName={String(auth.user.name)} userEmail={String(auth.user.email)}>
+  <div class="flex flex-col gap-3 min-[768px]:flex-row min-[768px]:items-end min-[768px]:justify-between">
+    <div>
+      <h1 class="judul">Pengguna</h1>
+      <p class="mt-2 text-sm text-tinta-lembut">
+        {total > 0 ? `${total} akun terdaftar` : 'Belum ada pengguna'}
+        {hasFilter && <span class="text-tinta-lembut/70"> · hasil filter</span>}
+      </p>
+    </div>
+  </div>
 
-  <form method="get" class="mt-6 grid gap-2 min-[768px]:grid-cols-[minmax(0,1fr)_auto] min-[768px]:items-center">
-    <label class="sr-only" for="q">Cari</label>
-    <input
-      class="min-h-11 rounded-kontrol border border-garis bg-kartu px-3"
-      id="q"
-      name="q"
-      type="search"
-      value={q}
-      placeholder="Cari nama atau email"
-      autocomplete="off"
-    />
-    <button class="min-h-11 rounded-kontrol border border-garis bg-kartu px-4" type="submit">Cari</button>
+  {message && <AdminAlert message={message} tone={messageTone} />}
+
+  <form class="mt-6 rounded-kartu border border-garis bg-kartu p-4 shadow-sm" method="get">
+    <div class="flex flex-col gap-3 min-[1024px]:flex-row min-[1024px]:items-end">
+      <label class="block min-w-0 flex-1 text-sm">
+        <span class="font-medium">Cari</span>
+        <input
+          class="mt-1 w-full rounded-kontrol border border-garis bg-kartu px-3"
+          name="q"
+          type="search"
+          value={q}
+          placeholder="Cari nama atau email"
+          autocomplete="off"
+        />
+      </label>
+      <label class="block text-sm">
+        <span class="font-medium">Peran</span>
+        <select class="mt-1 min-h-11 rounded-kontrol border border-garis bg-kartu px-2 min-[1024px]:w-36" name="role">
+          <option value="">Semua</option>
+          <option value="learner" selected={role === 'learner'}>Pelajar</option>
+          <option value="admin" selected={role === 'admin'}>Admin</option>
+        </select>
+      </label>
+      <label class="block text-sm">
+        <span class="font-medium">Status</span>
+        <select class="mt-1 min-h-11 rounded-kontrol border border-garis bg-kartu px-2 min-[1024px]:w-36" name="status">
+          <option value="">Semua</option>
+          <option value="active" selected={status === 'active'}>Aktif</option>
+          <option value="suspended" selected={status === 'suspended'}>Ditahan</option>
+        </select>
+      </label>
+      <label class="flex min-h-11 items-center gap-2 rounded-kontrol border border-garis bg-kartu px-3 text-sm whitespace-nowrap">
+        <input type="checkbox" name="deletion" value="1" checked={deletion} />
+        Minta hapus
+      </label>
+      <div class="flex gap-2">
+        <button class="min-h-11 rounded-kontrol bg-jalur px-5 text-sm font-semibold text-white" type="submit">
+          Terapkan
+        </button>
+        {hasFilter && (
+          <a
+            class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta-lembut transition-colors hover:border-jalur/40 hover:text-tinta"
+            href="/admin/pengguna"
+          >
+            Reset
+          </a>
+        )}
+      </div>
+    </div>
   </form>
 
-  {users.length === 0 && <p class="mt-6 text-tinta-lembut">Tidak ada pengguna.</p>}
-  {users.length > 0 && (
-    <div class="mt-6 space-y-3 min-[1100px]:space-y-0 min-[1100px]:overflow-hidden min-[1100px]:rounded-kartu min-[1100px]:border min-[1100px]:border-garis min-[1100px]:bg-kartu">
-      <div class="hidden min-[1100px]:grid min-[1100px]:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_5rem_5rem_5rem_auto] min-[1100px]:gap-3 min-[1100px]:border-b min-[1100px]:border-garis min-[1100px]:px-4 min-[1100px]:py-3 min-[1100px]:text-sm min-[1100px]:text-tinta-lembut">
-        <span>Nama</span>
-        <span>Email</span>
-        <span>Peran</span>
-        <span>Status</span>
-        <span>Saldo</span>
-        <span>Detail</span>
-      </div>
-      {users.map((item) => (
-        <article class="rounded-kartu border border-garis bg-kartu p-4 min-[1100px]:rounded-none min-[1100px]:border-x-0 min-[1100px]:border-t-0 min-[1100px]:border-b min-[1100px]:border-garis min-[1100px]:bg-transparent min-[1100px]:last:border-b-0">
-          <div class="min-[1100px]:hidden">
-            <a class="font-medium text-jalur hover:underline" href={`/admin/pengguna/${String(item.id)}`}>{item.name}</a>
-            <p class="text-sm break-all text-tinta-lembut">{item.email}</p>
-            <p class="mt-2 text-sm">Peran · {roleLabel(item.role)} · {statusLabel(item.status)}</p>
-            <p class="text-sm tabular-nums">Saldo · {item.balance}</p>
-            {item.deletionRequestedAt && (
-              <p class="mt-1 text-xs font-medium text-bahaya">Minta hapus materi</p>
-            )}
+  {users.length === 0 ? (
+    <AdminEmptyState
+      message={
+        hasFilter
+          ? 'Tidak ada pengguna yang cocok dengan filter ini.'
+          : 'Belum ada pengguna terdaftar.'
+      }
+      resetHref={hasFilter ? '/admin/pengguna' : undefined}
+      resetLabel="Reset filter"
+    />
+  ) : (
+    <form class="mt-6" method="post" data-credit-form data-credit-balance="">
+      <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+      <input type="hidden" name="aksi" value="sesuaikan-banyak" />
+      <input type="hidden" name="nonce" value={bulkNonce} />
+
+      <AdminTable
+        columns={[
+          ...(canBulk ? [{ label: 'Pilih', srOnly: true }] : []),
+          { label: 'Pengguna' },
+          { label: 'Peran' },
+          { label: 'Status' },
+          { label: 'Saldo' },
+          { label: 'Aksi', srOnly: true },
+        ]}
+        grid={rowGrid}
+      >
+        {users.map((item) => (
+          <AdminRow grid={rowGrid} danger={Boolean(item.deletionRequestedAt)}>
+          {canBulk && (
+            <label class="relative z-10 -ml-1 inline-flex min-h-9 min-w-9 items-center justify-center">
+              <input class="size-4" type="checkbox" name="userId" value={String(item.id)} data-bulk-item aria-label={`Pilih ${String(item.name)}`} />
+            </label>
+          )}
+          <div class="flex min-w-0 items-center gap-3">
+            <span
+              class="flex size-10 shrink-0 items-center justify-center rounded-full bg-jalur-lembut text-sm font-semibold text-jalur"
+              aria-hidden="true"
+            >
+              {initial(item.name)}
+            </span>
+            <div class="min-w-0">
+              <a
+                class="font-medium text-jalur hover:underline after:absolute after:inset-0 after:content-['']"
+                href={`/admin/pengguna/${String(item.id)}`}
+              >
+                {item.name}
+              </a>
+              <p class="truncate text-xs text-tinta-lembut" title={String(item.email)}>
+                {item.email}
+              </p>
+              {item.deletionRequestedAt && (
+                <span class="mt-1 inline-flex">
+                  <AdminBadge tone="danger">Minta hapus</AdminBadge>
+                </span>
+              )}
+            </div>
           </div>
-          <div class="hidden min-[1100px]:grid min-[1100px]:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_5rem_5rem_5rem_auto] min-[1100px]:items-center min-[1100px]:gap-3 min-[1100px]:px-4 min-[1100px]:py-3">
-            <p class="font-medium">{item.name}</p>
-            <p class="min-w-0 break-all text-sm">{item.email}</p>
-            <p class="text-sm">{roleLabel(item.role)}</p>
-            <p class="text-sm">{statusLabel(item.status)}</p>
-            <p class="text-sm tabular-nums">{item.balance}</p>
-            <a class="text-sm text-jalur hover:underline" href={`/admin/pengguna/${String(item.id)}`}>Buka</a>
+
+          <div class="flex flex-wrap items-center gap-2 min-[1024px]:contents">
+            <AdminBadge tone={roleTone(String(item.role))}>{roleLabel(item.role)}</AdminBadge>
+            <AdminBadge tone={statusTone(String(item.status))}>{statusLabel(item.status)}</AdminBadge>
           </div>
-        </article>
-      ))}
-    </div>
+
+          <p class="text-sm text-tinta-lembut">
+            <span class="font-semibold tabular-nums text-tinta">{Number(item.balance ?? 0)}</span>
+            {' kredit'}
+          </p>
+
+          <span class="hidden text-tinta-lembut min-[1024px]:block" aria-hidden="true">→</span>
+          </AdminRow>
+        ))}
+      </AdminTable>
+
+      {canBulk && (
+        <details class="mt-4 rounded-kartu border border-garis bg-kartu p-4 shadow-sm">
+          <summary class="cursor-pointer text-sm font-semibold text-tinta">
+            Sesuaikan kredit massal
+          </summary>
+          <p class="mt-2 text-sm text-tinta-lembut" data-credit-result aria-live="polite">
+            Pilih pengguna di tabel, lalu isi jumlah. <span data-credit-count class="font-semibold tabular-nums text-tinta">0</span> dipilih.
+          </p>
+          <label class="mt-2 inline-flex min-h-9 items-center gap-2 text-sm">
+            <input class="size-4" type="checkbox" data-bulk-all />
+            Pilih semua di halaman ini
+          </label>
+          <div class="mt-3 flex flex-wrap items-center gap-2">
+            {[10, 50, 100].map((preset) => (
+              <button class="rounded-kontrol border border-garis bg-kartu px-3 py-1.5 text-sm font-medium text-tinta tabular-nums transition-colors hover:border-jalur/40" type="button" data-credit-preset={String(preset)}>
+                +{preset}
+              </button>
+            ))}
+            <button class="rounded-kontrol border border-garis bg-kartu px-3 py-1.5 text-sm font-medium text-tinta tabular-nums transition-colors hover:border-hangat/40" type="button" data-credit-preset="-10">−10</button>
+          </div>
+          <div class="mt-3 grid gap-2 max-w-xl min-[768px]:grid-cols-[5rem_minmax(0,1fr)] min-[768px]:items-center">
+            <label class="text-sm text-tinta-lembut" for="massal-jumlah">Jumlah</label>
+            <input id="massal-jumlah" class="min-h-11 rounded-kontrol border border-garis bg-kartu px-3 tabular-nums" name="amount" type="number" inputmode="numeric" step="1" min="-1000000" max="1000000" required data-credit-amount />
+            <label class="text-sm text-tinta-lembut" for="massal-kategori">Kategori</label>
+            <select id="massal-kategori" class="min-h-11 rounded-kontrol border border-garis bg-kartu px-2" name="category">
+              {adminAdjustCategories.map((category) => (
+                <option value={category.value}>{category.label}</option>
+              ))}
+            </select>
+            <label class="text-sm text-tinta-lembut" for="massal-catatan">Catatan</label>
+            <input id="massal-catatan" class="min-h-11 rounded-kontrol border border-garis bg-kartu px-3" name="note" minlength="3" maxlength="500" required placeholder="Contoh: kompensasi uji internal" />
+          </div>          <div class="mt-3 flex flex-wrap items-center gap-3">
+            <button class="min-h-11 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white transition-[filter] hover:brightness-110" type="submit" data-credit-submit>Terapkan ke pengguna terpilih</button>
+            <span class="text-xs text-tinta-lembut">Maksimal 50 pengguna per aksi · setiap perubahan tercatat.</span>
+          </div>
+        </details>
+      )}
+    </form>
   )}
 
   <AdminPagination
     offset={offset}
     limit={limit}
     count={users.length}
+    total={total}
     baseUrl="/admin/pengguna"
-    extraParams={q ? { q } : {}}
+    extraParams={extraParams}
   />
+  <script src="/scripts/admin-credit-form.js" defer></script>
 </AdminShell>

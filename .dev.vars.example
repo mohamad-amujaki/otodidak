@@ -1,6 +1,8 @@
+PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_SECRET_KEY=mock
 BOOTSTRAP_ADMIN_EMAIL=admin@example.com
-# Opsional: email dipisah koma. Kosong = hanya BOOTSTRAP_ADMIN_EMAIL yang superadmin.
+# Email dipisah koma yang boleh akses /admin/ai, paket, dll. (superadmin).
+# Kosong = hanya BOOTSTRAP_ADMIN_EMAIL yang dianggap superadmin.
 SUPERADMIN_EMAILS=
 # Ganti mock dengan API key sandbox Sumopod untuk QRIS transfer nyata.
 SUMOPOD_API_KEY=mock
@@ -8,6 +10,6 @@ SUMOPOD_WEBHOOK_SECRET=whsec_b3RvZGlkYWstdGVzdC13ZWJob29rLXNlY3JldC1rZXk=
 SUMOPOD_API_BASE=https://api-pay-sandbox.sumopod.com/api/v1
 # Opsional: kosong atau 8787 → origin dari browser dipakai saat buat pesanan.
 APP_ORIGIN=http://localhost:4321
+# Kunci Bearer untuk penyedia AI (default base https://ai.sumopod.com/v1, model deepseek-v4.1-flash-1017).
 OPENAI_API_KEY=mock
-BRAVE_SEARCH_API_KEY=mock
 YOUTUBE_API_KEY=mock

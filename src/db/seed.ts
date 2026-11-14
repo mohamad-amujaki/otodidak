@@ -1,4 +1,5 @@
 import {
+  DEFAULT_AI_BASE_URL,
   DEFAULT_MODEL_NAME,
   SEED_CONFIG,
   SEED_MODELS,
@@ -28,17 +29,17 @@ export async function ensureSeed(db: Database): Promise<void> {
     .insert(aiProviders)
     .values({
       id: SEED_PROVIDER_ID,
-      name: 'openai-compatible',
-      baseUrl: 'https://api.openai.com/v1',
+      name: 'deepseek-compatible',
+      baseUrl: DEFAULT_AI_BASE_URL,
       authKind: 'bearer',
       secretName: 'OPENAI_API_KEY',
       active: 1,
     })
     .onConflictDoNothing();
-  await db
-    .insert(aiModels)
-    .values(
-      SEED_MODELS.map((model) => ({
+  for (const model of SEED_MODELS) {
+    await db
+      .insert(aiModels)
+      .values({
         id: model.id,
         providerId: SEED_PROVIDER_ID,
         modelName: DEFAULT_MODEL_NAME,
@@ -46,9 +47,9 @@ export async function ensureSeed(db: Database): Promise<void> {
         active: 1,
         maxOutputTokens: model.maxOutputTokens,
         timeoutMs: model.timeoutMs,
-      })),
-    )
-    .onConflictDoNothing();
+      })
+      .onConflictDoNothing();
+  }
   for (const task of ['roadmap', 'lesson', 'quiz'] as const) {
     await db
       .insert(promptTemplates)
@@ -58,22 +59,11 @@ export async function ensureSeed(db: Database): Promise<void> {
         updatedAt: now,
         updatedBy: null,
       })
-      .onConflictDoUpdate({
-        target: promptTemplates.task,
-        set: { body: SEED_PROMPTS[task], updatedAt: now },
-      });
+      .onConflictDoNothing();
   }
   await db
     .insert(sourceProviders)
     .values([
-      {
-        id: 'source_brave',
-        kind: 'web' as const,
-        name: 'brave',
-        baseUrl: 'https://api.search.brave.com/res/v1/web/search',
-        secretName: 'BRAVE_SEARCH_API_KEY',
-        active: 1,
-      },
       {
         id: 'source_youtube',
         kind: 'youtube' as const,

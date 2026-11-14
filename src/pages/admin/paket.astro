@@ -1,49 +1,227 @@
 ---
 import { env } from 'cloudflare:workers';
 import AdminShell from '../../components/AdminShell.astro';
+import AdminAlert from '../../components/admin/AdminAlert.astro';
+import AdminBadge from '../../components/admin/AdminBadge.astro';
+import AdminBreadcrumb from '../../components/admin/AdminBreadcrumb.astro';
+import AdminEmptyState from '../../components/admin/AdminEmptyState.astro';
+import AdminTable from '../../components/admin/AdminTable.astro';
+import CreditPackPreview from '../../components/admin/CreditPackPreview.astro';
 import { formatIdr } from '../../domain/format';
 import { isRecord } from '../../domain/guard';
 import { runAdminAction } from '../../server/admin-actions';
+import { listAllPacks } from '../../server/admin-data';
 import { requireSuperadminPage } from '../../server/admin-guard';
-import { callApi } from '../../server/call';
 
-const auth = await requireSuperadminPage(Astro.request);
+const auth = await requireSuperadminPage(Astro.request, { nav: true });
 if ('redirect' in auth) return Astro.redirect(auth.redirect);
 
 let message = '';
+let messageTone: 'success' | 'danger' = 'success';
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
-  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf) {
     message = 'Muat ulang halaman, lalu kirim lagi.';
-  else
-    message = await runAdminAction(Astro.request, env, Astro.locals.csrf, form);
+    messageTone = 'danger';
+  } else {
+    const result = await runAdminAction(
+      Astro.request,
+      env,
+      Astro.locals.csrf,
+      form,
+    );
+    message = result;
+    messageTone = result.includes('diperbarui') ? 'success' : 'danger';
+  }
 }
 
-const packsResult = await callApi(Astro.request, env, '/api/admin/packs');
-const packs =
-  isRecord(packsResult.data) && Array.isArray(packsResult.data.packs)
-    ? packsResult.data.packs.filter(isRecord)
-    : [];
----
-<AdminShell title="Paket" section="paket" balance={auth.balance} superadmin={auth.superadmin}>
-  <h1 class="judul">Paket kredit</h1>
-  {message && <p class="mt-3 text-sm">{message}</p>}
+const packRows = await listAllPacks(auth.session.db);
+const packs = packRows.map((pack) => ({
+  id: String(pack.id ?? ''),
+  name: String(pack.name ?? ''),
+  credits: Number(pack.credits ?? 0),
+  priceIdr: Number(pack.priceIdr ?? 0),
+  active: pack.active === 1 || pack.active === true,
+  sort: Number(pack.sort ?? 0),
+}));
 
-  <div class="mt-8 space-y-6">
-    {packs.map((pack) => (
-      <form class="grid max-w-md gap-2 rounded-kartu border border-garis bg-kartu p-4" method="post">
-        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-        <input type="hidden" name="aksi" value="paket" />
-        <input type="hidden" name="id" value={String(pack.id)} />
-        <p class="text-xs text-tinta-lembut">ID {pack.id}</p>
-        <input class="min-h-11 rounded-kontrol border border-garis px-3" name="name" value={String(pack.name)} aria-label="Nama paket" />
-        <input class="min-h-11 rounded-kontrol border border-garis px-3" name="credits" type="number" value={String(pack.credits)} aria-label="Kredit" />
-        <input class="min-h-11 rounded-kontrol border border-garis px-3" name="priceIdr" type="number" value={String(pack.priceIdr)} aria-label="Harga IDR" />
-        <p class="text-xs text-tinta-lembut">{formatIdr(Number(pack.priceIdr ?? 0))}</p>
-        <input class="min-h-11 rounded-kontrol border border-garis px-3" name="sort" type="number" value={String(pack.sort)} aria-label="Urutan" />
-        <label class="text-sm"><input type="checkbox" name="active" value="1" checked={pack.active === 1} /> Aktif</label>
-        <button class="min-h-11 rounded-kontrol border border-garis px-3" type="submit">Simpan paket</button>
-      </form>
-    ))}
+const sorted = [...packs].sort((a, b) => a.sort - b.sort);
+const activeCount = packs.filter((p) => p.active).length;
+const activePrices = packs.filter((p) => p.active).map((p) => p.priceIdr);
+const minPrice = activePrices.length > 0 ? Math.min(...activePrices) : 0;
+
+function pricePerCredit(priceIdr: number, credits: number): number {
+  if (credits < 1) return 0;
+  return Math.round(priceIdr / credits);
+}
+
+const showPreview = Astro.url.searchParams.get('pratinjau') !== '0';
+---
+<AdminShell title="Paket" section="paket" balance={auth.balance} superadmin={auth.superadmin} navStats={auth.nav} userName={String(auth.user.name)} userEmail={String(auth.user.email)}>
+  <div data-admin-paket-page>
+  <AdminBreadcrumb
+    items={[
+      { label: 'Ringkasan', href: '/admin' },
+      { label: 'Paket kredit' },
+    ]}
+  />
+
+  <div class="mt-4 flex flex-col gap-3 min-[768px]:flex-row min-[768px]:items-end min-[768px]:justify-between">
+    <div>
+      <h1 class="judul">Paket kredit</h1>
+      <p class="mt-2 text-sm text-tinta-lembut">
+        Kelola harga dan kuota yang ditampilkan di halaman beli kredit pelajar.
+      </p>
+      <p class="mt-2 text-sm text-tinta">
+        <span class="font-medium tabular-nums">{activeCount}</span> aktif
+        {minPrice > 0 && (
+          <>
+            {' · mulai '}
+            <span class="font-medium">{formatIdr(minPrice)}</span>
+          </>
+        )}
+      </p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <a
+        class="inline-flex min-h-10 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-jalur hover:border-jalur/40"
+        href={showPreview ? '/admin/paket?pratinjau=0' : '/admin/paket'}
+      >
+        {showPreview ? 'Sembunyikan pratinjau' : 'Tampilkan pratinjau'}
+      </a>
+      <a
+        class="inline-flex min-h-10 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-jalur hover:border-jalur/40"
+        href="/kredit#paket-kredit"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Buka halaman pelajar
+      </a>
+    </div>
+  </div>
+
+  <AdminAlert
+    tone="warning"
+    message="Perubahan paket langsung memengaruhi harga di halaman Kredit. Minimal satu paket harus tetap aktif."
+  />
+  {message && <AdminAlert message={message} tone={messageTone} />}
+
+  <div class="mt-8" data-admin-paket>
+    {sorted.length === 0 ? (
+      <AdminEmptyState message="Belum ada paket." />
+    ) : (
+      <AdminTable
+        columns={[
+          { label: 'Seret', srOnly: true },
+          { label: 'Urut' },
+          { label: 'Nama' },
+          { label: 'Kredit' },
+          { label: 'Harga' },
+          { label: 'Rp/kredit' },
+          { label: 'Status' },
+          { label: 'Aksi', srOnly: true },
+        ]}
+        grid="min-[1024px]:grid-cols-[2rem_3.5rem_minmax(0,1fr)_5rem_7rem_6rem_4.5rem_auto] min-[1024px]:gap-2"
+        ulAttrs={{ 'data-pack-sortable': '' }}
+      >
+        <Fragment slot="atas">
+          <p class="px-4 pt-3 pb-2 text-xs text-tinta-lembut min-[1024px]:hidden">
+            Tahan ikon seret untuk mengubah urutan tampil, lalu simpan tiap baris.
+          </p>
+          <p class="hidden px-4 pt-3 pb-2 text-xs text-tinta-lembut min-[1024px]:block">
+            Seret baris untuk mengubah urutan tampil di halaman pelajar.
+          </p>
+        </Fragment>
+      {sorted.map((pack) => (
+        <li class="px-4 py-4" data-pack-row data-pack-id={pack.id} data-was-active={pack.active ? '1' : '0'}>
+          <form class="grid gap-3 min-[1024px]:grid-cols-[2rem_3.5rem_minmax(0,1fr)_5rem_7rem_6rem_4.5rem_auto] min-[1024px]:items-center min-[1024px]:gap-2" method="post">
+            <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+            <input type="hidden" name="aksi" value="paket" />
+            <input type="hidden" name="id" value={pack.id} />
+            <button
+              class="inline-flex size-10 cursor-grab items-center justify-center rounded-kontrol border border-garis bg-kertas text-tinta-lembut active:cursor-grabbing min-[1024px]:size-8"
+              type="button"
+              data-drag-handle
+              aria-label={`Seret untuk mengurutkan ${pack.name}`}
+              title="Seret untuk mengurutkan"
+            >
+              <span aria-hidden="true">⋮⋮</span>
+            </button>
+            <label class="text-sm min-[1024px]:contents">
+              <span class="min-[1024px]:sr-only font-medium">Urutan</span>
+              <input
+                class="min-h-10 w-full rounded-kontrol border border-garis px-2 text-center tabular-nums min-[1024px]:w-full"
+                name="sort"
+                type="number"
+                min="0"
+                value={String(pack.sort)}
+                aria-label={`Urutan ${pack.name}`}
+              />
+            </label>
+            <label class="text-sm min-[1024px]:contents">
+              <span class="min-[1024px]:sr-only font-medium">Nama</span>
+              <input
+                class="min-h-10 w-full rounded-kontrol border border-garis px-3"
+                name="name"
+                value={pack.name}
+                required
+                aria-label={`Nama ${pack.id}`}
+              />
+              <span class="mt-1 block font-mono text-[11px] text-tinta-lembut min-[1024px]:hidden">{pack.id}</span>
+            </label>
+            <label class="text-sm min-[1024px]:contents">
+              <span class="min-[1024px]:sr-only font-medium">Kredit</span>
+              <input
+                class="min-h-10 w-full rounded-kontrol border border-garis px-2 tabular-nums"
+                name="credits"
+                type="number"
+                min="1"
+                value={String(pack.credits)}
+              />
+            </label>
+            <label class="text-sm min-[1024px]:contents">
+              <span class="min-[1024px]:sr-only font-medium">Harga IDR</span>
+              <input
+                class="min-h-10 w-full rounded-kontrol border border-garis px-2 tabular-nums"
+                name="priceIdr"
+                type="number"
+                min="1"
+                value={String(pack.priceIdr)}
+              />
+            </label>
+            <p
+              class="text-sm font-medium tabular-nums text-tinta-lembut min-[1024px]:text-center"
+              data-rp-per-credit
+            >
+              {formatIdr(pricePerCredit(pack.priceIdr, pack.credits))}
+            </p>
+            <div class="flex flex-wrap items-center gap-2">
+              <AdminBadge tone={pack.active ? 'success' : 'neutral'}>
+                {pack.active ? 'Aktif' : 'Nonaktif'}
+              </AdminBadge>
+              <label class="inline-flex items-center gap-1.5 text-sm">
+                <input type="checkbox" name="active" value="1" checked={pack.active} />
+                Aktif
+              </label>
+            </div>
+            <button
+              class="min-h-10 rounded-kontrol border border-garis bg-kertas px-4 text-sm font-medium hover:border-jalur/40"
+              type="submit"
+            >
+              Simpan
+            </button>
+          </form>
+        </li>
+      ))}
+      </AdminTable>
+    )}
+  </div>
+
+  {showPreview && (
+    <div class="mt-8">
+      <CreditPackPreview packs={packs} />
+    </div>
+  )}
+  <script src="/scripts/admin-paket.js" defer></script>
   </div>
 </AdminShell>

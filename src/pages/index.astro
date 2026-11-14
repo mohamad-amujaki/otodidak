@@ -1,9 +1,28 @@
 ---
-export const prerender = true;
-
+import { env } from 'cloudflare:workers';
+import AuthButton from '../components/AuthButton.astro';
 import PathMark from '../components/PathMark.astro';
 import Shell from '../components/Shell.astro';
 import { SEED_CONFIG } from '../domain/defaults';
+import {
+  activePublishableKey,
+  clerkHost,
+  clerkPublishableKeyFromEnv,
+} from '../domain/guard';
+import { pageSession } from '../server/ssr';
+
+const existing = await pageSession(Astro.request, env);
+if (existing) return Astro.redirect('/dasbor');
+const mock = env.CLERK_SECRET_KEY === 'mock';
+const publishableKey = activePublishableKey(
+  clerkPublishableKeyFromEnv(env),
+  import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY,
+);
+const host = clerkHost(publishableKey);
+const realAuth = !mock && Boolean(host);
+
+const siteTitle = 'Otodidak — Ubah Satu Topik Jadi Jalur Belajar Otomatis';
+const siteDescription = `Tulis satu topik. Otodidak menyusun roadmap-nya lebih dulu, lalu menulis pelajaran sesuai kebutuhanmu saat kamu buka — ${SEED_CONFIG.signupCredits} kredit gratis, tanpa kartu kredit.`;
 
 const contoh = [
   {
@@ -20,129 +39,355 @@ const contoh = [
   },
 ];
 
-const features = [
+const personas = [
   {
-    icon: 'map',
-    judul: 'Roadmap Otomatis',
-    isi: 'Roadmap disusun lebih dulu dari topik yang kamu tulis, sebelum isi pelajaran dibuat.',
+    label: 'Mahasiswa',
+    umur: 21,
+    konteks: 'Butuh skill praktis untuk dunia kerja',
+    topik: 'SQL & Excel untuk Analisis Data',
+    detail: '6 bab · 22 pelajaran',
+    alur: 'Excel → SQL → Studi Kasus',
   },
   {
-    icon: 'sparkles',
-    judul: 'Konten On-Demand',
-    isi: 'Pelajaran dibuat saat kamu membukanya, disesuaikan dengan kebutuhan belajarmu.',
+    label: 'Karyawan',
+    umur: 29,
+    konteks: 'Naik level di peran sekarang',
+    topik: 'Marketing Analytics & Growth',
+    detail: '5 bab · 20 pelajaran',
+    alur: 'Metrik → Atribusi → Eksperimen',
   },
   {
-    icon: 'link',
-    judul: 'Sumber Transparan',
-    isi: 'Sumber tampil di halaman. Klaim tanpa tautan ditandai untuk transparansi penuh.',
+    label: 'Pindah karier',
+    umur: 26,
+    konteks: 'Belum tahu harus mulai dari mana',
+    topik: 'Data Analytics dari Nol',
+    detail: '7 bab · 28 pelajaran',
+    alur: 'Spreadsheet → SQL → Statistik → Dasbor',
   },
 ];
+
+const langkah = [
+  {
+    judul: 'Tulis topikmu',
+    isi: 'Satu kalimat cukup — soal apa yang ingin kamu kuasai.',
+  },
+  {
+    judul: 'Roadmap disusun',
+    isi: 'Urutan bab dan pelajaran dibuat lebih dulu, sebelum isinya ditulis.',
+  },
+  {
+    judul: 'Buka pelajaran',
+    isi: 'Isi ditulis saat kamu membukanya, disesuaikan dengan kebutuhanmu.',
+  },
+  {
+    judul: 'Rujukan bila tersedia',
+    isi: 'Bila ada, video pendukung ditautkan. Materi tanpa rujukan ditampilkan apa adanya.',
+  },
+  {
+    judul: 'Cek pemahaman & progres',
+    isi: 'Kuis singkat dan progres yang terlihat agar kamu benar-benar menyelesaikan jalurnya.',
+  },
+];
+
+const masalah = [
+  {
+    judul: 'Bingung mulai dari mana',
+    isi: 'Ingin belajar sesuatu, tapi tak yakin bagian mana yang penting dan urutannya.',
+  },
+  {
+    judul: 'Materi berserak',
+    isi: 'Chat AI menjawab apa pun yang ditanya, tapi tanpa jalur dan langkah berikutnya.',
+  },
+  {
+    judul: 'Lupa sudah lewat apa',
+    isi: 'Mudah mengulang hal yang sama atau diam-diam melewatkan yang lain.',
+  },
+  {
+    judul: 'Progres tak terlihat',
+    isi: 'Tanpa rasa bergerak, semangat memudar dan topik setengah jalan menumpuk.',
+  },
+  {
+    judul: 'Jawaban susah dipercaya',
+    isi: 'Kalau sumbernya tak terlihat, sulit tahu apakah kamu benar-benar paham.',
+  },
+];
+
+const prinsip = [
+  {
+    judul: 'Kredit transparan, tanpa langganan',
+    isi: `${SEED_CONFIG.signupCredits} kredit saat mendaftar, tanpa kartu. Beli paket lewat QRIS saat butuh — tidak ada biaya bulanan.`,
+  },
+  {
+    judul: 'Progres yang terlihat',
+    isi: 'Tiap pelajaran yang selesai tercatat. Kamu bisa melihat posisi dan ritme belajarmu tanpa menebak.',
+  },
+];
+
+const faq = [
+  {
+    t: 'Apakah perlu kartu kredit?',
+    j: `Tidak. Kamu mendapat ${SEED_CONFIG.signupCredits} kredit gratis saat mendaftar. Paket kredit dibeli lewat QRIS hanya saat kamu membutuhkannya.`,
+  },
+  {
+    t: 'Apakah materinya punya rujukan?',
+    j: 'Bila tersedia, kami menautkan video YouTube pendukung. Tidak semua topik punya rujukan video; materi lain ditulis dari pengetahuan model, jadi sebaiknya cek ulang untuk keputusan penting.',
+  },
+  {
+    t: 'Apa bedanya dengan ChatGPT?',
+    j: 'Chat AI menjawab pertanyaanmu. Otodidak menyusun jalur belajarnya — urutan bab, pelajaran, kuis, dan progres yang bisa kamu lihat.',
+  },
+  {
+    t: 'Apakah ada langganan bulanan?',
+    j: 'Tidak ada. Otodidak memakai kredit yang kamu beli sesuai kebutuhan, tanpa biaya bulanan yang mengunci akses.',
+  },
+  {
+    t: 'Kalau kredit habis?',
+    j: 'Isi ulang kapan saja lewat halaman Kredit. Progres dan jalur belajarmu tetap tersimpan.',
+  },
+];
+
+const origin = Astro.site ?? new URL(Astro.url.origin);
+const homeUrl = new URL('/', origin).href;
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      name: 'Otodidak',
+      url: homeUrl,
+      logo: new URL('/favicon.svg', origin).href,
+    },
+    {
+      '@type': 'WebSite',
+      name: 'Otodidak',
+      url: homeUrl,
+      inLanguage: 'id-ID',
+    },
+    {
+      '@type': 'SoftwareApplication',
+      name: 'Otodidak',
+      applicationCategory: 'EducationalApplication',
+      operatingSystem: 'Web',
+      url: homeUrl,
+      description: siteDescription,
+      offers: {
+        '@type': 'Offer',
+        price: '0',
+        priceCurrency: 'IDR',
+        description: `${SEED_CONFIG.signupCredits} kredit gratis untuk pengguna baru`,
+      },
+    },
+    {
+      '@type': 'FAQPage',
+      mainEntity: faq.map((item) => ({
+        '@type': 'Question',
+        name: item.t,
+        acceptedAnswer: { '@type': 'Answer', text: item.j },
+      })),
+    },
+  ],
+}).replace(/</g, '\\u003c');
 ---
-<Shell title="Otodidak">
-  <!-- Hero Section -->
-  <section class="mx-auto max-w-4xl">
-    <div class="text-center">
-      <h1 class="text-4xl font-bold leading-tight tracking-tight text-tinta min-[768px]:text-5xl min-[1100px]:text-6xl">
-        Susun jalur belajarmu dari satu topik
+<Shell title={siteTitle} description={siteDescription} realAuth={realAuth}>
+  {realAuth && (
+    <>
+      <meta name="clerk-key" content={publishableKey} />
+      <meta name="clerk-host" content={host} />
+    </>
+  )}
+  <script type="application/ld+json" set:html={jsonLd} />
+
+  <!-- Hero -->
+  <section class="grid items-center gap-10 min-[900px]:grid-cols-[minmax(0,1fr)_22rem] min-[900px]:gap-12">
+    <div>
+      <p class="eyebrow">Belajar mandiri, terstruktur</p>
+      <h1 class="mt-3 text-4xl font-bold leading-tight tracking-tight text-tinta min-[768px]:text-5xl min-[1100px]:text-6xl">
+        Ubah satu topik jadi jalur belajar yang utuh
       </h1>
-      <p class="mx-auto mt-6 max-w-2xl text-lg text-tinta-lembut min-[768px]:text-xl">
-        Platform pembelajaran yang menyusun roadmap belajar otomatis dan menghasilkan konten pelajaran sesuai kebutuhanmu.
+      <p class="mt-6 max-w-2xl text-lg leading-relaxed text-tinta-lembut min-[768px]:text-xl">
+        Tulis apa yang ingin kamu kuasai. Otodidak menyusun roadmap-nya lebih dulu,
+        lalu menulis pelajaran saat kamu membukanya.
       </p>
-      
-      <!-- CTA -->
-      <div class="mt-8 flex flex-col items-center gap-4 min-[768px]:flex-row min-[768px]:justify-center">
-        <a 
-          class="group inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 text-base font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:brightness-110 focus-visible:ring-2 focus-visible:ring-jalur focus-visible:ring-offset-2 min-[768px]:w-auto min-[768px]:px-8" 
-          href="/masuk"
+      <div class="mt-8 flex flex-col items-stretch gap-3 min-[768px]:flex-row min-[768px]:items-center">
+        <AuthButton
+          class="btn-jalur w-full min-[768px]:w-auto min-[768px]:px-8"
+          label="Mulai gratis dengan Google"
+          real={realAuth}
+        />
+        <a
+          class="inline-flex min-h-12 w-full items-center justify-center rounded-kontrol border border-garis bg-kartu px-8 text-base font-semibold text-tinta shadow-sm transition-colors hover:border-jalur/40 min-[768px]:w-auto"
+          href="#cara-kerja"
         >
-          <svg class="size-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
-          </svg>
-          Masuk dengan Google
+          Lihat cara kerjanya
         </a>
-        <div class="flex items-center gap-2 text-sm text-tinta-lembut">
-          <svg class="size-5 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-          </svg>
-          <span class="font-medium tabular-nums">{SEED_CONFIG.signupCredits} kredit awal, tanpa kartu</span>
-        </div>
       </div>
+      <p class="mt-4 flex items-center gap-2 text-sm text-tinta-lembut">
+        <svg class="size-5 shrink-0 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+        </svg>
+        <span class="font-medium tabular-nums">
+          {SEED_CONFIG.signupCredits} kredit awal · tanpa kartu kredit
+        </span>
+      </p>
     </div>
-  </section>
 
-  <!-- Features Section -->
-  <section class="mx-auto mt-16 max-w-5xl min-[768px]:mt-20 min-[1100px]:mt-24">
-    <h2 class="text-center text-2xl font-bold text-tinta min-[768px]:text-3xl">Bagaimana Otodidak Bekerja</h2>
-    <div class="mt-10 grid gap-6 min-[768px]:grid-cols-3 min-[768px]:gap-8">
-      {features.map((feature) => (
-        <div class="group rounded-kartu border border-garis bg-kartu p-6 shadow-sm transition-all hover:shadow-md hover:border-jalur/30">
-          <div class="inline-flex size-12 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
-            {feature.icon === 'map' && (
-              <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-              </svg>
-            )}
-            {feature.icon === 'sparkles' && (
-              <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-              </svg>
-            )}
-            {feature.icon === 'link' && (
-              <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
-            )}
-          </div>
-          <h3 class="mt-4 text-lg font-semibold text-tinta">{feature.judul}</h3>
-          <p class="mt-2 text-sm leading-relaxed text-tinta-lembut">{feature.isi}</p>
-        </div>
-      ))}
-    </div>
-  </section>
-
-  <!-- Example Section -->
-  <section class="mx-auto mt-16 max-w-3xl min-[768px]:mt-20 min-[1100px]:mt-24" aria-label="Contoh kerangka">
-    <div class="rounded-kartu border border-garis bg-kartu p-6 shadow-sm min-[768px]:p-8">
-      <div class="flex items-start gap-3">
-        <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
-          <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <div class="min-w-0 flex-1">
-          <p class="text-sm font-medium leading-[1.4] text-tinta-lembut">Contoh kerangka, bukan jalur sungguhan</p>
-        </div>
-      </div>
-      <ol class="mt-6">
+    <div class="rounded-kartu border border-garis bg-kartu p-5 shadow-sm min-[768px]:p-6">
+      <p class="text-xs font-semibold uppercase tracking-wide text-tinta-lembut">Contoh jalur</p>
+      <p class="mt-1 text-base font-bold text-tinta">Menanam kopi di rumah</p>
+      <ol class="mt-4">
         {contoh.map((bab, index) => (
           <li class="flex gap-3">
             <PathMark last={index === contoh.length - 1} />
-            <div class:list={[index < contoh.length - 1 && "pb-4"]}>
-              <p class="font-semibold text-tinta">{bab.judul}</p>
+            <div class:list={[index < contoh.length - 1 && 'pb-4']}>
+              <p class="text-sm font-semibold text-tinta">{bab.judul}</p>
               <p class="mt-1 text-sm leading-[1.4] text-tinta-lembut">{bab.isi}</p>
             </div>
           </li>
         ))}
       </ol>
+      <p class="mt-5 border-t border-garis pt-3 text-xs text-tinta-lembut">
+        Contoh kerangka, bukan jalur sungguhan.
+      </p>
     </div>
   </section>
 
-  <!-- Social Proof / Stats Section -->
-  <section class="mx-auto mt-16 max-w-5xl min-[768px]:mt-20 min-[1100px]:mt-24">
-    <div class="rounded-kartu border border-garis bg-gradient-to-br from-jalur-lembut to-kartu p-8 text-center shadow-sm min-[768px]:p-12">
-      <h2 class="text-2xl font-bold text-tinta min-[768px]:text-3xl">Mulai Perjalanan Belajarmu</h2>
-      <p class="mx-auto mt-4 max-w-2xl text-lg text-tinta-lembut">
-        Platform pembelajaran yang fleksibel dan transparan, dirancang untuk mendukung gaya belajar mandirimu.
+  <!-- Untuk siapa -->
+  <section class="mt-16 min-[768px]:mt-20 min-[1100px]:mt-24" aria-labelledby="untuk-siapa-heading">
+    <p class="eyebrow text-center">Untuk siapa</p>
+    <h2 id="untuk-siapa-heading" class="mt-2 text-center text-2xl font-bold text-tinta min-[768px]:text-3xl">
+      Tujuan berbeda, satu cara belajar yang runtut
+    </h2>
+    <p class="mx-auto mt-3 max-w-2xl text-center text-sm text-tinta-lembut">
+      Mulai dari tujuanmu, bukan dari daftar materi.
+    </p>
+    <ul class="mx-auto mt-10 grid max-w-5xl gap-6 min-[768px]:grid-cols-3 min-[768px]:gap-8">
+      {personas.map((persona) => (
+        <li class="rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+          <p class="text-sm font-semibold text-tinta">{persona.label}, {persona.umur}</p>
+          <p class="mt-1 text-sm text-tinta-lembut">{persona.konteks}</p>
+          <p class="mt-4 text-xs font-semibold uppercase tracking-wide text-tinta-lembut">Ingin belajar</p>
+          <p class="mt-1 font-semibold text-tinta">{persona.topik}</p>
+          <p class="mt-2 text-xs text-tinta-lembut">{persona.detail}</p>
+          <p class="mt-3 text-sm leading-[1.4] text-jalur">{persona.alur}</p>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <!-- Cara kerja -->
+  <section id="cara-kerja" class="mx-auto mt-16 max-w-3xl scroll-mt-24 min-[768px]:mt-20 min-[1100px]:mt-24" aria-labelledby="cara-kerja-heading">
+    <p class="eyebrow text-center">Cara kerja</p>
+    <h2 id="cara-kerja-heading" class="mt-2 text-center text-2xl font-bold text-tinta min-[768px]:text-3xl">
+      Dari satu kalimat jadi jalur yang bisa kamu selesaikan
+    </h2>
+    <ol class="mt-10 grid gap-4">
+      {langkah.map((step, index) => (
+        <li class="flex gap-4 rounded-kartu border border-garis bg-kartu p-5 shadow-sm">
+          <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-jalur-lembut text-sm font-bold text-jalur tabular-nums" aria-hidden="true">
+            {index + 1}
+          </span>
+          <div class="min-w-0">
+            <h3 class="font-semibold text-tinta">{step.judul}</h3>
+            <p class="mt-1 text-sm leading-relaxed text-tinta-lembut">{step.isi}</p>
+          </div>
+        </li>
+      ))}
+    </ol>
+  </section>
+
+  <!-- Masalah -->
+  <section class="mt-16 min-[768px]:mt-20 min-[1100px]:mt-24" aria-labelledby="masalah-heading">
+    <p class="eyebrow text-center">Kenapa Otodidak</p>
+    <h2 id="masalah-heading" class="mt-2 text-center text-2xl font-bold text-tinta min-[768px]:text-3xl">
+      Chat AI menjawab. Otodidak menyusun jalurnya.
+    </h2>
+    <p class="mx-auto mt-3 max-w-2xl text-center text-sm text-tinta-lembut">
+      Belajar sendiri sering berhenti karena urutannya tak jelas, bukan karena materinya kurang.
+    </p>
+    <ul class="mx-auto mt-10 grid max-w-5xl gap-4 min-[768px]:grid-cols-2 min-[1100px]:grid-cols-3">
+      {masalah.map((item, index) => (
+        <li class="rounded-kartu border border-garis bg-kartu p-5 shadow-sm">
+          <p class="text-xs font-bold tabular-nums text-tinta-lembut">{String(index + 1).padStart(2, '0')}</p>
+          <h3 class="mt-2 font-semibold text-tinta">{item.judul}</h3>
+          <p class="mt-1 text-sm leading-relaxed text-tinta-lembut">{item.isi}</p>
+        </li>
+      ))}
+    </ul>
+    <div class="mx-auto mt-8 max-w-3xl rounded-kartu border border-garis border-l-4 border-l-jalur bg-jalur-lembut/40 p-6">
+      <h3 class="font-semibold text-tinta">Struktur, tanpa kaku</h3>
+      <p class="mt-2 text-sm leading-relaxed text-tinta-lembut">
+        Bukan menggantikan rasa ingin tahumu. Kamu tetap yang memilih topik dan tempo
+        belajarnya — Otodidak menjaga langkahnya tetap runtut dan tidak melompat.
       </p>
-      <a 
-        class="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-kontrol bg-jalur px-8 text-base font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:brightness-110 focus-visible:ring-2 focus-visible:ring-jalur focus-visible:ring-offset-2" 
-        href="/masuk"
-      >
-        <svg class="size-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
-        </svg>
-        Mulai Sekarang
-      </a>
     </div>
   </section>
+
+  <!-- Prinsip -->
+  <section class="mt-16 min-[768px]:mt-20 min-[1100px]:mt-24" aria-labelledby="prinsip-heading">
+    <p class="eyebrow text-center">Prinsip</p>
+    <h2 id="prinsip-heading" class="mt-2 text-center text-2xl font-bold text-tinta min-[768px]:text-3xl">
+      Dibangun untuk belajar mandiri
+    </h2>
+    <p class="mx-auto mt-3 max-w-2xl text-center text-sm text-tinta-lembut">
+      Bukan angka pengguna atau testimoni palsu — hanya cara kerja produk yang bisa kamu cek sendiri.
+    </p>
+    <ul class="mx-auto mt-10 grid max-w-3xl gap-6 min-[768px]:grid-cols-2 min-[768px]:gap-8">
+      {prinsip.map((item) => (
+        <li class="rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
+          <h3 class="text-lg font-semibold text-tinta">{item.judul}</h3>
+          <p class="mt-2 text-sm leading-relaxed text-tinta-lembut">{item.isi}</p>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <!-- FAQ -->
+  <section class="mx-auto mt-16 max-w-3xl min-[768px]:mt-20 min-[1100px]:mt-24" aria-labelledby="faq-heading">
+    <p class="eyebrow text-center">FAQ</p>
+    <h2 id="faq-heading" class="mt-2 text-center text-2xl font-bold text-tinta min-[768px]:text-3xl">
+      Pertanyaan yang sering muncul
+    </h2>
+    <div class="mt-8 grid gap-3">
+      {faq.map((item) => (
+        <details class="group rounded-kartu border border-garis bg-kartu p-5 shadow-sm">
+          <summary class="flex w-full cursor-pointer items-center justify-between gap-3 text-left font-semibold text-tinta">
+            <h3 class="text-base font-semibold">{item.t}</h3>
+            <svg class="size-5 shrink-0 text-tinta-lembut transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </summary>
+          <p class="mt-3 text-sm leading-relaxed text-tinta-lembut">{item.j}</p>
+        </details>
+      ))}
+    </div>
+  </section>
+
+  <!-- CTA penutup -->
+  <section class="mx-auto mt-16 max-w-5xl pb-24 min-[768px]:mt-20 min-[768px]:pb-0 min-[1100px]:mt-24" aria-labelledby="cta-heading">
+    <div class="rounded-kartu border border-garis bg-gradient-to-br from-jalur-lembut to-kartu p-8 text-center shadow-sm min-[768px]:p-12">
+      <h2 id="cta-heading" class="text-2xl font-bold text-tinta min-[768px]:text-3xl">
+        Ada yang ingin kamu kuasai? Beri dia sebuah jalur.
+      </h2>
+      <p class="mx-auto mt-4 max-w-2xl text-lg text-tinta-lembut">
+        Cukup satu topik untuk mulai. Jalurnya tersusun rapi, kamu tinggal mengikuti.
+      </p>
+      <AuthButton
+        class="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-kontrol bg-jalur px-8 text-base font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:brightness-110 focus-visible:ring-2 focus-visible:ring-jalur focus-visible:ring-offset-2"
+        label="Mulai gratis dengan Google"
+        real={realAuth}
+      />
+      <p class="mt-3 text-sm text-tinta-lembut">
+        Tanpa langganan bulanan · isi ulang saat kamu butuh
+      </p>
+    </div>
+  </section>
+
+  <div
+    class="fixed inset-x-0 bottom-0 z-30 border-t border-garis bg-kertas/95 p-4 backdrop-blur-sm min-[768px]:hidden"
+    role="region"
+    aria-label="Mulai belajar"
+  >
+    <AuthButton class="btn-jalur w-full" label="Mulai gratis dengan Google" real={realAuth} icon={false} />
+  </div>
+  {realAuth && <script type="module" src="/scripts/auth.js"></script>}
 </Shell>

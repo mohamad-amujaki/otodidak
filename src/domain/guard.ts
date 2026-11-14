@@ -6,6 +6,16 @@ export function record(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
 }
 
+export function clerkPublishableKeyFromEnv(env: {
+  PUBLIC_CLERK_PUBLISHABLE_KEY?: string;
+  CLERK_PUBLISHABLE_KEY?: string;
+}): string {
+  return activePublishableKey(
+    env.PUBLIC_CLERK_PUBLISHABLE_KEY,
+    env.CLERK_PUBLISHABLE_KEY,
+  );
+}
+
 export function activePublishableKey(
   ...candidates: Array<string | undefined>
 ): string {

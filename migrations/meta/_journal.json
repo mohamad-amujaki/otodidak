@@ -8,6 +8,48 @@
       "when": 1794545104570,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1794592358246,
+      "tag": "0001_lying_sleeper",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794643200000,
+      "tag": "0002_admin_credit_tools",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794680000000,
+      "tag": "0003_unique_user_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794720000000,
+      "tag": "0004_narrative_memory",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1794760000000,
+      "tag": "0005_share_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1794800000000,
+      "tag": "0006_share_cta",
+      "breakpoints": true
     }
   ]
 }

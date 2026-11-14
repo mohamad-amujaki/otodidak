@@ -1,0 +1,25 @@
+---
+interface Props {
+  label: string;
+  value: number;
+  href: string;
+  tone?: 'neutral' | 'warning' | 'danger';
+}
+
+const { label, value, href, tone = 'neutral' } = Astro.props;
+const toneClass: Record<string, string> = {
+  neutral: 'border-garis bg-kartu hover:border-jalur/40',
+  warning: 'border-hangat/40 bg-hangat-lembut/30 hover:border-hangat/60',
+  danger: 'border-bahaya/30 bg-bahaya/5 hover:border-bahaya/50',
+};
+---
+<a
+  href={href}
+  class:list={[
+    'block rounded-kartu border p-5 shadow-sm transition-colors hover:bg-kertas/50',
+    toneClass[tone],
+  ]}
+>
+  <p class="text-2xl font-bold tabular-nums text-tinta min-[768px]:text-3xl">{value}</p>
+  <p class="mt-1 text-sm text-tinta-lembut">{label}</p>
+</a>

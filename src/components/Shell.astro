@@ -1,110 +1,289 @@
 ---
 import '../styles/global.css';
+import AuthButton from './AuthButton.astro';
+import ConfirmDialog from './ConfirmDialog.astro';
 
 interface Props {
   title: string;
+  description?: string;
   balance?: number | null;
+  lowCredit?: boolean;
   role?: 'learner' | 'admin' | null;
   suspended?: boolean;
+  sectionLabel?: string;
+  realAuth?: boolean;
+  userName?: string;
+  userEmail?: string;
+  noindex?: boolean;
+  image?: string;
 }
-const { title, balance = null, role = null, suspended = false } = Astro.props;
+const DEFAULT_DESCRIPTION =
+  'Tulis satu topik. Otodidak menyusun roadmap-nya lebih dulu, lalu menulis pelajaran sesuai kebutuhanmu saat kamu buka. Tanpa langganan bulanan.';
+const {
+  title,
+  description = DEFAULT_DESCRIPTION,
+  balance = null,
+  lowCredit = false,
+  role = null,
+  suspended = false,
+  sectionLabel,
+  realAuth = false,
+  userName,
+  userEmail,
+  noindex = false,
+  image,
+} = Astro.props;
+const wide = role !== null;
+const seoOrigin =
+  Astro.site ?? (Astro.isPrerendered ? null : new URL(Astro.url.origin));
+const canonicalUrl = seoOrigin
+  ? new URL(Astro.url.pathname, seoOrigin).href
+  : null;
+const socialImageUrl = image
+  ? image
+  : seoOrigin
+    ? new URL('/og-image.png', seoOrigin).href
+    : null;
+const pageTitle = title.includes('Otodidak') ? title : `${title} · Otodidak`;
+const path = Astro.url.pathname.replace(/\/$/, '') || '/';
+const isLanding = path === '/';
+const isLoginPage = path === '/masuk';
+function isNavActive(href: string): boolean {
+  const base = href.replace(/\/$/, '') || '/';
+  if (base === '/') return path === '/';
+  return path === base || path.startsWith(`${base}/`);
+}
+
+function initialsOf(name?: string): string {
+  const words = (name ?? '').trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  const first = words[0] ?? '';
+  const last = words[words.length - 1] ?? '';
+  const two =
+    words.length > 1
+      ? `${first.slice(0, 1)}${last.slice(0, 1)}`
+      : first.slice(0, 1);
+  return two.toUpperCase() || '?';
+}
+const displayName = userName?.trim() || 'Akun';
+const initials = initialsOf(userName);
+
+type NavItem = { href: string; label: string; match: string; icon: string };
+const navIcons: Record<string, string> = {
+  home: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
+  books: 'M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z',
+  coin: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1',
+  user: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
+  sliders:
+    'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4',
+  share:
+    'M8.7 13.3l6.6 3.4M15.3 7.3l-6.6 3.4M18 8a3 3 0 11-6 0 3 3 0 016 0zM9 12a3 3 0 11-6 0 3 3 0 016 0zm9 4a3 3 0 11-6 0 3 3 0 016 0z',
+  logout:
+    'M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1',
+};
+const primaryNav: NavItem[] = role
+  ? [
+      { href: '/dasbor', label: 'Dasbor', match: '/dasbor', icon: 'home' },
+      { href: '/pustaka', label: 'Pustaka', match: '/pustaka', icon: 'books' },
+      { href: '/kredit', label: 'Kredit', match: '/kredit', icon: 'coin' },
+    ]
+  : [];
+const accountNav: NavItem[] = role
+  ? [
+      { href: '/profil', label: 'Profil', match: '/profil', icon: 'user' },
+      { href: '/bagikan', label: 'Bagikan', match: '/bagikan', icon: 'share' },
+      ...(role === 'admin'
+        ? [
+            {
+              href: '/admin/',
+              label: 'Admin',
+              match: '/admin',
+              icon: 'sliders',
+            },
+          ]
+        : []),
+    ]
+  : [];
+const showPublicNav = role === null;
+const showAccountMenu = role !== null;
 ---
 <!doctype html>
 <html lang="id">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Platform pembelajaran yang menyusun roadmap belajar otomatis dan menghasilkan konten pelajaran sesuai kebutuhanmu." />
-    <title>{title}</title>
+    <meta name="csrf-token" content={Astro.locals.csrf} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#0b6e4f" />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Otodidak" />
+    <meta property="og:locale" content="id_ID" />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    {canonicalUrl && <meta property="og:url" content={canonicalUrl} />}
+    {socialImageUrl && <meta property="og:image" content={socialImageUrl} />}
+    {socialImageUrl && <meta property="og:image:alt" content={pageTitle} />}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={description} />
+    {socialImageUrl && <meta name="twitter:image" content={socialImageUrl} />}
+    {socialImageUrl && <meta name="twitter:image:alt" content={pageTitle} />}
+    <link
+      rel="preload"
+      href="/fonts/plus-jakarta-sans.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
   </head>
-  <body class="min-h-screen bg-kertas text-tinta">
+  <body class="flex flex-col bg-kertas text-tinta">
     <a class="lewati" href="#isi">Langsung ke isi</a>
     <header class="sticky top-0 z-20 border-b border-garis bg-kertas/95 backdrop-blur-sm">
-      <div class="bingkai relative flex items-center gap-2 py-3">
+      <div class:list={['bingkai relative flex items-center gap-2 py-3', wide && 'bingkai-lebar']}>
         <a class="inline-flex min-h-11 shrink-0 items-center gap-2 px-1 text-xl font-bold text-jalur" href={role ? '/dasbor' : '/'}>
           <svg class="size-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
           </svg>
           <span>Otodidak</span>
         </a>
+        {sectionLabel && (
+          <span class="hidden min-w-0 items-center gap-2 text-sm font-medium text-tinta-lembut md:inline-flex">
+            <span class="text-garis" aria-hidden="true">/</span>
+            <span class="truncate">{sectionLabel}</span>
+          </span>
+        )}
+
         <div class="ml-auto flex items-center gap-2">
           {balance !== null && (
-            <a class="inline-flex min-h-11 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium tabular-nums whitespace-nowrap shadow-sm transition-all hover:shadow-md hover:border-jalur/30" href="/kredit">
-              <svg class="size-4 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <a class:list={["inline-flex min-h-11 items-center gap-1.5 rounded-kontrol border px-3 text-sm font-medium tabular-nums whitespace-nowrap shadow-sm transition-all hover:shadow-md",
+              lowCredit
+                ? "border-hangat/40 bg-hangat-lembut hover:border-hangat/60"
+                : "border-garis bg-kartu hover:border-jalur/30"]} href="/kredit" title={lowCredit ? 'Kredit hampir habis' : 'Saldo kredit'}>
+              <svg class:list={["size-4", lowCredit ? "text-hangat" : "text-jalur"]} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
               </svg>
-              <span class="text-tinta">{balance}</span>
+              <span class={lowCredit ? 'text-hangat' : 'text-tinta'}>{balance}</span>
             </a>
           )}
-          <details class="menu">
-            <summary class="rounded-kontrol border border-garis bg-kartu transition-colors hover:bg-kertas">
-              <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-              <span class="sr-only">Menu</span>
-            </summary>
-            <nav class="menu-lembar rounded-kartu border border-garis bg-kartu shadow-lg" aria-label="Menu">
-              {role ? (
-                <>
-                  <a class="group" href="/dasbor">
-                    <svg class="size-5 text-tinta-lembut group-hover:text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                    </svg>
-                    <span>Dasbor</span>
-                  </a>
-                  <a class="group" href="/pustaka">
-                    <svg class="size-5 text-tinta-lembut group-hover:text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
-                    </svg>
-                    <span>Pustaka</span>
-                  </a>
-                  <a class="group" href="/kredit">
-                    <svg class="size-5 text-tinta-lembut group-hover:text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                    </svg>
-                    <span>Kredit</span>
-                  </a>
-                  <a class="group" href="/profil">
-                    <svg class="size-5 text-tinta-lembut group-hover:text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                    <span>Profil</span>
-                  </a>
-                  {role === 'admin' && (
-                    <a class="group" href="/admin/">
-                      <svg class="size-5 text-tinta-lembut group-hover:text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                      </svg>
-                      <span>Admin</span>
-                    </a>
-                  )}
-                  <hr class="border-garis" />
-                  <form method="post" action="/profil">
-                    <input type="hidden" name="aksi" value="keluar" />
-                    <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-                    <button class="group" type="submit">
-                      <svg class="size-5 text-tinta-lembut group-hover:text-bahaya" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                      </svg>
-                      <span>Keluar</span>
-                    </button>
-                  </form>
-                </>
-              ) : (
-                <a class="group" href="/masuk">
-                  <svg class="size-5 text-tinta-lembut group-hover:text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                  </svg>
-                  <span>Masuk</span>
+
+          {showPublicNav && (
+            <nav class="flex items-center gap-2 sm:gap-4" aria-label="Navigasi">
+              {isLanding && (
+                <a
+                  class="hidden min-h-11 items-center text-sm font-medium text-tinta-lembut transition-colors hover:text-tinta sm:inline-flex"
+                  href="#cara-kerja"
+                >
+                  Cara kerja
                 </a>
               )}
+              {!isLoginPage &&
+                (realAuth && isLanding ? (
+                  <AuthButton
+                    class="min-h-11 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:brightness-110"
+                    label="Mulai gratis"
+                    real={realAuth}
+                  />
+                ) : (
+                  <a
+                    class="inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:brightness-110"
+                    href="/masuk"
+                  >
+                    Masuk
+                  </a>
+                ))}
             </nav>
-          </details>
+          )}
+
+          {showAccountMenu && (
+            <details class="menu">
+              <summary
+                class="flex items-center gap-1 rounded-full border-0 bg-transparent p-0 hover:bg-transparent"
+                aria-label={`Menu akun — ${displayName}`}
+              >
+                <span
+                  class="inline-flex size-10 items-center justify-center rounded-full bg-jalur-lembut text-xs font-semibold tracking-wide text-jalur uppercase transition-shadow hover:shadow-md"
+                  aria-hidden="true"
+                >
+                  {initials}
+                </span>
+                <svg
+                  class="menu-chevron size-3.5 shrink-0 text-tinta-lembut transition-transform duration-150"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </summary>
+              <nav
+                class="menu-lembar menu-akun rounded-kartu border border-garis bg-kartu shadow-lg"
+                aria-label="Menu akun"
+              >
+                <div class="flex items-center gap-3 border-b border-garis px-3 pt-2 pb-3">
+                  <span
+                    class="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-jalur-lembut text-sm font-semibold tracking-wide text-jalur uppercase"
+                    aria-hidden="true"
+                  >
+                    {initials}
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block truncate text-sm font-semibold text-tinta">{displayName}</span>
+                    {userEmail && (
+                      <span class="block truncate text-xs text-tinta-lembut">{userEmail}</span>
+                    )}
+                  </span>
+                </div>
+
+                {primaryNav.map((item) => (
+                  <a
+                    class:list={['group', isNavActive(item.match) && 'menu-aktif']}
+                    href={item.href}
+                    aria-current={isNavActive(item.match) ? 'page' : undefined}
+                  >
+                    <svg class="size-5 text-tinta-lembut group-hover:text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={navIcons[item.icon]} />
+                    </svg>
+                    <span>{item.label}</span>
+                  </a>
+                ))}
+
+                {accountNav.map((item) => (
+                  <a
+                    class:list={['group', isNavActive(item.match) && 'menu-aktif']}
+                    href={item.href}
+                    aria-current={isNavActive(item.match) ? 'page' : undefined}
+                  >
+                    <svg class="size-5 text-tinta-lembut group-hover:text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={navIcons[item.icon]} />
+                    </svg>
+                    <span>{item.label}</span>
+                  </a>
+                ))}
+
+                <hr class="border-garis" />
+                <form method="post" action="/profil">
+                  <input type="hidden" name="aksi" value="keluar" />
+                  <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                  <button class="group" type="submit">
+                    <svg class="size-5 text-tinta-lembut group-hover:text-bahaya" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={navIcons.logout} />
+                    </svg>
+                    <span>Keluar</span>
+                  </button>
+                </form>
+              </nav>
+            </details>
+          )}
         </div>
       </div>
     </header>
     {suspended && (
-      <div class="bingkai pt-4">
+      <div class:list={['bingkai pt-4', wide && 'bingkai-lebar']}>
         <div class="rounded-kontrol border border-bahaya/30 bg-bahaya/10 p-4">
           <div class="flex items-start gap-3">
             <svg class="size-5 shrink-0 text-bahaya" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -115,91 +294,65 @@ const { title, balance = null, role = null, suspended = false } = Astro.props;
         </div>
       </div>
     )}
-    <main id="isi" class="bingkai min-w-0 py-8 min-[1100px]:py-12">
+    <main id="isi" class:list={['bingkai min-w-0 flex-1 py-8 min-[1100px]:py-12', wide && 'bingkai-lebar']}>
       <slot />
     </main>
-    <footer class="border-t border-garis bg-kartu">
-      <div class="bingkai py-8 min-[768px]:py-12">
-        <div class="grid gap-8 min-[768px]:grid-cols-3">
-          <!-- About -->
-          <div>
+    {wide ? (
+      <footer class="border-t border-garis bg-kartu">
+        <div class="bingkai bingkai-lebar py-5">
+          <div class="flex flex-col items-center justify-between gap-3 text-sm text-tinta-lembut md:flex-row">
+            <p>&copy; {new Date().getFullYear()} Otodidak</p>
+            <nav class="flex flex-wrap items-center gap-x-5" aria-label="Tautan footer">
+              <a class="inline-flex min-h-11 items-center transition-colors hover:text-jalur" href="/">Beranda</a>
+              <a class="inline-flex min-h-11 items-center transition-colors hover:text-jalur" href="/privasi">Privasi</a>
+              <a class="inline-flex min-h-11 items-center transition-colors hover:text-jalur" href="/ketentuan">Ketentuan</a>
+            </nav>
+          </div>
+        </div>
+      </footer>
+    ) : (
+      <footer class="border-t border-garis bg-kartu">
+        <div
+          class:list={[
+            'bingkai pt-10 md:pt-12',
+            isLanding ? 'pb-24 md:pb-10' : 'pb-10',
+          ]}
+        >
+          <div class="max-w-sm">
             <div class="flex items-center gap-2 text-xl font-bold text-jalur">
               <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
               <span>Otodidak</span>
             </div>
-            <p class="mt-3 text-sm leading-relaxed text-tinta-lembut">
-              Platform pembelajaran yang menyusun roadmap belajar otomatis dan menghasilkan konten sesuai kebutuhanmu.
+            <p class="mt-3 text-sm font-semibold text-tinta">
+              Dari satu topik jadi jalur belajar yang utuh.
+            </p>
+            <p class="mt-2 text-sm leading-relaxed text-tinta-lembut">
+              Otodidak dari kata “otodidak” — belajar atas kemauan sendiri, tanpa menunggu kelas.
+            </p>
+            <p class="mt-3 text-xs text-tinta-lembut">
+              Kredit transparan · Tanpa langganan · Progres terlihat
             </p>
           </div>
 
-          <!-- Quick Links -->
-          <div>
-            <h3 class="text-sm font-semibold text-tinta">Tautan Cepat</h3>
-            <ul class="mt-3 space-y-2">
-              <li>
-                <a class="inline-flex items-center gap-2 text-sm text-tinta-lembut transition-colors hover:text-jalur" href="/">
-                  <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                  </svg>
-                  <span>Beranda</span>
-                </a>
-              </li>
-              {role && (
-                <>
-                  <li>
-                    <a class="inline-flex items-center gap-2 text-sm text-tinta-lembut transition-colors hover:text-jalur" href="/dasbor">
-                      <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                      </svg>
-                      <span>Dasbor</span>
-                    </a>
-                  </li>
-                  <li>
-                    <a class="inline-flex items-center gap-2 text-sm text-tinta-lembut transition-colors hover:text-jalur" href="/pustaka">
-                      <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                      </svg>
-                      <span>Pustaka</span>
-                    </a>
-                  </li>
-                </>
-              )}
-            </ul>
+          <hr class="mt-8 border-garis" />
+
+          <div class="mt-3 flex flex-col gap-2 text-sm text-tinta-lembut md:flex-row md:items-center md:justify-between">
+            <p class="py-2 md:py-0">&copy; {new Date().getFullYear()} Otodidak. Semua hak dilindungi.</p>
+            <nav class="flex flex-wrap items-center gap-x-5" aria-label="Tautan footer">
+              <a class="inline-flex min-h-11 items-center transition-colors hover:text-jalur" href="/">Beranda</a>
+              <a class="inline-flex min-h-11 items-center transition-colors hover:text-jalur" href="/privasi">Privasi</a>
+              <a class="inline-flex min-h-11 items-center transition-colors hover:text-jalur" href="/ketentuan">Ketentuan</a>
+            </nav>
           </div>
 
-          <!-- Legal -->
-          <div>
-            <h3 class="text-sm font-semibold text-tinta">Legal</h3>
-            <ul class="mt-3 space-y-2">
-              <li>
-                <a class="inline-flex items-center gap-2 text-sm text-tinta-lembut transition-colors hover:text-jalur" href="/privasi">
-                  <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                  </svg>
-                  <span>Privasi</span>
-                </a>
-              </li>
-              <li>
-                <a class="inline-flex items-center gap-2 text-sm text-tinta-lembut transition-colors hover:text-jalur" href="/ketentuan">
-                  <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                  </svg>
-                  <span>Ketentuan</span>
-                </a>
-              </li>
-            </ul>
-          </div>
+          <p class="mt-1 text-xs text-tinta-lembut/70">Terinspirasi oleh Synau.</p>
         </div>
-
-        <hr class="my-8 border-garis" />
-
-        <div class="flex flex-col items-center justify-between gap-4 text-center text-sm text-tinta-lembut min-[768px]:flex-row min-[768px]:text-left">
-          <p>&copy; {new Date().getFullYear()} Otodidak. Semua hak dilindungi.</p>
-          <p>Dibuat dengan ❤️ untuk pembelajaran mandiri</p>
-        </div>
-      </div>
-    </footer>
+      </footer>
+    )}
+    <ConfirmDialog />
+    <script src="/scripts/ui.js" defer></script>
+    <script src="/scripts/confirm-dialog.js" defer></script>
   </body>
 </html>

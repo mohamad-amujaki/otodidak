@@ -14,8 +14,29 @@ export function formatWhen(iso: string): string {
   }).format(new Date(iso));
 }
 
+export function formatWhenShort(iso: string): string {
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Jakarta',
+  }).format(new Date(iso));
+}
+
 export function minuteLabel(minutes: number): string {
   return `Sekitar ${minutes} menit`;
+}
+
+/** 0 → A, 25 → Z, 26 → AA. Dipakai untuk menomori sub-bab, bukan bab. */
+export function alphaLabel(index: number): string {
+  let n = Math.max(0, Math.floor(index));
+  let label = '';
+  do {
+    label = String.fromCharCode(65 + (n % 26)) + label;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return label;
 }
 
 export function domainOf(url: string): string {
