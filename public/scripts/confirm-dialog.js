@@ -154,10 +154,6 @@
         (submitter instanceof HTMLElement ? submitter.dataset.confirm : '') ||
         form.dataset.confirm;
       if (!message) return;
-      if (!supported) {
-        if (!window.confirm(message)) event.preventDefault();
-        return;
-      }
       event.preventDefault();
       const trigger =
         submitter instanceof HTMLElement && submitter.dataset.confirm
@@ -175,10 +171,6 @@
     if (!(link instanceof HTMLAnchorElement) || link.closest('form')) return;
     const href = link.getAttribute('href');
     if (!href) return;
-    if (!supported) {
-      if (!window.confirm(link.dataset.confirm ?? '')) event.preventDefault();
-      return;
-    }
     event.preventDefault();
     open(link, { kind: 'link', href });
   });

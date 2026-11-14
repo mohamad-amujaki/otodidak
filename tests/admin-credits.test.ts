@@ -239,5 +239,9 @@ describe('nada pesan admin', () => {
         'Aksi ini sudah diterapkan sebelumnya. Saldo tidak berubah.',
       ),
     ).toBe('warning');
+    expect(adminMessageTone('Periksa lagi isiannya.')).toBe('danger');
+    expect(adminMessageTone('Muat ulang halaman, lalu kirim lagi.')).toBe(
+      'danger',
+    );
   });
 });

@@ -1,7 +1,12 @@
 export function adminMessageTone(
   message: string,
 ): 'success' | 'warning' | 'danger' {
-  if (/gagal|invalid|tidak valid|negatif/i.test(message)) return 'danger';
+  if (
+    /gagal|invalid|tidak valid|negatif|periksa lagi|muat ulang|akses ditolak|tidak punya akses/i.test(
+      message,
+    )
+  )
+    return 'danger';
   if (
     /dilewati|sudah diterapkan|tidak ada perubahan|tidak dikenal|pilih minimal|terlampaui|jatah/i.test(
       message,

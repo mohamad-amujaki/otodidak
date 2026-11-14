@@ -58,10 +58,46 @@
       return `Saldo: ${format(balance)} \u2192 ${format(next)} (${sign})${tail}`;
     };
 
+    const clearConfirm = () => {
+      for (const key of CONFIRM_KEYS) delete form.dataset[key];
+    };
+
+    // Atribut konfirmasi disiapkan lebih dulu (bukan saat submit) karena
+    // listener ConfirmDialog berjalan di fase capture sebelum submit form.
+    const syncConfirm = () => {
+      const amount = readAmount();
+      const total = selected();
+      const bulk = balance === null;
+      const needsConfirm =
+        amount !== null && (amount < 0 || Math.abs(amount) >= CONFIRM_ABOVE);
+      if (!needsConfirm) {
+        clearConfirm();
+        return;
+      }
+      form.dataset.confirm = amount > 0 ? 'Tambah kredit?' : 'Kurangi kredit?';
+      form.dataset.confirmDetail = bulk
+        ? `${total} pengguna terpilih`
+        : 'Penyesuaian saldo pengguna';
+      form.dataset.confirmCost = String(bulk ? amount * total : amount);
+      if (bulk) {
+        delete form.dataset.confirmBalance;
+      } else {
+        form.dataset.confirmBalance = String(balance);
+      }
+      form.dataset.confirmCostLabel = bulk ? 'Total' : 'Jumlah';
+      form.dataset.confirmBalanceLabel = 'Saldo';
+      form.dataset.confirmEffect = 'apply';
+      form.dataset.confirmLabel = 'Ya, terapkan';
+      form.dataset.confirmImpact = bulk
+        ? `Diterapkan ke ${total} pengguna dan tercatat di buku kredit.`
+        : 'Tercatat di buku kredit dan tidak bisa dihapus.';
+    };
+
     const paint = () => {
       const text = describe();
       if (result) result.textContent = text;
       if (preview) preview.textContent = text;
+      syncConfirm();
     };
 
     for (const button of form.querySelectorAll('[data-credit-preset]')) {
@@ -93,42 +129,6 @@
     }
 
     amountInput.addEventListener('input', paint);
-
-    const clearConfirm = () => {
-      for (const key of CONFIRM_KEYS) delete form.dataset[key];
-    };
-
-    // Dialog konfirmasi ditangani confirm-dialog.js (Shell). Di sini kita hanya
-    // menyiapkan atribut lalu membiarkan listener global yang menahan submit.
-    form.addEventListener('submit', () => {
-      if (form.dataset.confirmBypass === '1') return;
-      const amount = readAmount();
-      const total = selected();
-      const bulk = balance === null;
-      const needsConfirm =
-        amount !== null && (amount < 0 || Math.abs(amount) >= CONFIRM_ABOVE);
-      if (!needsConfirm) {
-        clearConfirm();
-        return;
-      }
-      form.dataset.confirm = amount > 0 ? 'Tambah kredit?' : 'Kurangi kredit?';
-      form.dataset.confirmDetail = bulk
-        ? `${total} pengguna terpilih`
-        : 'Penyesuaian saldo pengguna';
-      form.dataset.confirmCost = String(bulk ? amount * total : amount);
-      if (bulk) {
-        delete form.dataset.confirmBalance;
-      } else {
-        form.dataset.confirmBalance = String(balance);
-      }
-      form.dataset.confirmCostLabel = bulk ? 'Total' : 'Jumlah';
-      form.dataset.confirmBalanceLabel = 'Saldo';
-      form.dataset.confirmEffect = 'apply';
-      form.dataset.confirmLabel = 'Ya, terapkan';
-      form.dataset.confirmImpact = bulk
-        ? `Diterapkan ke ${total} pengguna dan tercatat di buku kredit.`
-        : 'Tercatat di buku kredit dan tidak bisa dihapus.';
-    });
 
     paint();
   };

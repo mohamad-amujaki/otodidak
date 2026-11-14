@@ -5,7 +5,7 @@ const CSP_REST = [
   // Clerk Protect loads its bot-protection loader from protect.clerk.com and
   // solves a challenge with a blob worker plus Cloudflare Turnstile.
   "script-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://*.protect.clerk.com https://challenges.cloudflare.com",
-  "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://api.clerk.com https://*.protect.clerk.com https://challenges.cloudflare.com",
+  "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://api.clerk.com https://*.protect.clerk.com:* https://challenges.cloudflare.com",
   "worker-src 'self' blob:",
   "img-src 'self' data: https://img.clerk.com",
   "font-src 'self'",
