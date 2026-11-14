@@ -358,8 +358,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
             >
               <div
                 id="reading-progress"
-                class="h-full bg-jalur transition-[width] duration-150"
-                style="width: 0%"
+                class="h-full bg-jalur transition-[width] duration-150 w-0"
               />
             </div>
           </div>
@@ -441,7 +440,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
                     Kerjakan kuis
                   </a>
                 ) : quizAffordable ? (
-                  <form class="min-[560px]:w-auto" method="post" onsubmit={`return confirm('Buat kuis bab ini menggunakan ${quizCost} kredit?')`}>
+                  <form class="min-[560px]:w-auto" method="post" data-confirm={`Buat kuis bab ini menggunakan ${quizCost} kredit?`}>
                     <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                     <input type="hidden" name="aksi" value="kuis" />
                     <input type="hidden" name="chapterId" value={currentChapter.id} />

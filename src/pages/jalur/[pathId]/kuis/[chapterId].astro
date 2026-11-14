@@ -539,7 +539,7 @@ const lessonCount =
       <form
         class="mt-8 rounded-kartu border border-garis bg-kartu p-4"
         method="post"
-        onsubmit={`return confirm('Susun kuis baru untuk bab ini menggunakan ${cost} kredit?')`}
+        data-confirm={`Susun kuis baru untuk bab ini menggunakan ${cost} kredit?`}
       >
         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
         <input type="hidden" name="aksi" value="ulang" />
