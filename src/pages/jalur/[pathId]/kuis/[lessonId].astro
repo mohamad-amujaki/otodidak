@@ -351,7 +351,7 @@ const chapterNumber = chapters.findIndex((item) => item.id === chapter?.id) + 1;
                     </svg>
                   )}
                 </span>
-                <h3 class="text-sm font-semibold leading-snug text-tinta">
+                <h3 class="min-w-0 break-words text-sm font-semibold leading-snug text-tinta">
                   {index + 1}. {String(item.stem ?? '')}
                 </h3>
               </div>
@@ -486,13 +486,27 @@ const chapterNumber = chapters.findIndex((item) => item.id === chapter?.id) + 1;
           const choices = Array.isArray(question.choices) ? question.choices : [];
           const selectedIndex = indexOf(question.selected);
           return (
-            <fieldset class="rounded-kartu border border-garis bg-kartu p-4">
-              <legend class="text-base font-semibold leading-snug text-tinta" tabindex="-1">
-                {index + 1}. {String(question.stem ?? '')}
-              </legend>
-              <div class="mt-3 grid gap-2">
+            <fieldset class="min-w-0 rounded-kartu border border-garis bg-kartu p-4 sm:p-5">
+              <legend class="sr-only">Soal {index + 1}</legend>
+              <div class="flex items-start gap-3">
+                <span
+                  class="flex size-7 shrink-0 items-center justify-center rounded-full bg-jalur-lembut text-xs font-bold tabular-nums text-jalur"
+                  aria-hidden="true"
+                >
+                  {index + 1}
+                </span>
+                <p
+                  id={`soal-${index}`}
+                  class="min-w-0 flex-1 break-words text-[15px] font-semibold leading-snug text-tinta text-pretty"
+                  tabindex="-1"
+                  data-quiz-question
+                >
+                  {String(question.stem ?? '')}
+                </p>
+              </div>
+              <div role="radiogroup" aria-labelledby={`soal-${index}`} class="mt-4 grid gap-2.5">
                 {choices.map((choice, choiceIndex) => (
-                  <label class="flex w-full cursor-pointer items-start gap-2 rounded-kontrol border border-garis bg-kartu px-3 py-2 text-sm transition-colors hover:border-jalur/40 focus-within:ring-2 focus-within:ring-jalur/30 has-checked:border-jalur has-checked:bg-jalur-lembut">
+                  <label class="flex min-h-11 w-full cursor-pointer items-start gap-2.5 rounded-kontrol border border-garis bg-kartu px-3 py-2.5 text-sm transition-colors hover:border-jalur/40 focus-within:ring-2 focus-within:ring-jalur/30 has-checked:border-jalur has-checked:bg-jalur-lembut">
                     <input
                       class="mt-0.5"
                       type="radio"
@@ -501,10 +515,10 @@ const chapterNumber = chapters.findIndex((item) => item.id === chapter?.id) + 1;
                       checked={selectedIndex === choiceIndex}
                       required
                     />
-                    <span class="font-semibold tabular-nums text-tinta-lembut">
+                    <span class="mt-px w-4 shrink-0 text-center font-semibold tabular-nums text-tinta-lembut">
                       {alphaLabel(choiceIndex)}
                     </span>
-                    <span class="min-w-0 flex-1 text-tinta">{String(choice)}</span>
+                    <span class="min-w-0 flex-1 break-words text-tinta">{String(choice)}</span>
                   </label>
                 ))}
               </div>

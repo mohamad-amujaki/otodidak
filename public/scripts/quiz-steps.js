@@ -16,9 +16,11 @@
   const actionBar = form.querySelector('[data-quiz-actions]');
   let index = 0;
 
-  const focusLegend = () => {
-    const legend = sets[index]?.querySelector('legend');
-    if (legend) legend.focus();
+  const focusQuestion = () => {
+    const target =
+      sets[index]?.querySelector('[data-quiz-question]') ??
+      sets[index]?.querySelector('legend');
+    if (target instanceof HTMLElement) target.focus();
   };
 
   const paint = () => {
@@ -49,7 +51,7 @@
     }
     index = Math.min(Math.max(index + direction, 0), sets.length - 1);
     paint();
-    focusLegend();
+    focusQuestion();
   };
 
   next?.addEventListener('click', () => step(1));
