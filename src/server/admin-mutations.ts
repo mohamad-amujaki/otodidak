@@ -261,8 +261,15 @@ export async function updateAppConfig(
   raw: unknown,
 ): Promise<void> {
   assertSuperadmin(env, actor);
-  const body = configSchema.parse(raw);
-  await db.update(appConfig).set(body).where(eq(appConfig.id, 'app'));
+  const parsed = configSchema.safeParse(raw);
+  if (!parsed.success) {
+    const detail = parsed.error.issues
+      .map((issue) => `${issue.path.join('.') || 'nilai'}: ${issue.message}`)
+      .slice(0, 3)
+      .join('; ');
+    throw new AppError('validation', `Konfigurasi tidak valid (${detail})`);
+  }
+  await db.update(appConfig).set(parsed.data).where(eq(appConfig.id, 'app'));
 }
 
 export async function updatePromptTemplate(

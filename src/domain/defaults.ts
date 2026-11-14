@@ -3,7 +3,7 @@ export const MAX_QUIZ_ATTEMPT_HISTORY = 5;
 
 export const SEED_CONFIG = {
   id: 'app',
-  maxChapters: 8,
+  maxChapters: 5,
   maxLessonsPerChapter: 4,
   quizQuestionCount: 5,
   quizPassPercent: 80,

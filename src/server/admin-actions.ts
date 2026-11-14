@@ -1,3 +1,4 @@
+import { configFieldGroups } from '../domain/admin-labels';
 import { SEED_PROMPTS } from '../domain/prompts';
 import {
   adminAdjustLedger,
@@ -117,17 +118,11 @@ export async function runAdminAction(
       return 'Kode dinonaktifkan.';
     }
     if (action === 'konfigurasi') {
-      await updateAppConfig(db, bindings, user, {
-        maxChapters: Number(form.get('maxChapters')),
-        maxLessonsPerChapter: Number(form.get('maxLessonsPerChapter')),
-        quizQuestionCount: Number(form.get('quizQuestionCount')),
-        quizPassPercent: Number(form.get('quizPassPercent')),
-        costRoadmap: Number(form.get('costRoadmap')),
-        costLesson: Number(form.get('costLesson')),
-        costQuiz: Number(form.get('costQuiz')),
-        signupCredits: Number(form.get('signupCredits')),
-        lessonMinuteLabel: Number(form.get('lessonMinuteLabel')),
-      });
+      // Diturunkan dari configFieldGroups supaya field baru di skema otomatis ikut.
+      const fields = Object.values(configFieldGroups).flat();
+      const payload: Record<string, number> = {};
+      for (const field of fields) payload[field] = Number(form.get(field));
+      await updateAppConfig(db, bindings, user, payload);
       return 'Batas diperbarui.';
     }
     if (action === 'ai-task') {
