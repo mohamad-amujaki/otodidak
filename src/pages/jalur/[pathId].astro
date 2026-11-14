@@ -3,6 +3,7 @@ import { env } from 'cloudflare:workers';
 import ChapterNav from '../../components/ChapterNav.astro';
 import CreditNotice from '../../components/credit/CreditNotice.astro';
 import GenerationWait from '../../components/GenerationWait.astro';
+import ShareCard from '../../components/ShareCard.astro';
 import Shell from '../../components/Shell.astro';
 import {
   creditShortNote,
@@ -18,6 +19,13 @@ import { startQuiz, suggestChapterLesson } from '../../server/generation';
 import { saveOutline } from '../../server/outline-save';
 import { activateUserPath } from '../../server/path-actions';
 import { pathDetail } from '../../server/read';
+import {
+  createPathShareLink,
+  ownerShareLink,
+  revokeShareLink,
+  shareMessage,
+  whatsappHref,
+} from '../../server/share';
 import { pageMe } from '../../server/ssr';
 
 const { pathId } = Astro.params;
@@ -100,6 +108,21 @@ if (Astro.request.method === 'POST') {
           message =
             error instanceof AppError ? error.message : 'Gagal memulai kuis.';
       }
+    } else if (action === 'bagikan') {
+      const link = await createPathShareLink(
+        session.db,
+        session.user.id,
+        pathId,
+      );
+      return Astro.redirect(`${Astro.url.pathname}?bagikan=${link.token}`);
+    } else if (action === 'cabut-bagikan') {
+      await revokeShareLink(
+        session.db,
+        session.user.id,
+        String(form.get('token') ?? ''),
+      );
+      message = 'Link bagikan dicabut.';
+      messageIsInfo = true;
     } else if (action === 'aktif') {
       try {
         await activateUserPath(session.db, session.user.id, pathId);
@@ -211,6 +234,21 @@ const total = Number(progress.total ?? lessonCount) || lessonCount;
 const percent = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
 const totalMinutes = lessonCount * minutes;
 const isReady = detail.status === 'ready';
+const shareToken = Astro.url.searchParams.get('bagikan') ?? '';
+const shareLink = shareToken
+  ? await ownerShareLink(session.db, session.user.id, shareToken)
+  : null;
+const siteOrigin = (Astro.site ?? new URL(Astro.url.origin)).origin;
+const shareUrl = shareLink ? `${siteOrigin}/s/${shareLink.token}` : '';
+const shareWhatsApp = shareLink
+  ? whatsappHref(
+      shareMessage(
+        String(detail.title ?? ''),
+        `Jalur: ${String(detail.topic ?? '')}`,
+        shareUrl,
+      ),
+    )
+  : '';
 const isActive = detail.isActive === true;
 const isComplete = isReady && lessonCount > 0 && done >= total;
 const firstLesson = allLessons[0] ?? null;
@@ -407,6 +445,18 @@ function actionFrom(form: FormData): OutlineAction {
         </form>
       )}
       {isReady && (
+        <form class="w-full min-[900px]:w-auto" method="post">
+          <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+          <input type="hidden" name="aksi" value="bagikan" />
+          <button class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:bg-kertas min-[900px]:w-auto" type="submit">
+            <svg class="size-4 text-tinta-lembut" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.7 13.3l6.6 3.4M15.3 7.3l-6.6 3.4M18 8a3 3 0 11-6 0 3 3 0 016 0zM9 12a3 3 0 11-6 0 3 3 0 016 0zm9 4a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Bagikan
+          </button>
+        </form>
+      )}
+      {isReady && (
         <button class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:bg-kertas min-[900px]:w-auto" type="button" data-open-tinjau>
           <svg class="size-4 text-tinta-lembut" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -416,6 +466,17 @@ function actionFrom(form: FormData): OutlineAction {
       )}
     </div>
   </header>
+
+  {shareLink && isReady && (
+    <ShareCard
+      url={shareUrl}
+      whatsappHref={shareWhatsApp}
+      token={shareLink.token}
+      views={shareLink.views}
+      expiresAt={shareLink.expiresAt}
+      csrf={Astro.locals.csrf}
+    />
+  )}
 
   {creditShortfall && (
     <div class="mt-5">

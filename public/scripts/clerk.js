@@ -13,10 +13,14 @@ export function clerkMeta() {
 }
 
 export function oauthOptions() {
+  const topik =
+    document.querySelector('meta[name="masuk-topik"]')?.content ?? '';
   return {
     strategy: 'oauth_google',
-    redirectUrl: '/masuk',
-    redirectUrlComplete: '/dasbor',
+    redirectUrl: topik ? `/masuk?topik=${encodeURIComponent(topik)}` : '/masuk',
+    redirectUrlComplete: topik
+      ? `/dasbor?topik=${encodeURIComponent(topik)}`
+      : '/dasbor',
   };
 }
 

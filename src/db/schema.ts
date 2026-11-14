@@ -44,6 +44,7 @@ export const shareLinks = sqliteTable(
     expiresAt: text('expires_at'),
     revokedAt: text('revoked_at'),
     views: integer('views').notNull().default(0),
+    ctaClicks: integer('cta_clicks').notNull().default(0),
     lastViewedAt: text('last_viewed_at'),
   },
   (table) => [

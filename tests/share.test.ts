@@ -2,12 +2,16 @@ import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import { database } from '../src/server/account';
 import {
+  countShareCtaClick,
   createLessonShareLink,
+  createPathShareLink,
   newShareToken,
   ownerShareLink,
+  publicPathPayload,
   resolveShareLink,
   revokeShareLink,
   shareMessage,
+  shareTopic,
   whatsappHref,
 } from '../src/server/share';
 import { signIn } from './helpers';
@@ -40,7 +44,7 @@ async function seedLesson(userId: string, suffix: string) {
   )
     .bind(lessonId, chapterId, now)
     .run();
-  return lessonId;
+  return { pathId, chapterId, lessonId };
 }
 
 describe('link bagikan materi', () => {
@@ -49,7 +53,7 @@ describe('link bagikan materi', () => {
     const cookie = await signIn('share-owner@example.com', 'Owner');
     expect(cookie).toBeTruthy();
     const userId = await userIdOf('share-owner@example.com');
-    const lessonId = await seedLesson(userId, 'a');
+    const { lessonId } = await seedLesson(userId, 'a');
 
     const db = await database(env);
     const link = await createLessonShareLink(db, userId, lessonId);
@@ -70,7 +74,7 @@ describe('link bagikan materi', () => {
     const db = await database(env);
     await signIn('share-expire@example.com', 'Expire');
     const userId = await userIdOf('share-expire@example.com');
-    const lessonId = await seedLesson(userId, 'b');
+    const { lessonId } = await seedLesson(userId, 'b');
 
     const link = await createLessonShareLink(db, userId, lessonId, 7);
     await env.DB.prepare(
@@ -93,7 +97,7 @@ describe('link bagikan materi', () => {
     await signIn('share-other@example.com', 'Orang Lain');
     const ownerId = await userIdOf('share-owner2@example.com');
     const otherId = await userIdOf('share-other@example.com');
-    const lessonId = await seedLesson(ownerId, 'c');
+    const { lessonId } = await seedLesson(ownerId, 'c');
     await expect(
       createLessonShareLink(db, otherId, lessonId),
     ).rejects.toThrow();
@@ -111,5 +115,30 @@ describe('link bagikan materi', () => {
     const href = whatsappHref(text);
     expect(href.startsWith('https://wa.me/?text=')).toBe(true);
     expect(newShareToken()).toHaveLength(10);
+  });
+});
+
+describe('bagikan jalur', () => {
+  it('membuat link jalur, merangkum bab, dan menghitung klik CTA', async () => {
+    const db = await database(env);
+    await signIn('share-path@example.com', 'Pemilik Jalur');
+    const userId = await userIdOf('share-path@example.com');
+    const { pathId } = await seedLesson(userId, 'd');
+
+    const link = await createPathShareLink(db, userId, pathId);
+    expect(link.scope).toBe('path');
+
+    const payload = await publicPathPayload(db, pathId);
+    expect(payload?.chapters).toHaveLength(1);
+    expect(payload?.chapters[0]?.lessons).toHaveLength(1);
+    expect(payload?.chapters[0]?.lessons[0]?.title).toBe('Pelajaran');
+
+    expect(await shareTopic(db, link)).toBe('Topik');
+
+    await countShareCtaClick(db, link.token);
+    await countShareCtaClick(db, link.token);
+    const row = await ownerShareLink(db, userId, link.token);
+    expect(row?.ctaClicks).toBe(2);
+    expect(row?.views).toBe(0);
   });
 });

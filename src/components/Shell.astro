@@ -345,25 +345,5 @@ const showAccountMenu = role !== null;
     <ConfirmDialog />
     <script src="/scripts/ui.js" defer></script>
     <script src="/scripts/confirm-dialog.js" defer></script>
-    <script>
-      for (const node of document.querySelectorAll('details.menu')) {
-        if (!(node instanceof HTMLDetailsElement)) continue;
-        const menu = node;
-        const summary = menu.querySelector('summary');
-        const sync = () =>
-          summary?.setAttribute('aria-expanded', menu.open ? 'true' : 'false');
-        menu.addEventListener('toggle', sync);
-        sync();
-        document.addEventListener('click', (event) => {
-          if (menu.open && !menu.contains(event.target as Node)) menu.open = false;
-        });
-        menu.addEventListener('keydown', (event) => {
-          if (event.key === 'Escape' && menu.open) {
-            menu.open = false;
-            summary?.focus();
-          }
-        });
-      }
-    </script>
   </body>
 </html>

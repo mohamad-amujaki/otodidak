@@ -115,8 +115,106 @@ export async function createLessonShareLink(
   return createLink(db, userId, 'lesson', lessonId, days);
 }
 
-/** Link publik yang masih berlaku — sekaligus menambah hitungan dibuka. */
-export async function resolveShareLink(db: Database, token: string) {
+export async function createPathShareLink(
+  db: Database,
+  userId: string,
+  pathId: string,
+  days = 30,
+) {
+  const owned = await db
+    .select({ id: paths.id })
+    .from(paths)
+    .where(and(eq(paths.id, pathId), eq(paths.userId, userId)))
+    .limit(1);
+  if (!owned[0]) throw new AppError('not_found');
+  return createLink(db, userId, 'path', pathId, days);
+}
+
+/** Ringkasan jalur publik: bab + judul pelajaran (tanpa isi materi). */
+export async function publicPathPayload(db: Database, pathId: string) {
+  const rows = await db
+    .select({ id: paths.id, title: paths.title, topic: paths.topic })
+    .from(paths)
+    .where(and(eq(paths.id, pathId), eq(paths.status, 'ready')))
+    .limit(1);
+  const path = rows[0];
+  if (!path) return null;
+  const chapterRows = await db
+    .select({
+      id: chapters.id,
+      title: chapters.title,
+      summary: chapters.summary,
+      position: chapters.position,
+    })
+    .from(chapters)
+    .where(eq(chapters.pathId, pathId))
+    .orderBy(asc(chapters.position));
+  const lessonRows = await db
+    .select({
+      id: lessons.id,
+      chapterId: lessons.chapterId,
+      title: lessons.title,
+      objective: lessons.objective,
+      position: lessons.position,
+    })
+    .from(lessons)
+    .innerJoin(chapters, eq(lessons.chapterId, chapters.id))
+    .where(eq(chapters.pathId, pathId))
+    .orderBy(asc(lessons.position));
+  return {
+    ...path,
+    chapters: chapterRows.map((chapter) => ({
+      ...chapter,
+      lessons: lessonRows.filter((lesson) => lesson.chapterId === chapter.id),
+    })),
+  };
+}
+
+/** Topik jalur di balik sebuah share link (untuk CTA halaman publik). */
+export async function shareTopic(
+  db: Database,
+  link: {
+    scope: ShareScope;
+    targetId: string;
+  },
+): Promise<string> {
+  if (link.scope === 'path') {
+    const rows = await db
+      .select({ topic: paths.topic })
+      .from(paths)
+      .where(eq(paths.id, link.targetId))
+      .limit(1);
+    return rows[0]?.topic ?? '';
+  }
+  const rows = await db
+    .select({ topic: paths.topic })
+    .from(lessons)
+    .innerJoin(chapters, eq(lessons.chapterId, chapters.id))
+    .innerJoin(paths, eq(chapters.pathId, paths.id))
+    .where(eq(lessons.id, link.targetId))
+    .limit(1);
+  return rows[0]?.topic ?? '';
+}
+
+export async function countShareCtaClick(
+  db: Database,
+  token: string,
+): Promise<void> {
+  const rows = await db
+    .select({ id: shareLinks.id })
+    .from(shareLinks)
+    .where(eq(shareLinks.token, token))
+    .limit(1);
+  const link = rows[0];
+  if (!link) return;
+  await db
+    .update(shareLinks)
+    .set({ ctaClicks: sql`${shareLinks.ctaClicks} + 1` })
+    .where(eq(shareLinks.id, link.id));
+}
+
+/** Link yang masih berlaku, tanpa menambah hitungan apa pun. */
+export async function activeShareLink(db: Database, token: string) {
   const rows = await db
     .select()
     .from(shareLinks)
@@ -125,6 +223,13 @@ export async function resolveShareLink(db: Database, token: string) {
   const link = rows[0];
   if (!link || link.revokedAt) return null;
   if (link.expiresAt && link.expiresAt <= nowIso()) return null;
+  return link;
+}
+
+/** Link publik yang masih berlaku — sekaligus menambah hitungan dibuka. */
+export async function resolveShareLink(db: Database, token: string) {
+  const link = await activeShareLink(db, token);
+  if (!link) return null;
   await db
     .update(shareLinks)
     .set({ views: link.views + 1, lastViewedAt: nowIso() })

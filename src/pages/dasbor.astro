@@ -10,6 +10,10 @@ import { startRoadmap } from '../server/generation';
 import { library } from '../server/read';
 import { pageMe } from '../server/ssr';
 
+const topicPrefill = String(Astro.url.searchParams.get('topik') ?? '').slice(
+  0,
+  280,
+);
 const page = await pageMe(Astro.request, env);
 if ('redirect' in page) return Astro.redirect(page.redirect);
 const { session, me } = page;
@@ -280,7 +284,7 @@ const balance = typeof me.balance === 'number' ? me.balance : 0;
           required 
           aria-describedby="topic-help"
           placeholder="Tulis topik yang ingin kamu pelajari..."
-        ></textarea>
+        >{topicPrefill}</textarea>
         <div class="mt-4 flex flex-col items-start gap-3 min-[768px]:flex-row min-[768px]:items-center min-[768px]:justify-between">
           <div class="flex items-center gap-2 text-sm text-tinta-lembut">
             <svg class="size-5 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">

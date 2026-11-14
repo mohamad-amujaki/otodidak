@@ -53,13 +53,5 @@ const linkClass =
         </ul>
       </nav>
     </details>
-    <script>
-      document.querySelectorAll('.legal-toc-mobile a[href^="#"]').forEach((anchor) => {
-        anchor.addEventListener('click', () => {
-          const details = anchor.closest('.legal-toc-mobile');
-          if (details instanceof HTMLDetailsElement) details.open = false;
-        });
-      });
-    </script>
   </>
 )}

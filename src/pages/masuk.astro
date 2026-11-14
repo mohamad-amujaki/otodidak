@@ -10,7 +10,11 @@ import { pageSession } from '../server/ssr';
 
 const mock = env.CLERK_SECRET_KEY === 'mock';
 const existing = await pageSession(Astro.request, env);
-if (existing) return Astro.redirect('/dasbor');
+const topik = String(Astro.url.searchParams.get('topik') ?? '').trim();
+if (existing)
+  return Astro.redirect(
+    topik ? `/dasbor?topik=${encodeURIComponent(topik)}` : '/dasbor',
+  );
 
 let message = '';
 if (Astro.request.method === 'POST') {
@@ -67,6 +71,7 @@ const host = clerkHost(publishableKey);
     ) : (
       <>
         <meta name="clerk-key" content={publishableKey} />
+        <meta name="masuk-topik" content={topik} />
         {host && <meta name="clerk-host" content={host} />}
         <button class="js-google-signin btn-jalur mt-6 w-full min-[768px]:w-auto" id="google" type="button">Masuk dengan Google</button>
         <script type="module" src="/scripts/masuk.js"></script>
