@@ -66,3 +66,7 @@ dead_letter_queue = "generation-dlq"
 queue = "generation-dlq"
 max_batch_size = 1
 max_retries = 1
+
+[[routes]]
+pattern = "otodidak.web.id"
+custom_domain = true
