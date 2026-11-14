@@ -611,7 +611,15 @@ function actionFrom(form: FormData): OutlineAction {
                         </svg>
                       </a>
                     ) : quizAffordable ? (
-                      <form method="post" data-confirm={`Buat kuis bab ini menggunakan ${quizCost} kredit?`}>
+                      <form
+                        method="post"
+                        data-confirm="Buat kuis bab ini?"
+                        data-confirm-detail={String(chapter.title ?? '')}
+                        data-confirm-cost={quizCost}
+                        data-confirm-balance={balance}
+                        data-confirm-label="Ya, buat kuis"
+                        data-confirm-impact="Soal dibuat dari materi bab ini. Progres tidak terkunci, dan mengirim ulang jawaban tidak memakai kredit."
+                      >
                         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                         <input type="hidden" name="aksi" value="kuis" />
                         <input type="hidden" name="chapterId" value={chapter.id} />
@@ -741,7 +749,14 @@ function actionFrom(form: FormData): OutlineAction {
                         </svg>
                       </button>
                     </form>
-                    <form method="post" data-confirm="Hapus bab ini beserta seluruh pelajarannya?">
+                    <form
+                      method="post"
+                      data-confirm="Hapus bab ini?"
+                      data-confirm-detail={String(chapter.title ?? '')}
+                      data-confirm-kind="danger"
+                      data-confirm-label="Hapus bab"
+                      data-confirm-impact="Seluruh pelajaran di dalamnya ikut terhapus dan tidak bisa dikembalikan."
+                    >
                       <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                       <input type="hidden" name="tinjau" value="1" />
                       <input type="hidden" name="aksi" value="hapus-bab" />
@@ -824,7 +839,14 @@ function actionFrom(form: FormData): OutlineAction {
                             </svg>
                           </button>
                         </form>
-                        <form method="post" data-confirm="Hapus pelajaran ini?">
+                        <form
+                          method="post"
+                          data-confirm="Hapus pelajaran ini?"
+                          data-confirm-detail={String(lesson.title ?? '')}
+                          data-confirm-kind="danger"
+                          data-confirm-label="Hapus"
+                          data-confirm-impact="Pelajaran ini dihapus dari bab dan tidak bisa dikembalikan."
+                        >
                           <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                           <input type="hidden" name="tinjau" value="1" />
                           <input type="hidden" name="aksi" value="hapus-pelajaran" />
@@ -855,7 +877,15 @@ function actionFrom(form: FormData): OutlineAction {
                       Tambah pelajaran
                     </button>
                   </form>
-                  <form method="post" data-confirm={`Buat pelajaran dengan AI menggunakan ${lessonCost} kredit?`}>
+                  <form
+                    method="post"
+                    data-confirm="Buat pelajaran dengan AI?"
+                    data-confirm-detail={String(chapter.title ?? '')}
+                    data-confirm-cost={lessonCost}
+                    data-confirm-balance={balance}
+                    data-confirm-label="Ya, buat pelajaran"
+                    data-confirm-impact="Draf pelajaran dihasilkan dari bab ini dan bisa kamu sunting setelahnya."
+                  >
                     <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                     <input type="hidden" name="tinjau" value="1" />
                     <input type="hidden" name="aksi" value="tambah-ai" />

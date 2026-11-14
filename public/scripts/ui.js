@@ -1,32 +1,4 @@
 (() => {
-  const confirmMessage = (element) =>
-    element instanceof HTMLElement ? element.dataset.confirm : undefined;
-
-  // Konfirmasi untuk form: pesan bisa ada di form atau tombol submit.
-  document.addEventListener(
-    'submit',
-    (event) => {
-      const form = event.target;
-      if (!(form instanceof HTMLFormElement)) return;
-      const message = confirmMessage(event.submitter) ?? confirmMessage(form);
-      if (message && !window.confirm(message)) event.preventDefault();
-    },
-    true,
-  );
-
-  // Konfirmasi untuk tautan/tombol di luar form.
-  document.addEventListener('click', (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const trigger = target.closest('[data-confirm]');
-    if (!trigger || trigger.closest('form')) return;
-    const message = confirmMessage(trigger);
-    if (message && !window.confirm(message)) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    }
-  });
-
   // Polling status ringan: reload saat status keluar dari daftar tunggu.
   const poll = document.querySelector('[data-poll-url]');
   if (poll instanceof HTMLElement) {

@@ -440,7 +440,16 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
                     Kerjakan kuis
                   </a>
                 ) : quizAffordable ? (
-                  <form class="min-[560px]:w-auto" method="post" data-confirm={`Buat kuis bab ini menggunakan ${quizCost} kredit?`}>
+                  <form
+                    class="min-[560px]:w-auto"
+                    method="post"
+                    data-confirm="Buat kuis bab ini?"
+                    data-confirm-detail={String(currentChapter.title)}
+                    data-confirm-cost={quizCost}
+                    data-confirm-balance={balance}
+                    data-confirm-label="Ya, buat kuis"
+                    data-confirm-impact={`Soal dibuat dari ${currentChapter.lessons.length} pelajaran di bab ini. Progres tidak terkunci, dan mengirim ulang jawaban tidak memakai kredit.`}
+                  >
                     <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                     <input type="hidden" name="aksi" value="kuis" />
                     <input type="hidden" name="chapterId" value={currentChapter.id} />

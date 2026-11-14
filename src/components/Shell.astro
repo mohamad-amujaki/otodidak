@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import AuthButton from './AuthButton.astro';
+import ConfirmDialog from './ConfirmDialog.astro';
 
 interface Props {
   title: string;
@@ -338,7 +339,9 @@ const showAccountMenu = role !== null;
         </div>
       </footer>
     )}
+    <ConfirmDialog />
     <script src="/scripts/ui.js" defer></script>
+    <script src="/scripts/confirm-dialog.js" defer></script>
     <script>
       for (const node of document.querySelectorAll('details.menu')) {
         if (!(node instanceof HTMLDetailsElement)) continue;

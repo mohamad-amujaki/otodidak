@@ -1,0 +1,81 @@
+<dialog
+  id="konfirmasi"
+  class="konfirmasi"
+  aria-labelledby="konfirmasi-judul"
+  aria-describedby="konfirmasi-dampak"
+>
+  <div class="konfirmasi-panel">
+    <div class="flex items-start gap-3">
+      <span
+        class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur"
+        data-konfirmasi-ikon
+        aria-hidden="true"
+      >
+        <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"
+          ></path>
+        </svg>
+      </span>
+      <div class="min-w-0 flex-1">
+        <h2 id="konfirmasi-judul" class="text-base font-semibold leading-snug text-tinta" data-konfirmasi-judul>
+          Konfirmasi
+        </h2>
+        <p class="mt-1 truncate text-sm text-tinta-lembut" data-konfirmasi-detail hidden></p>
+      </div>
+      <button
+        class="-mr-1 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta"
+        type="button"
+        data-konfirmasi-tutup
+        aria-label="Tutup"
+      >
+        <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+
+    <div
+      class="mt-4 grid gap-1.5 rounded-kontrol border border-garis bg-kertas px-3 py-2.5 text-sm"
+      data-konfirmasi-biaya
+      hidden
+    >
+      <div class="flex items-center justify-between gap-3">
+        <span class="text-tinta-lembut">Biaya</span>
+        <span class="font-semibold tabular-nums text-tinta" data-konfirmasi-cost></span>
+      </div>
+      <div class="flex items-center justify-between gap-3">
+        <span class="text-tinta-lembut">Saldo kamu</span>
+        <span class="font-semibold tabular-nums text-tinta" data-konfirmasi-saldo></span>
+      </div>
+    </div>
+
+    <p
+      id="konfirmasi-dampak"
+      class="mt-3 text-sm leading-[1.55] text-tinta-lembut"
+      data-konfirmasi-dampak
+      hidden
+    ></p>
+    <p class="mt-2 text-sm font-medium text-hangat" data-konfirmasi-peringatan hidden></p>
+
+    <div class="mt-5 flex flex-col-reverse gap-2 min-[480px]:flex-row min-[480px]:justify-end">
+      <button
+        class="min-h-11 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40"
+        type="button"
+        data-konfirmasi-batal
+      >
+        Batal
+      </button>
+      <button
+        class="min-h-11 rounded-kontrol bg-jalur px-5 text-sm font-semibold text-white transition-[filter] hover:brightness-110"
+        type="button"
+        data-konfirmasi-aksi
+      >
+        Lanjutkan
+      </button>
+    </div>
+  </div>
+</dialog>
