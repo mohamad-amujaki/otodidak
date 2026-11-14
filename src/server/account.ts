@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, or, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, or, type SQL, sql } from 'drizzle-orm';
 import { balanceOf, insertLedger } from '../billing/ledger';
 import { createDb, type Database } from '../db/client';
 import {
@@ -60,7 +60,36 @@ export async function ensureUser(
     .from(users)
     .where(eq(users.clerkUserId, identity.clerkUserId))
     .limit(1);
-  const found = existing[0];
+  let found = existing[0];
+  if (!found) {
+    // Clerk ID bisa berganti untuk orang yang sama (mis. pindah instance test
+    // ke produksi). Adopsi baris lama berdasarkan email supaya tidak muncul
+    // dua akun untuk satu pengguna.
+    const byEmail = await db
+      .select()
+      .from(users)
+      .where(sql`lower(${users.email}) = ${identity.email.toLowerCase()}`)
+      .limit(1);
+    const legacy = byEmail[0];
+    if (legacy) {
+      await db
+        .update(users)
+        .set({
+          clerkUserId: identity.clerkUserId,
+          email: identity.email,
+          name: identity.name,
+          updatedAt: now,
+        })
+        .where(eq(users.id, legacy.id));
+      found = {
+        ...legacy,
+        clerkUserId: identity.clerkUserId,
+        email: identity.email,
+        name: identity.name,
+        updatedAt: now,
+      };
+    }
+  }
   if (found) {
     if (found.email !== identity.email || found.name !== identity.name) {
       await db

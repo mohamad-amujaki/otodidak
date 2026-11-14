@@ -31,7 +31,9 @@ const {
       ]}
     >
       {columns.map((column) => (
-        <span class={column.srOnly ? 'sr-only' : undefined}>{column.label}</span>
+        <span>
+          {column.srOnly ? <span class="sr-only">{column.label}</span> : column.label}
+        </span>
       ))}
     </div>
   )}
