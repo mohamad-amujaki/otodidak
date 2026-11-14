@@ -6,18 +6,27 @@ interface Props {
   whatsappHref: string;
   token: string;
   views: number;
+  ctaClicks?: number;
   expiresAt?: string | null;
   csrf: string;
 }
 
-const { url, whatsappHref, token, views, expiresAt, csrf } = Astro.props;
+const {
+  url,
+  whatsappHref,
+  token,
+  views,
+  ctaClicks = 0,
+  expiresAt,
+  csrf,
+} = Astro.props;
 ---
 
 <section class="mt-5 rounded-kartu border border-garis bg-kartu p-4">
   <div class="flex flex-wrap items-baseline justify-between gap-2">
     <p class="text-sm font-semibold text-tinta">Link bagikan aktif</p>
     <p class="text-xs tabular-nums text-tinta-lembut">
-      Dibuka {views} kali
+      Dibuka {views} kali{ctaClicks > 0 ? ` · ${ctaClicks} klik CTA` : ''}
       {expiresAt ? ` · aktif sampai ${formatWhen(expiresAt)}` : ' · tanpa masa berlaku'}
     </p>
   </div>

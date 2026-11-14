@@ -295,6 +295,62 @@ export async function publicLessonPayload(db: Database, lessonId: string) {
   return { ...row, sources, claims };
 }
 
+export type OwnerShareRow = {
+  id: string;
+  token: string;
+  scope: ShareScope;
+  targetId: string;
+  createdAt: string;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  views: number;
+  ctaClicks: number;
+  title: string;
+};
+
+export async function listOwnerShares(
+  db: Database,
+  userId: string,
+): Promise<OwnerShareRow[]> {
+  const rows = await db
+    .select({
+      id: shareLinks.id,
+      token: shareLinks.token,
+      scope: shareLinks.scope,
+      targetId: shareLinks.targetId,
+      createdAt: shareLinks.createdAt,
+      expiresAt: shareLinks.expiresAt,
+      revokedAt: shareLinks.revokedAt,
+      views: shareLinks.views,
+      ctaClicks: shareLinks.ctaClicks,
+      lessonTitle: lessons.title,
+      pathTitle: paths.title,
+    })
+    .from(shareLinks)
+    .leftJoin(
+      lessons,
+      and(eq(shareLinks.scope, 'lesson'), eq(lessons.id, shareLinks.targetId)),
+    )
+    .leftJoin(
+      paths,
+      and(eq(shareLinks.scope, 'path'), eq(paths.id, shareLinks.targetId)),
+    )
+    .where(eq(shareLinks.ownerId, userId))
+    .orderBy(desc(shareLinks.createdAt));
+  return rows.map((row) => ({
+    id: row.id,
+    token: row.token,
+    scope: row.scope,
+    targetId: row.targetId,
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt,
+    revokedAt: row.revokedAt,
+    views: row.views,
+    ctaClicks: row.ctaClicks,
+    title: row.lessonTitle ?? row.pathTitle ?? 'Materi',
+  }));
+}
+
 export function shareMessage(title: string, summary: string, url: string) {
   const cleanSummary = summary.replace(/\s+/g, ' ').trim().slice(0, 140);
   const lines = [

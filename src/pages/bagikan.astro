@@ -1,0 +1,205 @@
+---
+import { env } from 'cloudflare:workers';
+import Shell from '../components/Shell.astro';
+import { AppError } from '../domain/errors';
+import { formatWhen } from '../domain/format';
+import { isRecord, record } from '../domain/guard';
+import { pageMe } from '../server/ssr';
+import {
+  listOwnerShares,
+  revokeShareLink,
+  shareMessage,
+  whatsappHref,
+} from '../server/share';
+
+const page = await pageMe(Astro.request, env);
+if ('redirect' in page) return Astro.redirect(page.redirect);
+const { session, me: meRaw } = page;
+const me = record(meRaw);
+const user = record(me.user);
+const balance = typeof me.balance === 'number' ? me.balance : 0;
+
+let message = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
+    message = 'Muat ulang halaman, lalu kirim lagi.';
+  else {
+    try {
+      await revokeShareLink(
+        session.db,
+        session.user.id,
+        String(form.get('token') ?? ''),
+      );
+      message = 'Link dicabut.';
+    } catch (error) {
+      message =
+        error instanceof AppError ? error.message : 'Gagal mencabut link.';
+    }
+  }
+}
+
+const shares = await listOwnerShares(session.db, session.user.id);
+const origin = (Astro.site ?? new URL(Astro.url.origin)).origin;
+const active = shares.filter(
+  (share) =>
+    !share.revokedAt && (!share.expiresAt || share.expiresAt > new Date().toISOString()),
+);
+const totals = active.reduce(
+  (sum, share) => ({
+    views: sum.views + share.views,
+    cta: sum.cta + share.ctaClicks,
+  }),
+  { views: 0, cta: 0 },
+);
+const isDead = (share: (typeof shares)[number]) =>
+  Boolean(share.revokedAt) ||
+  Boolean(share.expiresAt && share.expiresAt <= new Date().toISOString());
+---
+
+<Shell
+  title="Bagikan materi"
+  sectionLabel="Bagikan"
+  balance={balance}
+  role={user.role === 'admin' ? 'admin' : 'learner'}
+  suspended={user.status === 'suspended'}
+  userName={String(user.name)}
+  userEmail={String(user.email)}
+>
+  <h1 class="judul">Bagikan materi</h1>
+  <p class="mt-2 text-sm text-tinta-lembut">
+    Link publik memungkinkan orang lain membaca materi tanpa akun. Setiap link
+    bisa dicabut kapan saja dan tidak masuk mesin pencari.
+  </p>
+
+  {message && (
+    <p class="mt-4 rounded-kontrol border border-garis bg-kartu px-4 py-3 text-sm text-tinta">
+      {message}
+    </p>
+  )}
+
+  <div class="mt-6 grid gap-3 min-[640px]:grid-cols-3">
+    <div class="rounded-kartu border border-garis bg-kartu p-4">
+      <p class="text-2xl font-bold tabular-nums text-tinta">{active.length}</p>
+      <p class="text-sm text-tinta-lembut">Link aktif</p>
+    </div>
+    <div class="rounded-kartu border border-garis bg-kartu p-4">
+      <p class="text-2xl font-bold tabular-nums text-tinta">{totals.views}</p>
+      <p class="text-sm text-tinta-lembut">Dibuka</p>
+    </div>
+    <div class="rounded-kartu border border-garis bg-kartu p-4">
+      <p class="text-2xl font-bold tabular-nums text-tinta">{totals.cta}</p>
+      <p class="text-sm text-tinta-lembut">Klik “Buat jalur gratis”</p>
+    </div>
+  </div>
+
+  {shares.length === 0 ? (
+    <div class="mt-6 rounded-kartu border border-dashed border-garis bg-kertas/50 p-6 text-center">
+      <p class="text-sm font-medium text-tinta">Belum ada link bagikan</p>
+      <p class="mt-1 text-sm text-tinta-lembut">
+        Buka sebuah pelajaran atau jalur, lalu tekan <strong>Bagikan</strong>.
+      </p>
+      <a class="btn-jalur mt-4 min-h-11 px-4 text-sm" href="/pustaka">
+        Buka pustaka
+      </a>
+    </div>
+  ) : (
+    <ul class="mt-6 space-y-3">
+      {shares.map((share) => {
+        const url = `${origin}/s/${share.token}`;
+        const dead = isDead(share);
+        return (
+          <li class="rounded-kartu border border-garis bg-kartu p-4">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+              <div class="min-w-0">
+                <p class="truncate text-sm font-semibold text-tinta">{share.title}</p>
+                <p class="mt-0.5 text-xs text-tinta-lembut">
+                  {share.scope === 'path' ? 'Jalur' : 'Pelajaran'} · dibuat{' '}
+                  {formatWhen(share.createdAt)}
+                  {share.expiresAt
+                    ? ` · ${dead ? 'berakhir' : 'aktif sampai'} ${formatWhen(share.expiresAt)}`
+                    : ' · tanpa masa berlaku'}
+                </p>
+              </div>
+              <span
+                class:list={[
+                  'rounded-full border px-2.5 py-0.5 text-[11px] font-semibold',
+                  dead
+                    ? 'border-garis bg-kertas text-tinta-lembut'
+                    : 'border-jalur/30 bg-jalur-lembut text-jalur',
+                ]}
+              >
+                {share.revokedAt ? 'Dicabut' : dead ? 'Kedaluwarsa' : 'Aktif'}
+              </span>
+            </div>
+
+            {!dead && (
+              <img
+                class="mt-3 aspect-[1200/630] w-full max-w-[280px] rounded-kontrol border border-garis bg-kertas"
+                src={`/s/${share.token}/og.svg`}
+                alt={`Kartu pratinjau ${share.title}`}
+                loading="lazy"
+                width="280"
+                height="147"
+              />
+            )}
+
+            <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs tabular-nums text-tinta-lembut">
+              <span>Dibuka {share.views}×</span>
+              <span>CTA {share.ctaClicks}×</span>
+              <a class="truncate text-jalur hover:underline" href={`/s/${share.token}`}>
+                {url}
+              </a>
+            </div>
+
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                class="inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta"
+                type="button"
+                data-copy={url}
+              >
+                <span data-copy-label>Salin</span>
+              </button>
+              {!dead && (
+                <a
+                  class="inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta"
+                  href={whatsappHref(
+                    shareMessage(
+                      share.title,
+                      share.scope === 'path'
+                        ? 'Jalur belajar dari Otodidak.'
+                        : 'Pelajaran dari Otodidak.',
+                      url,
+                    ),
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  WhatsApp
+                </a>
+              )}
+              <a
+                class="inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta"
+                href={`/s/${share.token}`}
+              >
+                Buka
+              </a>
+              {!dead && (
+                <form method="post" class="ml-auto">
+                  <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                  <input type="hidden" name="aksi" value="cabut-bagikan" />
+                  <input type="hidden" name="token" value={share.token} />
+                  <button class="text-xs font-medium text-bahaya hover:underline" type="submit">
+                    Cabut
+                  </button>
+                </form>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  )}
+
+  {shares.length > 0 && <script src="/scripts/share-link.js" defer></script>}
+</Shell>
