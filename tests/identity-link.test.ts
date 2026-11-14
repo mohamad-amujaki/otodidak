@@ -58,4 +58,17 @@ describe('identitas pengguna', () => {
     expect(await countByEmail('a@example.com')).toBe(1);
     expect(await countByEmail('b@example.com')).toBe(1);
   });
+
+  it('unique index email aktif di level basis data', async () => {
+    await database(env);
+    const now = new Date().toISOString();
+    const insert = (id: string, clerk: string, email: string) =>
+      env.DB.prepare(
+        "insert into user (id, clerk_user_id, email, name, role, status, streak_enabled, streak_count, created_at, updated_at) values (?, ?, ?, 'X', 'learner', 'active', 1, 0, ?, ?)",
+      )
+        .bind(id, clerk, email, now, now)
+        .run();
+    await insert('u-1', 'clerk-1', 'dup@example.com');
+    await expect(insert('u-2', 'clerk-2', 'DUP@example.com')).rejects.toThrow();
+  });
 });

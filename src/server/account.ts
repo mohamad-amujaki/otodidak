@@ -128,13 +128,37 @@ export async function ensureUser(
       updatedAt: now,
     });
   } catch {
+    // Insert bisa kalah oleh unique clerk_user_id atau unique lower(email)
+    // (dua login bersamaan). Ambil baris yang sudah menang.
     const again = await db
       .select()
       .from(users)
       .where(eq(users.clerkUserId, identity.clerkUserId))
       .limit(1);
-    if (!again[0]) throw new AppError('forbidden');
-    return again[0];
+    if (again[0]) return again[0];
+    const byEmail = await db
+      .select()
+      .from(users)
+      .where(sql`lower(${users.email}) = ${identity.email.toLowerCase()}`)
+      .limit(1);
+    const existingByEmail = byEmail[0];
+    if (!existingByEmail) throw new AppError('forbidden');
+    await db
+      .update(users)
+      .set({
+        clerkUserId: identity.clerkUserId,
+        email: identity.email,
+        name: identity.name,
+        updatedAt: now,
+      })
+      .where(eq(users.id, existingByEmail.id));
+    return {
+      ...existingByEmail,
+      clerkUserId: identity.clerkUserId,
+      email: identity.email,
+      name: identity.name,
+      updatedAt: now,
+    };
   }
   if (config.signupCredits > 0) {
     await insertLedger(db, {

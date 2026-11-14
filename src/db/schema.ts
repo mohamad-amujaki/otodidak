@@ -24,7 +24,10 @@ export const users = sqliteTable(
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
-  (table) => [uniqueIndex('user_clerk_user_id').on(table.clerkUserId)],
+  (table) => [
+    uniqueIndex('user_clerk_user_id').on(table.clerkUserId),
+    uniqueIndex('user_email_lower').on(sql`lower(${table.email})`),
+  ],
 );
 
 export const creditLedger = sqliteTable(
