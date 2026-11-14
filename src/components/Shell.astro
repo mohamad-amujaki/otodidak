@@ -340,7 +340,9 @@ const showAccountMenu = role !== null;
     )}
     <script src="/scripts/ui.js" defer></script>
     <script>
-      for (const menu of document.querySelectorAll('details.menu')) {
+      for (const node of document.querySelectorAll('details.menu')) {
+        if (!(node instanceof HTMLDetailsElement)) continue;
+        const menu = node;
         const summary = menu.querySelector('summary');
         const sync = () =>
           summary?.setAttribute('aria-expanded', menu.open ? 'true' : 'false');
@@ -350,7 +352,7 @@ const showAccountMenu = role !== null;
           if (menu.open && !menu.contains(event.target as Node)) menu.open = false;
         });
         menu.addEventListener('keydown', (event) => {
-          if ((event as KeyboardEvent).key === 'Escape' && menu.open) {
+          if (event.key === 'Escape' && menu.open) {
             menu.open = false;
             summary?.focus();
           }
