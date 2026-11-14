@@ -14,6 +14,7 @@ interface Props {
   realAuth?: boolean;
   userName?: string;
   userEmail?: string;
+  noindex?: boolean;
 }
 const DEFAULT_DESCRIPTION =
   'Tulis satu topik. Otodidak menyusun roadmap-nya lebih dulu, lalu menulis pelajaran sesuai kebutuhanmu saat kamu buka. Tanpa langganan bulanan.';
@@ -28,6 +29,7 @@ const {
   realAuth = false,
   userName,
   userEmail,
+  noindex = false,
 } = Astro.props;
 const wide = role !== null;
 const seoOrigin =
@@ -106,6 +108,7 @@ const showAccountMenu = role !== null;
     <meta name="csrf-token" content={Astro.locals.csrf} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <meta name="theme-color" content="#0b6e4f" />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
     <title>{pageTitle}</title>
     <meta name="description" content={description} />
     {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}

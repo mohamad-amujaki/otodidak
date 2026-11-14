@@ -30,6 +30,28 @@ export const users = sqliteTable(
   ],
 );
 
+export const shareLinks = sqliteTable(
+  'share_link',
+  {
+    id: text('id').primaryKey(),
+    token: text('token').notNull(),
+    scope: text('scope', { enum: ['lesson', 'path'] }).notNull(),
+    targetId: text('target_id').notNull(),
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => users.id),
+    createdAt: text('created_at').notNull(),
+    expiresAt: text('expires_at'),
+    revokedAt: text('revoked_at'),
+    views: integer('views').notNull().default(0),
+    lastViewedAt: text('last_viewed_at'),
+  },
+  (table) => [
+    uniqueIndex('share_link_token').on(table.token),
+    index('share_link_owner').on(table.ownerId, table.scope, table.targetId),
+  ],
+);
+
 export const creditLedger = sqliteTable(
   'credit_ledger',
   {

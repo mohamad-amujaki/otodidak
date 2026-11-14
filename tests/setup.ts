@@ -20,6 +20,7 @@ const tables = [
   'credit_ledger',
   'credit_redeem_redemption',
   'credit_redeem_code',
+  'share_link',
   'user',
 ];
 
