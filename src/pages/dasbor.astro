@@ -91,32 +91,22 @@ const activePathPercentage =
 const streakCount =
   streak && typeof streak.count === 'number' ? streak.count : 0;
 const balance = typeof me.balance === 'number' ? me.balance : 0;
+const lowCredit = balance < cost;
 ---
 <Shell title="Dasbor" sectionLabel="Dasbor" balance={balance} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
-  <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-    <div>
-      <h1 class="judul">Dasbor</h1>
-      <p class="mt-2 text-tinta-lembut">Selamat datang kembali, {user.name}</p>
-      {streak && streakCount > 0 && (
-        <p class="mt-2 text-sm text-tinta-lembut">
-          <span class="font-semibold tabular-nums text-hangat">{streakCount} hari</span>
-          {' '}
-          runtun belajar
-          {lines.length > 1 && (
-            <span class="text-tinta-lembut"> · {lines.slice(1).join(' ')}</span>
-          )}
-        </p>
-      )}
-    </div>
-    <div class="flex flex-wrap items-center gap-3">
-      <p class="text-sm text-tinta-lembut">
-        Saldo{' '}
-        <span class="text-lg font-bold tabular-nums text-tinta">{balance}</span>
+  <div class="mb-6">
+    <h1 class="judul">Dasbor</h1>
+    <p class="mt-2 text-tinta-lembut">Selamat datang kembali, {user.name}</p>
+    {streak && streakCount > 0 && (
+      <p class="mt-2 text-sm text-tinta-lembut">
+        <span class="font-semibold tabular-nums text-hangat">{streakCount} hari</span>
+        {' '}
+        runtun belajar
+        {lines.length > 1 && (
+          <span class="text-tinta-lembut"> · {lines.slice(1).join(' ')}</span>
+        )}
       </p>
-      <a class="inline-flex min-h-11 items-center rounded-kontrol border border-jalur px-4 text-sm font-semibold text-jalur hover:bg-jalur-lembut" href="/kredit">
-        Isi kredit
-      </a>
-    </div>
+    )}
   </div>
 
   {message && (
@@ -143,28 +133,32 @@ const balance = typeof me.balance === 'number' ? me.balance : 0;
   )}
 
   {activePath && nextLesson && (
-    <article class="mb-8 rounded-kartu border border-garis border-l-4 border-l-hangat bg-kartu p-5 shadow-sm md:p-6">
-      <p class="text-sm text-tinta-lembut">{String(activePath.title)}</p>
-      <h2 class="mt-1 text-xl font-bold text-tinta">{String(nextLesson.title)}</h2>
-      <p class="mt-2 text-sm text-tinta-lembut">
-        Sekitar {minuteLabel(minutes)} · {activePathDone}/{activePathTotal} pelajaran
+    <article class="mb-8 rounded-kartu border border-garis border-l-4 border-l-jalur bg-kartu p-5 shadow-sm md:p-6">
+      <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-tinta-lembut">
+        Lanjutkan belajar
+      </p>
+      <h2 class="mt-2 text-xl font-bold text-tinta">{String(nextLesson.title)}</h2>
+      <p class="mt-1 text-sm text-tinta-lembut">{String(activePath.title)}</p>
+      <p class="mt-3 text-sm tabular-nums text-tinta-lembut">
+        {minuteLabel(minutes)}
+        {activePathTotal > 0 && ` · ${activePathDone} dari ${activePathTotal} pelajaran`}
       </p>
       {activePathTotal > 0 && (
-        <div class="mt-4 flex items-center gap-3">
-          <div class="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-kertas">
-            <div
-              class="h-full bg-jalur transition-[width] duration-300"
-              style={`width: ${activePathPercentage}%`}
-            />
-          </div>
-          <span class="text-sm font-semibold tabular-nums text-tinta">{activePathPercentage}%</span>
+        <div class="mt-3 h-2 overflow-hidden rounded-full bg-kertas" role="progressbar" aria-valuenow={activePathPercentage} aria-valuemin="0" aria-valuemax="100" aria-label={`Progres ${String(activePath.title)}`}>
+          <div
+            class="h-full bg-jalur transition-[width] duration-300"
+            style={`width: ${activePathPercentage}%`}
+          />
         </div>
       )}
       <a
-        class="btn-jalur mt-5 w-full min-[480px]:w-auto"
+        class="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-5 font-semibold text-white transition-[filter] hover:brightness-110 sm:w-auto"
         href={`/jalur/${String(activePath.id)}/pelajaran/${String(nextLesson.id)}`}
       >
         Lanjut
+        <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+        </svg>
       </a>
     </article>
   )}
@@ -220,9 +214,14 @@ const balance = typeof me.balance === 'number' ? me.balance : 0;
   )}
 
   <!-- Quick Actions -->
-  <div class="mb-6 grid gap-4 md:grid-cols-2">
-    <a 
-      class="flex items-center gap-4 rounded-kartu border border-garis bg-kartu p-4 shadow-sm transition-all hover:shadow-md hover:border-jalur/30" 
+  <div class="mb-6 grid gap-4 md:grid-cols-3">
+    <a
+      class:list={[
+        'flex items-center gap-4 rounded-kartu border p-4 transition-colors',
+        lowCredit
+          ? 'border-hangat/40 bg-hangat-lembut/30 hover:border-hangat/60'
+          : 'border-garis bg-kartu hover:border-jalur/40',
+      ]}
       href="/kredit"
     >
       <div class="flex size-12 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
@@ -232,7 +231,11 @@ const balance = typeof me.balance === 'number' ? me.balance : 0;
       </div>
       <div class="min-w-0 flex-1">
         <p class="font-semibold text-tinta">Isi Kredit</p>
-        <p class="text-sm text-tinta-lembut">Beli lebih banyak kredit</p>
+        <p class="text-sm text-tinta-lembut">
+          {lowCredit
+            ? `Saldo ${balance} — belum cukup untuk jalur baru (${cost} kredit)`
+            : 'Beli lebih banyak kredit'}
+        </p>
       </div>
       <svg class="size-5 shrink-0 text-tinta-lembut" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -240,7 +243,7 @@ const balance = typeof me.balance === 'number' ? me.balance : 0;
     </a>
 
     <a 
-      class="flex items-center gap-4 rounded-kartu border border-garis bg-kartu p-4 shadow-sm transition-all hover:shadow-md hover:border-jalur/30" 
+      class="flex items-center gap-4 rounded-kartu border border-garis bg-kartu p-4 transition-colors hover:border-jalur/40" 
       href="/pustaka"
     >
       <div class="flex size-12 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
@@ -256,11 +259,31 @@ const balance = typeof me.balance === 'number' ? me.balance : 0;
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
       </svg>
     </a>
+
+    {activePath && !showForm && (
+      <a
+        class="flex items-center gap-4 rounded-kartu border border-garis bg-kartu p-4 transition-colors hover:border-jalur/40"
+        href="/dasbor?baru=1"
+      >
+        <div class="flex size-12 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
+          <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="font-semibold text-tinta">Buat Jalur Baru</p>
+          <p class="text-sm text-tinta-lembut">Mulai topik lain dari nol</p>
+        </div>
+        <svg class="size-5 shrink-0 text-tinta-lembut" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    )}
   </div>
 
   <!-- New Path Form -->
   {showForm && (
-    <div class="rounded-kartu border border-garis bg-kartu p-6 shadow-sm md:p-8">
+    <div class="rounded-kartu border border-garis bg-kartu p-6 md:p-8">
       <div class="mb-4 flex items-start gap-3">
         <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
           <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -293,7 +316,7 @@ const balance = typeof me.balance === 'number' ? me.balance : 0;
             <span>Memakai <strong class="font-semibold text-tinta">{cost} kredit</strong></span>
           </div>
           <button 
-            class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed md:w-auto" 
+            class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white transition-[filter] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto" 
             type="submit" 
             disabled={Boolean(activeJob)}
           >
@@ -318,18 +341,5 @@ const balance = typeof me.balance === 'number' ? me.balance : 0;
     </div>
   )}
 
-  {activePath && !showForm && (
-    <div class="text-center">
-      <a 
-        class="inline-flex min-h-11 items-center gap-2 rounded-kontrol border border-garis bg-kartu px-6 font-medium text-jalur shadow-sm transition-all hover:shadow-md hover:border-jalur" 
-        href="/dasbor?baru=1"
-      >
-        <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        <span>Buat Jalur Baru</span>
-      </a>
-    </div>
-  )}
 
 </Shell>

@@ -25,7 +25,7 @@ export function formatWhenShort(iso: string): string {
 }
 
 export function minuteLabel(minutes: number): string {
-  return `Sekitar ${minutes} menit`;
+  return `~${minutes} menit`;
 }
 
 /** 0 → A, 25 → Z, 26 → AA. Dipakai untuk menomori sub-bab, bukan bab. */

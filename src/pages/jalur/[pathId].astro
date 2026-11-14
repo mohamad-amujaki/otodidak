@@ -391,7 +391,7 @@ function actionFrom(form: FormData): OutlineAction {
             <svg class="size-3.5 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            ±{totalMinutes} mnt
+            ~{totalMinutes} mnt
           </span>
           {total > 0 && (
             <span class="inline-flex items-center gap-1.5 rounded-kontrol border border-jalur/30 bg-jalur-lembut px-2.5 py-1 text-xs font-semibold text-jalur">
@@ -637,7 +637,7 @@ function actionFrom(form: FormData): OutlineAction {
                                 <span class="mt-0.5 block text-xs text-tinta-lembut">Menyusun pelajaran…</span>
                               )}
                             </span>
-                            <span class="shrink-0 text-[11px] tabular-nums text-tinta-lembut sm:text-xs">±{minutes} mnt</span>
+                            <span class="shrink-0 text-[11px] tabular-nums text-tinta-lembut sm:text-xs">~{minutes} mnt</span>
                             <svg class="hidden size-4 shrink-0 text-garis transition-transform group-hover:translate-x-0.5 group-hover:text-jalur sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                             </svg>
@@ -736,7 +736,7 @@ function actionFrom(form: FormData): OutlineAction {
             <p class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-tinta-lembut sm:mt-3">
               <span>{chapterViews.length} bab</span>
               <span>{lessonCount} pelajaran</span>
-              <span>±{totalMinutes} mnt</span>
+              <span>~{totalMinutes} mnt</span>
             </p>
           </div>
           <button class="flex size-11 shrink-0 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta" type="button" data-close-tinjau aria-label="Tutup tinjauan">
@@ -858,7 +858,7 @@ function actionFrom(form: FormData): OutlineAction {
                         <details class="group order-3 w-full min-w-0 sm:order-2 sm:w-auto sm:flex-1">
                           <summary class="flex min-h-11 cursor-pointer items-center gap-2 rounded-kontrol px-2 transition-colors hover:bg-kertas">
                             <span class="line-clamp-2 min-w-0 flex-1 text-sm font-medium leading-snug text-tinta">{lesson.title}</span>
-                            <span class="hidden shrink-0 text-xs tabular-nums text-tinta-lembut sm:inline">±{minutes} mnt</span>
+                            <span class="hidden shrink-0 text-xs tabular-nums text-tinta-lembut sm:inline">~{minutes} mnt</span>
                             <svg class="size-4 shrink-0 text-tinta-lembut transition-transform group-open:rotate-180 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                             </svg>
