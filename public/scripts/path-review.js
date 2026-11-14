@@ -26,7 +26,10 @@
   }
   const confirm = document.getElementById('konfirmasi-tinjau');
   const approve = document.getElementById('setujui-jalur-btn');
-  if (confirm instanceof HTMLInputElement && approve instanceof HTMLButtonElement) {
+  if (
+    confirm instanceof HTMLInputElement &&
+    approve instanceof HTMLButtonElement
+  ) {
     const sync = () => {
       approve.disabled = !confirm.checked;
     };
