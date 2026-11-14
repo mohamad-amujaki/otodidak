@@ -266,6 +266,8 @@ function mockOutlineLesson(input: unknown): OutlineLessonOutput {
   return {
     title: `Contoh penerapan: sudut yang belum dibahas (${count})`,
     objective: `Menerapkan konsep ${chapter} pada contoh singkat yang konsisten dengan jalur.`,
+    keyMessage: `Satu contoh kerja membantu memeriksa apakah konsep ${chapter} benar-benar dipahami.`,
+    coreConcept: `Penerapan ${chapter}`,
   };
 }
 
@@ -286,14 +288,21 @@ function mockRoadmap(input: unknown): RoadmapOutput {
   ];
   return {
     title: topic.length > 48 ? `${topic.slice(0, 45)}…` : topic,
+    audience: 'Pembelajar mandiri yang baru mulai mengenal topik ini.',
+    governingThought: `Setelah jalur ini, kamu bisa memakai ${topic} secara terukur di pekerjaan.`,
+    runningCase:
+      'Rani, staf operasional di Surabaya, harus memakai topik ini untuk laporan bulanannya.',
     chapters: Array.from({ length: chapterCount }, (_, chapterIndex) => {
       const chapterTitle = arc[chapterIndex] ?? `Bab ${chapterIndex + 1}`;
       return {
         title: chapterTitle,
         summary: `Bab ini membangun ${chapterTitle.toLowerCase()} untuk ${topic}, lalu menyiapkan bab berikutnya.`,
+        keyQuestion: `Bagaimana ${chapterTitle.toLowerCase()} dipakai untuk ${topic}?`,
         lessons: Array.from({ length: lessonCount }, (_, lessonIndex) => ({
           title: `Gagasan kunci ${chapterIndex + 1}.${lessonIndex + 1} tentang ${topic}`,
           objective: `Menjelaskan satu aspek ${chapterTitle.toLowerCase()} yang relevan dengan ${topic}.`,
+          keyMessage: `Gagasan ${chapterIndex + 1}.${lessonIndex + 1} bisa langsung dipakai pada kasus Rani.`,
+          coreConcept: `Konsep ${chapterIndex + 1}.${lessonIndex + 1}`,
         })),
       };
     }),

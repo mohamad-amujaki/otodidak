@@ -178,6 +178,9 @@ export const paths = sqliteTable(
       .references(() => users.id),
     title: text('title').notNull(),
     topic: text('topic').notNull(),
+    audience: text('audience'),
+    governingThought: text('governing_thought'),
+    runningCase: text('running_case'),
     status: text('status', { enum: ['draft', 'ready', 'archived'] }).notNull(),
     isActive: integer('is_active').notNull().default(0),
     createdAt: text('created_at').notNull(),
@@ -217,6 +220,8 @@ export const lessons = sqliteTable(
     position: integer('position').notNull(),
     title: text('title').notNull(),
     objective: text('objective').notNull(),
+    keyMessage: text('key_message'),
+    coreConcept: text('core_concept'),
     body: text('body'),
     status: text('status', {
       enum: ['outline', 'queued', 'ready', 'failed'],

@@ -25,6 +25,9 @@ export const generatorTools = {
       required: ['title', 'chapters'],
       properties: {
         title: { type: 'string' },
+        audience: { type: 'string' },
+        governingThought: { type: 'string' },
+        runningCase: { type: 'string' },
         chapters: {
           type: 'array',
           items: {
@@ -34,6 +37,7 @@ export const generatorTools = {
             properties: {
               title: { type: 'string' },
               summary: { type: 'string' },
+              keyQuestion: { type: 'string' },
               lessons: {
                 type: 'array',
                 items: {
@@ -43,6 +47,8 @@ export const generatorTools = {
                   properties: {
                     title: { type: 'string' },
                     objective: { type: 'string' },
+                    keyMessage: { type: 'string' },
+                    coreConcept: { type: 'string' },
                   },
                 },
               },
@@ -55,13 +61,84 @@ export const generatorTools = {
   lesson: {
     name: 'write_subchapter_lesson',
     description:
-      'Write one substantial Markdown lesson article for a subchapter and list the sources it cites.',
+      'Write one substantial Markdown lesson for a subchapter, plus its concept, case, diagram, and source data.',
     parameters: {
       type: 'object',
       additionalProperties: false,
       required: ['markdown', 'sources'],
       properties: {
         markdown: { type: 'string' },
+        adds: { type: 'string' },
+        buildsOn: {
+          type: 'array',
+          maxItems: 6,
+          items: { type: 'string' },
+        },
+        concepts: {
+          type: 'array',
+          maxItems: 4,
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['term', 'gloss'],
+            properties: {
+              term: { type: 'string' },
+              gloss: { type: 'string' },
+            },
+          },
+        },
+        case: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['role', 'numbers', 'artifact', 'dilemma'],
+          properties: {
+            role: { type: 'string' },
+            numbers: { type: 'string' },
+            artifact: { type: 'string' },
+            dilemma: { type: 'string' },
+          },
+        },
+        diagrams: {
+          type: 'array',
+          maxItems: 2,
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['after', 'kind', 'title', 'nodes'],
+            properties: {
+              after: { type: 'integer', minimum: 1, maximum: 20 },
+              kind: {
+                type: 'string',
+                enum: ['steps', 'hierarchy', 'compare', 'flow'],
+              },
+              title: { type: 'string' },
+              nodes: {
+                type: 'array',
+                minItems: 2,
+                maxItems: 8,
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['label'],
+                  properties: {
+                    label: { type: 'string' },
+                    detail: { type: 'string' },
+                  },
+                },
+              },
+              edges: {
+                type: 'array',
+                maxItems: 12,
+                items: {
+                  type: 'array',
+                  minItems: 2,
+                  maxItems: 2,
+                  items: { type: 'integer', minimum: 0, maximum: 7 },
+                },
+              },
+            },
+          },
+        },
         sources: {
           type: 'array',
           items: {
@@ -122,6 +199,8 @@ export const generatorTools = {
       properties: {
         title: { type: 'string' },
         objective: { type: 'string' },
+        keyMessage: { type: 'string' },
+        coreConcept: { type: 'string' },
       },
     },
   },

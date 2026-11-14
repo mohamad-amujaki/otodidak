@@ -185,12 +185,25 @@ export const packsSchema = z.strictObject({
 
 export const roadmapOutputSchema = z.strictObject({
   title,
+  audience: z.string().trim().min(1).max(240).optional(),
+  governingThought: z.string().trim().min(1).max(320).optional(),
+  runningCase: z.string().trim().min(1).max(480).optional(),
   chapters: z
     .array(
       z.strictObject({
         title,
         summary,
-        lessons: z.array(z.strictObject({ title, objective })).min(1),
+        keyQuestion: z.string().trim().min(1).max(240).optional(),
+        lessons: z
+          .array(
+            z.strictObject({
+              title,
+              objective,
+              keyMessage: z.string().trim().min(1).max(240).optional(),
+              coreConcept: z.string().trim().min(1).max(60).optional(),
+            }),
+          )
+          .min(1),
       }),
     )
     .min(1),
@@ -199,6 +212,8 @@ export const roadmapOutputSchema = z.strictObject({
 export const outlineLessonOutputSchema = z.strictObject({
   title,
   objective,
+  keyMessage: z.string().trim().min(1).max(240).optional(),
+  coreConcept: z.string().trim().min(1).max(60).optional(),
 });
 
 const lessonSourceKind = z.enum([

@@ -311,6 +311,9 @@ export async function suggestChapterLesson(
     mode: 'outline' as const,
     pathTitle: path.title,
     topic: path.topic,
+    audience: path.audience ?? null,
+    governingThought: path.governingThought ?? null,
+    runningCase: path.runningCase ?? null,
     chapterTitle: chapter.title,
     chapterSummary: chapter.summary,
     existingLessons: existing.map((lesson) => ({
@@ -319,7 +322,12 @@ export async function suggestChapterLesson(
     })),
   };
 
-  let outline: { title: string; objective: string };
+  let outline: {
+    title: string;
+    objective: string;
+    keyMessage?: string;
+    coreConcept?: string;
+  };
   try {
     const model = await loadModel(db, 'lesson', SEED_PROMPTS.outlineLesson);
     const raw = await completeJson(env, model, modelInput, 'lesson', {
@@ -354,6 +362,8 @@ export async function suggestChapterLesson(
       position: existing.length,
       title: outline.title.trim(),
       objective: outline.objective.trim(),
+      keyMessage: outline.keyMessage?.trim() || null,
+      coreConcept: outline.coreConcept?.trim() || null,
       body: null,
       status: 'outline',
       completedAt: null,
@@ -522,6 +532,9 @@ async function writeRoadmap(
     .update(paths)
     .set({
       title: output.title,
+      audience: output.audience ?? null,
+      governingThought: output.governingThought ?? null,
+      runningCase: output.runningCase ?? null,
       status: 'ready',
       isActive: 0,
       updatedAt: now,
@@ -544,6 +557,8 @@ async function writeRoadmap(
         position: lessonIndex,
         title: lesson.title,
         objective: lesson.objective,
+        keyMessage: lesson.keyMessage ?? null,
+        coreConcept: lesson.coreConcept ?? null,
         body: null,
         status: 'outline',
         completedAt: null,
@@ -563,10 +578,15 @@ async function writeLesson(
   const input = {
     pathTitle: context.pathTitle,
     topic: context.topic,
+    audience: context.audience,
+    governingThought: context.governingThought,
+    casePlan: context.casePlan,
     chapterTitle: context.chapterTitle,
     chapterSummary: context.chapterSummary,
     title: context.title,
     objective: context.objective,
+    keyMessage: context.keyMessage,
+    coreConcept: context.coreConcept,
     previousLessons: context.previousLessons,
     recentTakeaways: context.recentTakeaways,
     neighbors: context.neighbors,
@@ -881,10 +901,15 @@ async function lessonContext(db: Database, lessonId: string) {
     chapterId: chapter.id,
     pathTitle: path.title,
     topic: path.topic,
+    audience: path.audience ?? null,
+    governingThought: path.governingThought ?? null,
+    casePlan: path.runningCase ?? null,
     chapterTitle: chapter.title,
     chapterSummary: chapter.summary,
     title: lesson.title,
     objective: lesson.objective,
+    keyMessage: lesson.keyMessage ?? null,
+    coreConcept: lesson.coreConcept ?? null,
     previousLessons: earlier.slice(-6).map((item) => item.title),
     recentTakeaways: earlier
       .slice(-3)
