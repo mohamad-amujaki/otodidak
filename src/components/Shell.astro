@@ -138,7 +138,7 @@ const showAccountMenu = role !== null;
           <span>Otodidak</span>
         </a>
         {sectionLabel && (
-          <span class="hidden min-w-0 items-center gap-2 text-sm font-medium text-tinta-lembut min-[768px]:inline-flex">
+          <span class="hidden min-w-0 items-center gap-2 text-sm font-medium text-tinta-lembut md:inline-flex">
             <span class="text-garis" aria-hidden="true">/</span>
             <span class="truncate">{sectionLabel}</span>
           </span>
@@ -158,10 +158,10 @@ const showAccountMenu = role !== null;
           )}
 
           {showPublicNav && (
-            <nav class="flex items-center gap-2 min-[640px]:gap-4" aria-label="Navigasi">
+            <nav class="flex items-center gap-2 sm:gap-4" aria-label="Navigasi">
               {isLanding && (
                 <a
-                  class="hidden min-h-11 items-center text-sm font-medium text-tinta-lembut transition-colors hover:text-tinta min-[640px]:inline-flex"
+                  class="hidden min-h-11 items-center text-sm font-medium text-tinta-lembut transition-colors hover:text-tinta sm:inline-flex"
                   href="#cara-kerja"
                 >
                   Cara kerja
@@ -287,7 +287,7 @@ const showAccountMenu = role !== null;
     {wide ? (
       <footer class="border-t border-garis bg-kartu">
         <div class="bingkai bingkai-lebar py-5">
-          <div class="flex flex-col items-center justify-between gap-3 text-sm text-tinta-lembut min-[768px]:flex-row">
+          <div class="flex flex-col items-center justify-between gap-3 text-sm text-tinta-lembut md:flex-row">
             <p>&copy; {new Date().getFullYear()} Otodidak</p>
             <nav class="flex flex-wrap items-center gap-x-5" aria-label="Tautan footer">
               <a class="inline-flex min-h-11 items-center transition-colors hover:text-jalur" href="/">Beranda</a>
@@ -301,8 +301,8 @@ const showAccountMenu = role !== null;
       <footer class="border-t border-garis bg-kartu">
         <div
           class:list={[
-            'bingkai pt-10 min-[768px]:pt-12',
-            isLanding ? 'pb-24 min-[768px]:pb-10' : 'pb-10',
+            'bingkai pt-10 md:pt-12',
+            isLanding ? 'pb-24 md:pb-10' : 'pb-10',
           ]}
         >
           <div class="max-w-sm">
@@ -325,8 +325,8 @@ const showAccountMenu = role !== null;
 
           <hr class="mt-8 border-garis" />
 
-          <div class="mt-3 flex flex-col gap-2 text-sm text-tinta-lembut min-[768px]:flex-row min-[768px]:items-center min-[768px]:justify-between">
-            <p class="py-2 min-[768px]:py-0">&copy; {new Date().getFullYear()} Otodidak. Semua hak dilindungi.</p>
+          <div class="mt-3 flex flex-col gap-2 text-sm text-tinta-lembut md:flex-row md:items-center md:justify-between">
+            <p class="py-2 md:py-0">&copy; {new Date().getFullYear()} Otodidak. Semua hak dilindungi.</p>
             <nav class="flex flex-wrap items-center gap-x-5" aria-label="Tautan footer">
               <a class="inline-flex min-h-11 items-center transition-colors hover:text-jalur" href="/">Beranda</a>
               <a class="inline-flex min-h-11 items-center transition-colors hover:text-jalur" href="/privasi">Privasi</a>
