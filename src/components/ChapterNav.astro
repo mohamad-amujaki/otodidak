@@ -41,14 +41,17 @@ const ringkas =
     class="chapter-nav min-w-0 [scrollbar-width:thin] lg:sticky lg:top-[84px] lg:max-h-[calc(100dvh-7.5rem)] lg:overflow-y-auto"
     aria-label="Daftar bab"
   >
-    <details class="daftar chapter-nav-drawer lg:hidden">
-      <summary class="rounded-kontrol border border-garis bg-kartu px-3 shadow-sm">
-        <span class="text-sm font-medium text-tinta">Daftar bab</span>
+    <details class="daftar chapter-nav-drawer lg:hidden [&[open]>summary]:sticky [&[open]>summary]:top-[var(--header-h)] [&[open]>summary]:z-10">
+      <summary class="gap-2 rounded-kontrol border border-garis bg-kartu px-3">
+        <span class="min-w-0 truncate text-sm font-medium text-tinta">Daftar bab</span>
+        <span class="ml-auto shrink-0 text-xs tabular-nums text-tinta-lembut">
+          {ringkas}{total > 0 ? ` · ${done}/${total}` : ''}
+        </span>
         <svg class="size-4 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       </summary>
-      <div class="mt-4 mb-6">
+      <div class="mt-4 max-h-[60dvh] overflow-y-auto">
         <ChapterLinks pathId={pathId} chapters={chapters} currentLessonId={currentLessonId} onPath={onPath} />
       </div>
     </details>

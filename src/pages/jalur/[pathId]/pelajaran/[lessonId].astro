@@ -361,7 +361,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
     />
   )}
 
-  <div class:list={["mt-8", navChapters.length > 0 && "lg:grid lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start lg:gap-10 xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-12 2xl:grid-cols-[340px_minmax(0,1fr)] 2xl:gap-14"]}>
+  <div class:list={["mt-8 space-y-6", navChapters.length > 0 && "lg:grid lg:space-y-0 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start lg:gap-10 xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-12 2xl:grid-cols-[340px_minmax(0,1fr)] 2xl:gap-14"]}>
     {navChapters.length > 0 && (
       <ChapterNav
         pathId={pathId}
@@ -381,12 +381,14 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
       )}
       {!html && lesson.status !== 'queued' && (
         lessonAffordable ? (
-          <form method="post">
-            <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-            <input type="hidden" name="aksi" value="buka" />
-            <button class="w-full rounded-kontrol bg-jalur px-4 text-white md:w-auto" type="submit">Buat pelajaran</button>
-            <p class="mt-2 text-sm leading-[1.4] text-tinta-lembut">Memakai {cost} kredit. Membaca ulang tidak mengurangi kredit.</p>
-          </form>
+          <div class="rounded-kartu border border-garis bg-kartu p-5">
+            <form method="post">
+              <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+              <input type="hidden" name="aksi" value="buka" />
+              <button class="w-full rounded-kontrol bg-jalur px-4 text-white md:w-auto" type="submit">Buat pelajaran</button>
+              <p class="mt-2 text-sm leading-[1.4] text-tinta-lembut">Memakai {cost} kredit. Membaca ulang tidak mengurangi kredit.</p>
+            </form>
+          </div>
         ) : (
           <div class="rounded-kartu border border-garis bg-kartu p-6 text-center">
             <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-tinta-lembut">
