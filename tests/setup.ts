@@ -6,6 +6,7 @@ import { beforeEach } from 'vitest';
 await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
 
 const tables = [
+  'admin_audit',
   'quiz_attempt',
   'quiz_question',
   'quiz',

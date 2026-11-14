@@ -26,6 +26,7 @@ import {
 import { nowIso } from '../domain/time';
 import { eraseLearning, loadConfig } from './account';
 import { assertSuperadmin, isSuperadmin } from './admin-access';
+import { recordAdminAudit } from './admin-audit';
 
 function knownSecret(env: Env, name: string): boolean {
   if (!/^[A-Z0-9_]+$/.test(name)) return false;
@@ -60,34 +61,66 @@ export async function patchAdminUser(
     .limit(1);
   const target = rows[0];
   if (!target) throw new AppError('not_found');
-  if (
-    body.role === 'admin' &&
-    target.role !== 'admin' &&
-    !isSuperadmin(env, actor.email)
-  ) {
-    throw new AppError('forbidden');
-  }
+  const nextRole = body.role ?? target.role;
+  const nextStatus = body.status ?? target.status;
   if (
     target.id === actor.id &&
-    (body.status === 'suspended' || body.role === 'learner')
+    (nextStatus === 'suspended' || nextRole === 'learner')
   ) {
     throw new AppError(
       'validation',
       'Kamu tidak bisa menahan atau menurunkan akunmu sendiri.',
     );
   }
+  const actorIsSuperadmin = isSuperadmin(env, actor.email);
+  if (!actorIsSuperadmin && (target.role === 'admin' || nextRole === 'admin')) {
+    throw new AppError(
+      'forbidden',
+      'Akses ditolak. Hanya superadmin yang bisa mengubah peran atau status admin.',
+    );
+  }
+  if (
+    target.role === 'admin' &&
+    (nextRole !== 'admin' || nextStatus !== 'active')
+  ) {
+    const others = await countOtherActiveSuperadmins(db, env, target.id);
+    if (others < 1)
+      throw new AppError(
+        'validation',
+        'Gagal: superadmin terakhir tidak bisa diturunkan atau ditahan.',
+      );
+  }
+  if (nextRole === target.role && nextStatus === target.status) return;
   await db
     .update(users)
-    .set({
-      role: body.role ?? target.role,
-      status: body.status ?? target.status,
-      updatedAt: nowIso(),
-    })
+    .set({ role: nextRole, status: nextStatus, updatedAt: nowIso() })
     .where(eq(users.id, target.id));
+  await recordAdminAudit(db, {
+    actorId: actor.id,
+    action: 'user_update',
+    targetId: target.id,
+    detail: `${target.role}/${target.status} menjadi ${nextRole}/${nextStatus}`,
+  });
+}
+
+async function countOtherActiveSuperadmins(
+  db: Database,
+  env: Env,
+  exceptUserId: string,
+): Promise<number> {
+  const rows = await db.select().from(users).where(eq(users.role, 'admin'));
+  return rows.filter(
+    (row) =>
+      row.id !== exceptUserId &&
+      row.status === 'active' &&
+      isSuperadmin(env, row.email),
+  ).length;
 }
 
 export async function adminEraseUserLearning(
   db: Database,
+  env: Env,
+  actor: UserRow,
   userId: string,
 ): Promise<void> {
   const rows = await db
@@ -95,8 +128,23 @@ export async function adminEraseUserLearning(
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
-  if (!rows[0]) throw new AppError('not_found');
-  await eraseLearning(db, rows[0].id);
+  const target = rows[0];
+  if (!target) throw new AppError('not_found');
+  if (
+    !isSuperadmin(env, actor.email) &&
+    (target.role === 'admin' || isSuperadmin(env, target.email))
+  ) {
+    throw new AppError(
+      'forbidden',
+      'Akses ditolak. Hanya superadmin yang bisa menghapus materi admin.',
+    );
+  }
+  await eraseLearning(db, target.id);
+  await recordAdminAudit(db, {
+    actorId: actor.id,
+    action: 'learning_erase',
+    targetId: target.id,
+  });
 }
 
 export type AdminAdjustStatus =

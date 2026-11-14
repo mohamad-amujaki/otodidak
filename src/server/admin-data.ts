@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { balanceOf, balancesByUserIds } from '../billing/ledger';
 import type { Database } from '../db/client';
 import {
+  adminAudit,
   aiModels,
   aiProviders,
   creditLedger,
@@ -153,6 +154,27 @@ async function ledgerActors(
   );
 }
 
+export async function adminAuditForUser(
+  db: Database,
+  userId: string,
+  limit = 10,
+) {
+  return db
+    .select({
+      id: adminAudit.id,
+      action: adminAudit.action,
+      detail: adminAudit.detail,
+      createdAt: adminAudit.createdAt,
+      actorName: users.name,
+      actorEmail: users.email,
+    })
+    .from(adminAudit)
+    .leftJoin(users, eq(adminAudit.actorId, users.id))
+    .where(eq(adminAudit.targetId, userId))
+    .orderBy(desc(adminAudit.createdAt))
+    .limit(limit);
+}
+
 export type AdminUserDetailOptions = {
   ledgerReason?: string;
   ledgerLimit?: number;
@@ -202,6 +224,7 @@ export async function adminUserDetail(
     };
   });
   const orders = await ordersFor(db, userId);
+  const audit = await adminAuditForUser(db, userId);
   const job = await db
     .select()
     .from(generationJobs)
@@ -231,6 +254,7 @@ export async function adminUserDetail(
     ledger,
     ledgerTotal,
     orders,
+    audit,
     activeJob: job[0] ?? null,
   };
 }

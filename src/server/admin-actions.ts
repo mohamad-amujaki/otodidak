@@ -1,5 +1,6 @@
 import { configFieldGroups } from '../domain/admin-labels';
 import { SEED_PROMPTS } from '../domain/prompts';
+import { assertSuperadmin } from './admin-access';
 import {
   adminAdjustLedger,
   adminAdjustLedgerBulk,
@@ -43,7 +44,12 @@ export async function runAdminAction(
       return 'Pengguna diperbarui.';
     }
     if (action === 'hapus') {
-      await adminEraseUserLearning(db, String(form.get('userId') ?? ''));
+      await adminEraseUserLearning(
+        db,
+        bindings,
+        user,
+        String(form.get('userId') ?? ''),
+      );
       return 'Materi belajar dihapus. Buku kredit tetap ada.';
     }
     if (action === 'sesuaikan') {
@@ -200,10 +206,12 @@ export async function runAdminAction(
       return 'Paket diperbarui.';
     }
     if (action === 'job-ulang') {
+      assertSuperadmin(bindings, user);
       await adminRequeueGenerationJob(
         bindings,
         db,
         String(form.get('jobId') ?? ''),
+        user,
       );
       return 'Job dimasukkan lagi ke antrean.';
     }

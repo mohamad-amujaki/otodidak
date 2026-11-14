@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import {
   completeJson,
   loadModel,
@@ -49,6 +49,7 @@ import type {
 import { nowIso } from '../domain/time';
 import { searchYouTube } from '../sources/search';
 import { database, loadConfig, requireActiveJobClear } from './account';
+import { recordAdminAudit } from './admin-audit';
 import { logEvent } from './log';
 import { allowGenerateIp, assertUserGenerationRate } from './rate';
 
@@ -1016,7 +1017,7 @@ async function ownedChapter(db: Database, userId: string, chapterId: string) {
 
 async function hasRefund(db: Database, lessonId: string): Promise<boolean> {
   const jobs = await db
-    .select()
+    .select({ id: generationJobs.id })
     .from(generationJobs)
     .where(
       and(
@@ -1025,11 +1026,39 @@ async function hasRefund(db: Database, lessonId: string): Promise<boolean> {
         eq(generationJobs.status, 'failed'),
       ),
     );
-  for (const job of jobs) {
-    const refund = await findLedgerByKey(db, `refund:${job.id}`);
-    if (refund) return true;
+  if (jobs.length === 0) return false;
+  const refunds = await db
+    .select({ id: creditLedger.id })
+    .from(creditLedger)
+    .where(
+      and(
+        inArray(
+          creditLedger.refId,
+          jobs.map((job) => job.id),
+        ),
+        eq(creditLedger.reason, 'refund'),
+      ),
+    )
+    .limit(1);
+  return refunds.length > 0;
+}
+
+/** Total debit/refund job ini, supaya setiap debit baru bisa dikembalikan sendiri. */
+async function jobRefundState(
+  db: Database,
+  jobId: string,
+): Promise<{ owed: number; debited: number }> {
+  const rows = await db
+    .select({ amount: creditLedger.amount, reason: creditLedger.reason })
+    .from(creditLedger)
+    .where(eq(creditLedger.refId, jobId));
+  let debited = 0;
+  let refunded = 0;
+  for (const row of rows) {
+    if (row.amount < 0) debited += -row.amount;
+    else if (row.reason === 'refund') refunded += row.amount;
   }
-  return false;
+  return { owed: Math.max(0, debited - refunded), debited };
 }
 
 async function refundById(env: Env, jobId: string): Promise<void> {
@@ -1049,21 +1078,15 @@ export async function refundJob(
   db: Database,
   job: { id: string; userId: string; kind: GenerationKind; refId: string },
 ): Promise<void> {
-  const debits = await db
-    .select()
-    .from(creditLedger)
-    .where(
-      and(eq(creditLedger.refId, job.id), eq(creditLedger.reason, job.kind)),
-    );
-  const debit = debits.find((row) => row.amount < 0);
-  if (debit) {
+  const { owed, debited } = await jobRefundState(db, job.id);
+  if (owed > 0) {
     await insertLedger(db, {
       userId: job.userId,
-      amount: Math.abs(debit.amount),
+      amount: owed,
       reason: 'refund',
       refType: 'job',
       refId: job.id,
-      idempotencyKey: `refund:${job.id}`,
+      idempotencyKey: `refund:${job.id}:${debited}`,
     });
   }
   await db
@@ -1117,6 +1140,7 @@ export async function adminRequeueGenerationJob(
   env: Env,
   db: Database,
   jobId: string,
+  actor: UserRow,
 ): Promise<void> {
   const rows = await db
     .select()
@@ -1142,13 +1166,18 @@ export async function adminRequeueGenerationJob(
         : job.kind === 'lesson'
           ? 'lesson'
           : 'quiz';
+    const prior = await db.get<{ n: number }>(sql`
+      select count(*) as n from credit_ledger
+      where ref_id = ${job.id} and idempotency_key like 'admin-requeue:%'
+    `);
+    const attempt = Number(prior?.n ?? 0) + 1;
     const debited = await debitIfEnough(db, {
       userId: job.userId,
       amount: -cost,
       reason,
       refType: 'job',
       refId: job.id,
-      idempotencyKey: `admin-requeue:${job.id}`,
+      idempotencyKey: `admin-requeue:${job.id}:${attempt}`,
     });
     if (debited === 'insufficient') throw new AppError('insufficient_credits');
   }
@@ -1171,6 +1200,12 @@ export async function adminRequeueGenerationJob(
     userId: job.userId,
     kind: job.kind,
     refId: job.refId,
+  });
+  await recordAdminAudit(db, {
+    actorId: actor.id,
+    action: 'job_requeue',
+    targetId: job.id,
+    detail: `pemilik ${job.userId}`,
   });
   logEvent({
     message: 'admin_job_requeued',

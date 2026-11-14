@@ -29,6 +29,16 @@ export const adminAdjustCategoryLabels: Record<string, string> =
     adminAdjustCategories.map((category) => [category.value, category.label]),
   );
 
+export const adminAuditActionLabels: Record<string, string> = {
+  user_update: 'Peran/status diubah',
+  learning_erase: 'Materi belajar dihapus',
+  job_requeue: 'Job diantrikan ulang',
+};
+
+export function adminAuditActionLabel(action: string): string {
+  return adminAuditActionLabels[action] ?? action;
+}
+
 export const ledgerReasonLabels: Record<string, string> = {
   signup_grant: 'Kredit awal',
   purchase: 'Pembelian',

@@ -32,7 +32,7 @@ import {
   topicSchema,
 } from '../domain/schemas';
 import { nowIso } from '../domain/time';
-import { database, ensureUser, eraseLearning, loadConfig } from './account';
+import { database, ensureUser, loadConfig } from './account';
 import { isSuperadmin } from './admin-access';
 import {
   adminUserDetail,
@@ -49,7 +49,12 @@ import {
 } from './admin-data';
 import { adminLedgerExportCsv, adminOrdersExportCsv } from './admin-export';
 import { readAdminQuery } from './admin-list';
-import { adminAdjustLedger, updatePromptTemplate } from './admin-mutations';
+import {
+  adminAdjustLedger,
+  adminEraseUserLearning,
+  patchAdminUser,
+  updatePromptTemplate,
+} from './admin-mutations';
 import { DEV_COOKIE, devIdentityFor, identify, signDevSession } from './auth';
 import {
   createCreditPackOrder,
@@ -409,50 +414,13 @@ export function createApp() {
   app.patch('/api/admin/users/:id', async (c) => {
     const body = await readJson(c, adminUserSchema);
     const db = await database(c.env);
-    const actor = c.get('user');
-    const rows = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, c.req.param('id')))
-      .limit(1);
-    const target = rows[0];
-    if (!target) throw new AppError('not_found');
-    if (
-      body.role === 'admin' &&
-      target.role !== 'admin' &&
-      !isSuperadmin(c.env, actor.email)
-    ) {
-      throw new AppError('forbidden');
-    }
-    if (
-      target.id === actor.id &&
-      (body.status === 'suspended' || body.role === 'learner')
-    ) {
-      throw new AppError(
-        'validation',
-        'Kamu tidak bisa menahan atau menurunkan akunmu sendiri.',
-      );
-    }
-    await db
-      .update(users)
-      .set({
-        role: body.role ?? target.role,
-        status: body.status ?? target.status,
-        updatedAt: nowIso(),
-      })
-      .where(eq(users.id, target.id));
+    await patchAdminUser(db, c.env, c.get('user'), c.req.param('id'), body);
     return c.json({ ok: true });
   });
 
   app.post('/api/admin/users/:id/deletion', async (c) => {
     const db = await database(c.env);
-    const rows = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, c.req.param('id')))
-      .limit(1);
-    if (!rows[0]) throw new AppError('not_found');
-    await eraseLearning(db, rows[0].id);
+    await adminEraseUserLearning(db, c.env, c.get('user'), c.req.param('id'));
     return c.json({ ok: true });
   });
 

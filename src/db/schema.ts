@@ -383,6 +383,19 @@ export const sourceProviders = sqliteTable('source_provider', {
   active: integer('active').notNull(),
 });
 
+export const adminAudit = sqliteTable(
+  'admin_audit',
+  {
+    id: text('id').primaryKey(),
+    actorId: text('actor_id').notNull(),
+    action: text('action').notNull(),
+    targetId: text('target_id'),
+    detail: text('detail'),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [index('admin_audit_created').on(table.createdAt)],
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type AppConfigRow = typeof appConfig.$inferSelect;
 export type GenerationKind = 'roadmap' | 'lesson' | 'quiz';
