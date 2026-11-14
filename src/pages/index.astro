@@ -4,16 +4,19 @@ import AuthButton from '../components/AuthButton.astro';
 import PathMark from '../components/PathMark.astro';
 import Shell from '../components/Shell.astro';
 import { SEED_CONFIG } from '../domain/defaults';
-import { activePublishableKey, clerkHost } from '../domain/guard';
+import {
+  activePublishableKey,
+  clerkHost,
+  clerkPublishableKeyFromEnv,
+} from '../domain/guard';
 import { pageSession } from '../server/ssr';
 
 const existing = await pageSession(Astro.request, env);
 if (existing) return Astro.redirect('/dasbor');
 const mock = env.CLERK_SECRET_KEY === 'mock';
 const publishableKey = activePublishableKey(
-  env.PUBLIC_CLERK_PUBLISHABLE_KEY,
+  clerkPublishableKeyFromEnv(env),
   import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY,
-  env.CLERK_PUBLISHABLE_KEY,
 );
 const host = clerkHost(publishableKey);
 const realAuth = !mock && Boolean(host);

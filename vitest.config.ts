@@ -12,6 +12,8 @@ export default defineConfig({
         bindings: {
           TEST_MIGRATIONS: migrations,
           ENVIRONMENT: 'development',
+          PUBLIC_CLERK_PUBLISHABLE_KEY:
+            'pk_test_bGl2aW5nLWRvdmUtNTE1LmNsZXJrLmFjY291bnRzLmRldiQ',
           CLERK_SECRET_KEY: 'mock',
           BOOTSTRAP_ADMIN_EMAIL: 'admin@example.com',
           SUPERADMIN_EMAILS: 'admin@example.com',

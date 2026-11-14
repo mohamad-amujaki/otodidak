@@ -1,4 +1,4 @@
-import { activePublishableKey, clerkHost } from '../domain/guard';
+import { clerkHost, clerkPublishableKeyFromEnv } from '../domain/guard';
 
 const CSP_REST = [
   "default-src 'self'",
@@ -77,12 +77,7 @@ export function withSecurityHeaders(
       headers,
     });
   }
-  const clerkOrigin = clerkHost(
-    activePublishableKey(
-      env.PUBLIC_CLERK_PUBLISHABLE_KEY,
-      env.CLERK_PUBLISHABLE_KEY,
-    ),
-  );
+  const clerkOrigin = clerkHost(clerkPublishableKeyFromEnv(env));
   headers.set(
     'content-security-policy',
     contentSecurityPolicy(htmlUsesDevViteStyles(env, request), clerkOrigin),

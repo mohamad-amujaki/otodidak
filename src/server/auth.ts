@@ -1,5 +1,5 @@
 import { createClerkClient } from '@clerk/backend';
-import { activePublishableKey } from '../domain/guard';
+import { clerkPublishableKeyFromEnv } from '../domain/guard';
 import {
   decodeBase64Url,
   encodeBase64Url,
@@ -105,10 +105,7 @@ function clerkEmail(user: {
 }
 
 async function readClerk(request: Request, env: Env): Promise<Identity | null> {
-  const publishableKey = activePublishableKey(
-    env.PUBLIC_CLERK_PUBLISHABLE_KEY,
-    env.CLERK_PUBLISHABLE_KEY,
-  );
+  const publishableKey = clerkPublishableKeyFromEnv(env);
   const client = createClerkClient({
     secretKey: env.CLERK_SECRET_KEY,
     publishableKey,

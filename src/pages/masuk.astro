@@ -1,7 +1,7 @@
 ---
 import { env } from 'cloudflare:workers';
 import Shell from '../components/Shell.astro';
-import { activePublishableKey, clerkHost } from '../domain/guard';
+import { clerkHost, clerkPublishableKeyFromEnv } from '../domain/guard';
 import { devSessionSchema } from '../domain/schemas';
 import { database, ensureUser } from '../server/account';
 import { devIdentityFor } from '../server/auth';
@@ -39,11 +39,7 @@ if (Astro.request.method === 'POST') {
     }
   }
 }
-const publishableKey = activePublishableKey(
-  env.PUBLIC_CLERK_PUBLISHABLE_KEY,
-  import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY,
-  env.CLERK_PUBLISHABLE_KEY,
-);
+const publishableKey = clerkPublishableKeyFromEnv(env);
 const host = clerkHost(publishableKey);
 ---
 <Shell

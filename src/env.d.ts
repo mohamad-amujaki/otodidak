@@ -7,8 +7,11 @@ declare namespace App {
   }
 }
 
-interface Env {
-  PUBLIC_CLERK_PUBLISHABLE_KEY?: string;
+declare namespace Cloudflare {
+  interface Env {
+    /** Legacy var; prefer PUBLIC_CLERK_PUBLISHABLE_KEY secret. */
+    CLERK_PUBLISHABLE_KEY?: string;
+  }
 }
 
 declare module 'virtual:astro-cloudflare:config' {

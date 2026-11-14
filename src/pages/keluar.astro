@@ -1,14 +1,10 @@
 ---
 import { env } from 'cloudflare:workers';
-import { activePublishableKey, clerkHost } from '../domain/guard';
+import { clerkHost, clerkPublishableKeyFromEnv } from '../domain/guard';
 import { devLogoutCookie } from '../server/profile-actions';
 import '../styles/global.css';
 
-const publishableKey = activePublishableKey(
-  env.PUBLIC_CLERK_PUBLISHABLE_KEY,
-  import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY,
-  env.CLERK_PUBLISHABLE_KEY,
-);
+const publishableKey = clerkPublishableKeyFromEnv(env);
 const host = clerkHost(publishableKey);
 const logoutCookie = devLogoutCookie(Astro.request);
 if (!host) {
