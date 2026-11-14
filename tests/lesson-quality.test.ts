@@ -3,6 +3,8 @@ import {
   auditLessonQuality,
   lessonMaxWords,
   lessonMinWords,
+  overlapRatio,
+  repeatedSentences,
 } from '../src/domain/lesson-quality';
 
 const naratif = `Bayangkan kamu menulis memo. Kamu mulai dari latar belakang. Lalu data minggu lalu. Lalu kesimpulan di ujung. Banyak orang mengira masalahnya adalah gaya bahasa. Itu gejala. Masalahnya ada di urutan.
@@ -81,5 +83,29 @@ describe('audit kualitas pelajaran', () => {
     expect(report.words).toBeGreaterThan(0);
     expect(report.words).toBeLessThan(lessonMinWords);
     expect(report.issues.join(' | ')).toContain('pendek');
+  });
+});
+
+describe('kebaruan antar pelajaran', () => {
+  const earlier = [
+    'Rina menulis memo satu halaman untuk direktur operasional pada bulan lalu dan menyimpannya di akhir dokumen.',
+    'Pembaca memo biasanya eksekutif yang membuka dokumen di sela dua rapat penting.',
+  ];
+
+  it('menandai kalimat yang diulang dari pelajaran sebelumnya', () => {
+    const body = [
+      'Rina menulis memo satu halaman untuk direktur operasional pada bulan lalu dan menyimpannya di akhir dokumen.',
+      '',
+      'Sekarang kita bahas struktur argumen yang berbeda sama sekali untuk konteks baru.',
+    ].join('\n');
+    const repeated = repeatedSentences(body, earlier);
+    expect(repeated).toHaveLength(1);
+    expect(overlapRatio(body, earlier)).toBeGreaterThan(0.1);
+  });
+
+  it('tidak menandai tulisan yang benar-benar baru', () => {
+    const body =
+      'Perusahaan logistik mengubah rute pengiriman dan mencatat penghematan biaya bahan bakar.';
+    expect(repeatedSentences(body, earlier)).toHaveLength(0);
   });
 });

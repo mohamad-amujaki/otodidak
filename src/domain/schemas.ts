@@ -211,8 +211,44 @@ const lessonSourceKind = z.enum([
   'other',
 ]);
 
+const lessonConceptSchema = z.strictObject({
+  term: z.string().trim().min(1).max(80),
+  gloss: z.string().trim().min(1).max(160),
+});
+
+const lessonCaseSchema = z.strictObject({
+  role: z.string().trim().min(1).max(120),
+  numbers: z.string().trim().min(1).max(160),
+  artifact: z.string().trim().min(1).max(160),
+  dilemma: z.string().trim().min(1).max(200),
+});
+
+const lessonDiagramSchema = z.strictObject({
+  after: z.number().int().min(1).max(20),
+  kind: z.enum(['flow', 'hierarchy', 'compare', 'steps']),
+  title: z.string().trim().min(1).max(120),
+  nodes: z
+    .array(
+      z.strictObject({
+        label: z.string().trim().min(1).max(80),
+        detail: z.string().trim().max(120).optional(),
+      }),
+    )
+    .min(2)
+    .max(8),
+  edges: z
+    .array(z.array(z.number().int().min(0).max(7)).length(2))
+    .max(12)
+    .optional(),
+});
+
 export const lessonOutputSchema = z.strictObject({
   markdown: z.string().trim().min(1).max(100_000),
+  adds: z.string().trim().min(3).max(200).optional(),
+  buildsOn: z.array(z.string().trim().min(1).max(80)).max(6).optional(),
+  concepts: z.array(lessonConceptSchema).max(6).optional(),
+  case: lessonCaseSchema.optional(),
+  diagrams: z.array(lessonDiagramSchema).max(2).optional(),
   sources: z
     .array(
       z.strictObject({

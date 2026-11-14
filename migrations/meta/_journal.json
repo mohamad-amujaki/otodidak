@@ -29,6 +29,13 @@
       "when": 1794680000000,
       "tag": "0003_unique_user_email",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794720000000,
+      "tag": "0004_narrative_memory",
+      "breakpoints": true
     }
   ]
 }

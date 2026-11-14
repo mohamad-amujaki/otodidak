@@ -12,7 +12,7 @@ import {
 import { AppError } from '../../../../domain/errors';
 import { alphaLabel, domainOf } from '../../../../domain/format';
 import { isRecord, record } from '../../../../domain/guard';
-import { renderLesson } from '../../../../domain/markdown';
+import { parseLessonDiagrams, renderLesson } from '../../../../domain/markdown';
 import { openLesson, startQuiz } from '../../../../server/generation';
 import {
   completeLesson,
@@ -96,9 +96,11 @@ const claims = Array.isArray(lesson.claims)
 const sources = Array.isArray(lesson.sources)
   ? lesson.sources.filter(isRecord)
   : [];
+const diagrams = parseLessonDiagrams(lesson.diagramsJson);
 const html =
   typeof lesson.body === 'string'
     ? renderLesson(lesson.body, {
+        diagrams,
         claims: claims.map((claim) => ({
           quote: String(claim.quote ?? ''),
           unsourced: claim.unsourced === true,

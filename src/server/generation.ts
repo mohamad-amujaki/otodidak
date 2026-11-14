@@ -35,7 +35,11 @@ import {
   QUIZ_SNIPPET_CHARS,
 } from '../domain/defaults';
 import { AppError } from '../domain/errors';
-import { auditLessonQuality } from '../domain/lesson-quality';
+import {
+  auditLessonQuality,
+  overlapRatio,
+  repeatedSentences,
+} from '../domain/lesson-quality';
 import { SEED_PROMPTS } from '../domain/prompts';
 import type {
   LessonOutput,
@@ -555,7 +559,7 @@ async function writeLesson(
 ): Promise<void> {
   const context = await lessonContext(db, lessonId);
   if (!context) throw new ModelError('invalid_output');
-  const output = await runModel(env, db, 'lesson', {
+  const input = {
     pathTitle: context.pathTitle,
     topic: context.topic,
     chapterTitle: context.chapterTitle,
@@ -565,9 +569,35 @@ async function writeLesson(
     previousLessons: context.previousLessons,
     recentTakeaways: context.recentTakeaways,
     neighbors: context.neighbors,
-  });
+    position: context.position,
+    assumed: context.assumed,
+    concepts: context.concepts,
+    runningCase: context.runningCase,
+    callback: context.callback,
+    nextTeaser: context.nextTeaser,
+  };
+  let output = await runModel(env, db, 'lesson', input);
   if (!isLesson(output)) throw new ModelError('invalid_output');
   if (output.markdown.length > 100_000) throw new ModelError('invalid_output');
+
+  // Anti-pengulangan: satu percobaan perbaikan bila terlalu mirip pelajaran lain.
+  const repeated = repeatedSentences(output.markdown, context.earlierBodies);
+  const overlap = overlapRatio(output.markdown, context.earlierBodies);
+  if (repeated.length > 0 || overlap > 0.25) {
+    logEvent({
+      message: 'lesson_overlap',
+      status: 'warn',
+      errorCode: `overlap=${overlap.toFixed(2)} duplikat=${repeated.length}`,
+    });
+    const revised = await runModel(env, db, 'lesson', {
+      ...input,
+      revision: {
+        avoid: repeated.slice(0, 5),
+        note: 'Tulis ulang tanpa mengulang kalimat tersebut dan tanpa mendefinisikan ulang istilah yang sudah ada di concepts.',
+      },
+    });
+    if (isLesson(revised)) output = revised;
+  }
   const sources: {
     id: string;
     kind: 'web' | 'youtube';
@@ -639,8 +669,26 @@ async function writeLesson(
     });
   await db
     .update(lessons)
-    .set({ body: markdown, status: 'ready' })
+    .set({
+      body: markdown,
+      status: 'ready',
+      adds: output.adds ?? null,
+      conceptsJson:
+        output.concepts && output.concepts.length > 0
+          ? JSON.stringify(output.concepts)
+          : null,
+      diagramsJson:
+        output.diagrams && output.diagrams.length > 0
+          ? JSON.stringify(output.diagrams)
+          : null,
+    })
     .where(eq(lessons.id, lessonId));
+
+  if (!context.runningCase && output.case)
+    await db
+      .update(chapters)
+      .set({ caseJson: JSON.stringify(output.case) })
+      .where(eq(chapters.id, context.chapterId));
 }
 
 async function writeQuiz(
@@ -783,7 +831,14 @@ async function lessonContext(db: Database, lessonId: string) {
     .select()
     .from(chapters)
     .where(eq(chapters.pathId, path.id));
-  const ordered: { title: string; body: string | null }[] = [];
+  const ordered: {
+    id: string;
+    chapterId: string;
+    title: string;
+    objective: string;
+    body: string | null;
+    conceptsJson: string | null;
+  }[] = [];
   const sortedChapters = [...chapterRowsAll].sort(
     (left, right) => left.position - right.position,
   );
@@ -795,15 +850,34 @@ async function lessonContext(db: Database, lessonId: string) {
     for (const entry of [...chapterLessons].sort(
       (left, right) => left.position - right.position,
     ))
-      ordered.push({ title: entry.title, body: entry.body ?? null });
+      ordered.push({
+        id: entry.id,
+        chapterId: item.id,
+        title: entry.title,
+        objective: entry.objective,
+        body: entry.body ?? null,
+        conceptsJson: entry.conceptsJson ?? null,
+      });
   }
-  const index = ordered.findIndex((item) => item.title === lesson.title);
+  const index = ordered.findIndex((item) => item.id === lessonId);
   const earlier = index > 0 ? ordered.slice(0, index) : [];
-  const neighbors = [
-    ordered[index - 1]?.title,
-    ordered[index + 1]?.title,
-  ].filter((item): item is string => Boolean(item));
+  const previous = index > 0 ? ordered[index - 1] : undefined;
+  const next = index >= 0 ? ordered[index + 1] : undefined;
+  const chapterLessons = ordered.filter(
+    (item) => item.chapterId === lesson.chapterId,
+  );
+  const positionInChapter = chapterLessons.findIndex(
+    (item) => item.id === lessonId,
+  );
+  const concepts = new Map<string, string>();
+  for (const item of earlier) {
+    for (const concept of parseConcepts(item.conceptsJson)) {
+      if (!concepts.has(concept.term))
+        concepts.set(concept.term, concept.gloss);
+    }
+  }
   return {
+    chapterId: chapter.id,
     pathTitle: path.title,
     topic: path.topic,
     chapterTitle: chapter.title,
@@ -815,8 +889,67 @@ async function lessonContext(db: Database, lessonId: string) {
       .slice(-3)
       .map((item) => takeawayOf(item.body))
       .filter((item): item is string => Boolean(item)),
-    neighbors,
+    neighbors: [previous?.title, next?.title].filter((item): item is string =>
+      Boolean(item),
+    ),
+    position: {
+      index: positionInChapter + 1,
+      of: chapterLessons.length,
+    },
+    assumed: chapterLessons
+      .slice(0, Math.max(positionInChapter, 0))
+      .slice(-4)
+      .map((item) => item.objective),
+    concepts: [...concepts.entries()]
+      .slice(-10)
+      .map(([term, gloss]) => ({ term, gloss })),
+    runningCase: parseCase(chapter.caseJson),
+    callback: takeawayOf(previous?.body ?? null),
+    nextTeaser: next?.objective ?? null,
+    earlierBodies: earlier
+      .slice(-2)
+      .map((item) => item.body ?? '')
+      .filter(Boolean),
   };
+}
+
+function parseConcepts(
+  value: string | null,
+): { term: string; gloss: string }[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (item): item is { term: string; gloss: string } =>
+          Boolean(item) &&
+          typeof item === 'object' &&
+          typeof (item as { term?: unknown }).term === 'string' &&
+          typeof (item as { gloss?: unknown }).gloss === 'string',
+      )
+      .map((item) => ({ term: item.term, gloss: item.gloss }));
+  } catch {
+    return [];
+  }
+}
+
+function parseCase(value: string | null): Record<string, string> | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+      return null;
+    const caseValue = parsed as Record<string, unknown>;
+    if (typeof caseValue.role !== 'string') return null;
+    return Object.fromEntries(
+      Object.entries(caseValue).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string',
+      ),
+    );
+  } catch {
+    return null;
+  }
 }
 
 function takeawayOf(body: string | null): string | null {
@@ -830,7 +963,14 @@ function takeawayOf(body: string | null): string | null {
       .filter(Boolean)
       .pop() ?? '';
   const clean = paragraph.replace(/\s+/g, ' ').trim();
-  return clean ? clean.slice(0, 240) : null;
+  if (!clean) return null;
+  const cut = clean.slice(0, 300);
+  const boundary = Math.max(
+    cut.lastIndexOf('. '),
+    cut.lastIndexOf('? '),
+    cut.lastIndexOf('! '),
+  );
+  return (boundary > 60 ? cut.slice(0, boundary + 1) : cut).trim();
 }
 
 async function ownedLesson(db: Database, userId: string, lessonId: string) {

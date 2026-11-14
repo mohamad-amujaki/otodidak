@@ -179,6 +179,7 @@ export const chapters = sqliteTable(
     quizStatus: text('quiz_status', {
       enum: ['unchecked', 'retry', 'understood'],
     }).notNull(),
+    caseJson: text('case_json'),
   },
   (table) => [index('chapter_path_position').on(table.pathId, table.position)],
 );
@@ -198,6 +199,9 @@ export const lessons = sqliteTable(
       enum: ['outline', 'queued', 'ready', 'failed'],
     }).notNull(),
     completedAt: text('completed_at'),
+    adds: text('adds'),
+    conceptsJson: text('concepts_json'),
+    diagramsJson: text('diagrams_json'),
     createdAt: text('created_at').notNull(),
   },
   (table) => [

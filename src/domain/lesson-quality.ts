@@ -206,3 +206,57 @@ export function auditLessonQuality(
     issues,
   };
 }
+
+export function normaliseSentence(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function trigrams(sentence: string): Set<string> {
+  const words = normaliseSentence(sentence).split(' ').filter(Boolean);
+  const grams = new Set<string>();
+  for (let index = 0; index < words.length - 2; index += 1)
+    grams.add(words.slice(index, index + 3).join(' '));
+  return grams;
+}
+
+function jaccard(left: Set<string>, right: Set<string>): number {
+  if (left.size === 0 || right.size === 0) return 0;
+  let shared = 0;
+  for (const gram of left) if (right.has(gram)) shared += 1;
+  return shared / (left.size + right.size - shared);
+}
+
+/** Kalimat di `body` yang sudah muncul (mirip) di pelajaran sebelumnya. */
+export function repeatedSentences(body: string, earlier: string[]): string[] {
+  if (earlier.length === 0) return [];
+  const references = earlier.map((text) => {
+    const sentences = sentencesOf(text).filter(
+      (sentence) => sentence.split(' ').length >= 6,
+    );
+    return sentences.map((sentence) => trigrams(sentence));
+  });
+  const repeated: string[] = [];
+  for (const sentence of sentencesOf(body)) {
+    if (sentence.split(' ').length < 6) continue;
+    const grams = trigrams(sentence);
+    if (grams.size === 0) continue;
+    const duplicate = references.some((reference) =>
+      reference.some((candidate) => jaccard(grams, candidate) >= 0.6),
+    );
+    if (duplicate) repeated.push(sentence.trim());
+  }
+  return repeated;
+}
+
+/** Rasio tumpang tindih 0..1 antara satu pelajaran dan kumpulan sebelumnya. */
+export function overlapRatio(body: string, earlier: string[]): number {
+  if (earlier.length === 0) return 0;
+  const grams = trigrams(body);
+  if (grams.size === 0) return 0;
+  const reference = trigrams(earlier.join(' '));
+  return jaccard(grams, reference);
+}
