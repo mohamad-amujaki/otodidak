@@ -95,7 +95,7 @@ const lowCredit = balance < cost;
 ---
 <Shell title="Dasbor" sectionLabel="Dasbor" balance={balance} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
   <div class="mb-6">
-    <h1 class="judul">Dasbor</h1>
+    <h1 class="judul">Dashboard</h1>
     <p class="mt-2 text-tinta-lembut">Selamat datang kembali, {user.name}</p>
     {streak && streakCount > 0 && (
       <p class="mt-2 text-sm text-tinta-lembut">
@@ -242,8 +242,8 @@ const lowCredit = balance < cost;
       </svg>
     </a>
 
-    <a 
-      class="flex items-center gap-4 rounded-kartu border border-garis bg-kartu p-4 transition-colors hover:border-jalur/40" 
+    <a
+      class="flex items-center gap-4 rounded-kartu border border-garis bg-kartu p-4 transition-colors hover:border-jalur/40"
       href="/pustaka"
     >
       <div class="flex size-12 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
@@ -299,12 +299,12 @@ const lowCredit = balance < cost;
         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
         <label class="block text-sm font-medium text-tinta" for="topic">Apa yang ingin kamu pelajari?</label>
         <p class="mt-1 text-sm text-tinta-lembut" id="topic-help">Satu kalimat cukup. Contoh: "Cara menanam kopi di rumah"</p>
-        <textarea 
-          class="mt-3 min-h-28 rounded-kontrol border border-garis bg-kartu py-3 px-4 text-base transition-colors focus:border-jalur focus:ring-2 focus:ring-jalur/20" 
-          id="topic" 
-          name="topic" 
-          maxlength="280" 
-          required 
+        <textarea
+          class="mt-3 min-h-28 rounded-kontrol border border-garis bg-kartu py-3 px-4 text-base transition-colors focus:border-jalur focus:ring-2 focus:ring-jalur/20"
+          id="topic"
+          name="topic"
+          maxlength="280"
+          required
           aria-describedby="topic-help"
           placeholder="Tulis topik yang ingin kamu pelajari..."
         >{topicPrefill}</textarea>
@@ -315,9 +315,9 @@ const lowCredit = balance < cost;
             </svg>
             <span>Memakai <strong class="font-semibold text-tinta">{cost} kredit</strong></span>
           </div>
-          <button 
-            class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white transition-[filter] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto" 
-            type="submit" 
+          <button
+            class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white transition-[filter] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
+            type="submit"
             disabled={Boolean(activeJob)}
           >
             {activeJob ? (

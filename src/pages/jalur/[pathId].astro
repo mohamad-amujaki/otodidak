@@ -649,62 +649,27 @@ function actionFrom(form: FormData): OutlineAction {
 
                   <footer class="flex flex-wrap items-center justify-between gap-3 border-t border-garis bg-kertas/40 px-5 py-3">
                     <div class="flex items-center gap-2 text-xs text-tinta-lembut">
-                      {chapter.quiz && chapter.quizStatusLabel ? (
+                      {chapter.quizCount > 0 ? (
                         <span class:list={[
-                          "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium",
-                          chapter.quizStatusLabel === 'Paham'
+                          "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium tabular-nums",
+                          chapter.quizPassed === chapter.quizCount
                             ? "border-jalur/30 bg-jalur-lembut text-jalur"
-                            : chapter.quizStatusLabel === 'Perlu ulang'
-                              ? "border-hangat/30 bg-hangat-lembut text-hangat"
-                              : "border-garis bg-kartu text-tinta-lembut",
+                            : "border-hangat/30 bg-hangat-lembut text-hangat",
                         ]}>
-                          Kuis · {chapter.quizStatusLabel}
+                          Kuis sub-bab · {chapter.quizPassed}/{chapter.quizCount} lulus
                         </span>
                       ) : (
-                        <span>Kuis belum dibuat</span>
+                        <span>Kuis sub-bab belum dibuat</span>
                       )}
                     </div>
-                    {chapter.quiz ? (
-                      <a class="inline-flex min-h-11 items-center gap-1.5 rounded-kontrol px-2 text-sm font-medium text-jalur transition-colors hover:bg-jalur-lembut" href={`/jalur/${pathId}/kuis/${chapter.id}`}>
-                        Kerjakan kuis
+                    {chapter.lessons[0] ? (
+                      <a class="inline-flex min-h-11 items-center gap-1.5 rounded-kontrol px-2 text-sm font-medium text-jalur transition-colors hover:bg-jalur-lembut" href={`/jalur/${pathId}/pelajaran/${chapter.lessons[0].id}`}>
+                        Buka sub-bab
                         <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                         </svg>
                       </a>
-                    ) : quizAffordable ? (
-                      <form
-                        method="post"
-                        data-confirm="Buat kuis bab ini?"
-                        data-confirm-detail={String(chapter.title ?? '')}
-                        data-confirm-cost={quizCost}
-                        data-confirm-balance={balance}
-                        data-confirm-label="Ya, buat kuis"
-                        data-confirm-impact="Soal dibuat dari materi bab ini. Progres tidak terkunci, dan mengirim ulang jawaban tidak memakai kredit."
-                      >
-                        <input type="hidden" name="csrf" value={Astro.locals.csrf} />
-                        <input type="hidden" name="aksi" value="kuis" />
-                        <input type="hidden" name="chapterId" value={chapter.id} />
-                        <button class="inline-flex min-h-11 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta transition-colors hover:bg-kertas disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={Boolean(activeJob)}>
-                          <svg class="size-4 text-tinta-lembut" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                          </svg>
-                          Buat kuis · {quizCost} kredit
-                        </button>
-                      </form>
-                    ) : (
-                      <a class="inline-flex min-h-11 items-center gap-1.5 rounded-kontrol border border-hangat/40 bg-hangat-lembut px-3 text-sm font-medium text-hangat transition-colors hover:border-hangat/60" href={quizTopUpHref}>
-                        Kredit tidak cukup
-                      </a>
-                    )}
-                    {!chapter.quiz && !quizAffordable && (
-                      <p class="w-full text-xs tabular-nums text-tinta-lembut">
-                        <span>{creditShortNote(balance, quizCost)}</span>
-                        {' · '}
-                        <a class="font-semibold text-jalur hover:underline" href={quizTopUpHref}>
-                          Isi kredit
-                        </a>
-                      </p>
-                    )}
+                    ) : null}
                   </footer>
                 </article>
               );

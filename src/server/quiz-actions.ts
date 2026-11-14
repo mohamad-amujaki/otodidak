@@ -2,6 +2,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import {
   chapters,
+  lessons,
   paths,
   quizAttempts,
   quizQuestions,
@@ -85,9 +86,16 @@ export async function submitQuizAttempt(
     answersJson: JSON.stringify(answers),
     createdAt: nowIso(),
   });
-  await db
-    .update(chapters)
-    .set({ quizStatus })
-    .where(eq(chapters.id, chapter.id));
+  if (quiz.lessonId) {
+    await db
+      .update(lessons)
+      .set({ quizStatus })
+      .where(eq(lessons.id, quiz.lessonId));
+  } else {
+    await db
+      .update(chapters)
+      .set({ quizStatus })
+      .where(eq(chapters.id, chapter.id));
+  }
   return { scorePercent, quizStatus, review };
 }

@@ -388,11 +388,16 @@ export async function startQuiz(
   env: Env,
   request: Request,
   user: UserRow,
-  chapterId: string,
+  lessonId: string,
 ): Promise<{ quizId: string; jobId: string }> {
   const db = await database(env);
-  const chapter = await ownedChapter(db, user.id, chapterId);
-  if (!chapter) throw new AppError('not_found');
+  const lesson = await ownedLesson(db, user.id, lessonId);
+  if (!lesson) throw new AppError('not_found');
+  if (lesson.status !== 'ready' || !lesson.body)
+    throw new AppError(
+      'validation',
+      'Kuis bisa disusun setelah materi sub-bab ini siap.',
+    );
   const config = await loadConfig(db);
   const quizId = crypto.randomUUID();
   const jobId = crypto.randomUUID();
@@ -411,9 +416,12 @@ export async function startQuiz(
     idempotencyKey: `quiz:${quizId}`,
   });
   try {
-    await db
-      .insert(quizzes)
-      .values({ id: quizId, chapterId, createdAt: nowIso() });
+    await db.insert(quizzes).values({
+      id: quizId,
+      chapterId: lesson.chapterId,
+      lessonId: lesson.id,
+      createdAt: nowIso(),
+    });
   } catch {
     await refundJob(env, db, job);
     throw new AppError('generation_failed');
@@ -725,35 +733,26 @@ async function writeQuiz(
     .limit(1);
   const quiz = quizRows[0];
   if (!quiz) throw new ModelError('invalid_output');
-  const chapterRows = await db
-    .select()
-    .from(chapters)
-    .where(eq(chapters.id, quiz.chapterId))
-    .limit(1);
-  const chapter = chapterRows[0];
-  if (!chapter) throw new ModelError('invalid_output');
+  if (!quiz.lessonId) throw new ModelError('invalid_output');
   const lessonRows = await db
     .select()
     .from(lessons)
-    .where(eq(lessons.chapterId, chapter.id));
-  const claimTexts: string[] = [];
-  for (const lesson of lessonRows) {
-    const claims = await db
-      .select({ quote: lessonClaims.quote })
-      .from(lessonClaims)
-      .where(eq(lessonClaims.lessonId, lesson.id));
-    for (const claim of claims) claimTexts.push(claim.quote);
-  }
-  let snippet = '';
-  if (claimTexts.length === 0) {
-    snippet = lessonRows
-      .map((lesson) => lesson.body ?? '')
-      .join('\n')
-      .slice(0, QUIZ_SNIPPET_CHARS);
-  }
+    .where(eq(lessons.id, quiz.lessonId))
+    .limit(1);
+  const lesson = lessonRows[0];
+  if (!lesson) throw new ModelError('invalid_output');
+  const claimRows = await db
+    .select({ quote: lessonClaims.quote })
+    .from(lessonClaims)
+    .where(eq(lessonClaims.lessonId, lesson.id));
+  const claimTexts = claimRows.map((claim) => claim.quote);
+  const snippet =
+    claimTexts.length === 0
+      ? (lesson.body ?? '').slice(0, QUIZ_SNIPPET_CHARS)
+      : '';
   const output = await runModel(env, db, 'quiz', {
-    chapterTitle: chapter.title,
-    lessonTitles: lessonRows.map((lesson) => lesson.title),
+    lessonTitle: lesson.title,
+    lessonObjective: lesson.objective,
     claims: claimTexts,
     snippet,
     questionCount,
@@ -775,7 +774,7 @@ async function writeQuiz(
   const others = await db
     .select()
     .from(quizzes)
-    .where(eq(quizzes.chapterId, chapter.id));
+    .where(eq(quizzes.lessonId, lesson.id));
   for (const other of others) {
     if (other.id === quizId) continue;
     await db.delete(quizAttempts).where(eq(quizAttempts.quizId, other.id));
@@ -783,9 +782,9 @@ async function writeQuiz(
     await db.delete(quizzes).where(eq(quizzes.id, other.id));
   }
   await db
-    .update(chapters)
+    .update(lessons)
     .set({ quizStatus: 'unchecked' })
-    .where(eq(chapters.id, chapter.id));
+    .where(eq(lessons.id, lesson.id));
 }
 
 async function runModel(

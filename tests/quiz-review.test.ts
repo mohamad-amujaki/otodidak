@@ -37,12 +37,28 @@ describe('data pembahasan kuis', () => {
     expect(await processGeneration(env, jobId, 1)).toBe('ack');
 
     const beforeQuiz = (await pathDetail(db, user.id, pathId)) as {
-      chapters: { id: string }[];
+      chapters: { id: string; lessons: { id: string }[] }[];
     };
     const chapterId = beforeQuiz.chapters[0]?.id;
-    if (!chapterId) throw new Error('bab tidak ada');
+    const lessonId = beforeQuiz.chapters[0]?.lessons[0]?.id;
+    if (!chapterId || !lessonId)
+      throw new Error('bab atau pelajaran tidak ada');
 
-    const quiz = await api(`/api/chapters/${chapterId}/quiz`, {
+    const opened = await api(`/api/lessons/${lessonId}/open`, {
+      method: 'POST',
+      json: {},
+      cookie,
+    });
+    expect(opened.status).toBe(202);
+    expect(
+      await processGeneration(
+        env,
+        (await jsonBody<{ jobId: string }>(opened)).jobId,
+        1,
+      ),
+    ).toBe('ack');
+
+    const quiz = await api(`/api/lessons/${lessonId}/quiz`, {
       method: 'POST',
       json: {},
       cookie,
@@ -57,20 +73,23 @@ describe('data pembahasan kuis', () => {
     const payload = (await pathDetail(db, user.id, pathId)) as unknown as {
       chapters: {
         id: string;
-        quiz: {
+        lessons: {
           id: string;
-          questions: {
+          quiz: {
             id: string;
-            choices: string[];
-            selected: number | null;
-            correctIndex: number | null;
-          }[];
-        } | null;
+            questions: {
+              id: string;
+              choices: string[];
+              selected: number | null;
+              correctIndex: number | null;
+            }[];
+          } | null;
+        }[];
       }[];
     };
-    const quizPayload = payload.chapters.find(
-      (item) => item.id === chapterId,
-    )?.quiz;
+    const quizPayload = payload.chapters
+      .flatMap((chapter) => chapter.lessons)
+      .find((lesson) => lesson.id === lessonId)?.quiz;
     if (!quizPayload) throw new Error('kuis tidak ada');
     const questions = quizPayload.questions;
     expect(questions.length).toBeGreaterThanOrEqual(3);
@@ -108,17 +127,22 @@ describe('data pembahasan kuis', () => {
     const after = (await pathDetail(db, user.id, pathId)) as unknown as {
       chapters: {
         id: string;
-        quiz: {
-          questions: {
-            selected: number | null;
-            correctIndex: number | null;
-            explanation: string | null;
-          }[];
-          attempt: { scorePercent: number } | null;
-        } | null;
+        lessons: {
+          id: string;
+          quiz: {
+            questions: {
+              selected: number | null;
+              correctIndex: number | null;
+              explanation: string | null;
+            }[];
+            attempt: { scorePercent: number } | null;
+          } | null;
+        }[];
       }[];
     };
-    const reloaded = after.chapters.find((item) => item.id === chapterId)?.quiz;
+    const reloaded = after.chapters
+      .flatMap((chapter) => chapter.lessons)
+      .find((lesson) => lesson.id === lessonId)?.quiz;
     expect(reloaded?.attempt?.scorePercent).toBe(expectedScore);
     expect(reloaded?.questions[0]?.selected).toBe(wrongChoice);
     expect(reloaded?.questions[0]?.correctIndex).toBe(keys[0]);
@@ -132,13 +156,18 @@ describe('data pembahasan kuis', () => {
     const history = (await pathDetail(db, user.id, pathId)) as unknown as {
       chapters: {
         id: string;
-        quiz: {
-          attempt: { scorePercent: number } | null;
-          attempts: { id: string; scorePercent: number; createdAt: string }[];
-        } | null;
+        lessons: {
+          id: string;
+          quiz: {
+            attempt: { scorePercent: number } | null;
+            attempts: { id: string; scorePercent: number; createdAt: string }[];
+          } | null;
+        }[];
       }[];
     };
-    const after2 = history.chapters.find((item) => item.id === chapterId)?.quiz;
+    const after2 = history.chapters
+      .flatMap((chapter) => chapter.lessons)
+      .find((lesson) => lesson.id === lessonId)?.quiz;
     expect(after2?.attempt?.scorePercent).toBe(100);
     expect(after2?.attempts.length).toBe(2);
     expect(

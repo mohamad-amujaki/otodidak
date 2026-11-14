@@ -78,12 +78,7 @@ if (Astro.request.method === 'POST') {
         message = 'Link bagikan dicabut.';
         messageIsInfo = true;
       } else if (action === 'kuis') {
-        await startQuiz(
-          env,
-          Astro.request,
-          session.user,
-          String(form.get('chapterId') ?? ''),
-        );
+        await startQuiz(env, Astro.request, session.user, lessonId);
         message = 'Kuis sedang disusun. Buka halaman kuis beberapa saat lagi.';
         messageIsInfo = true;
       } else await openLesson(env, Astro.request, session.user, lessonId);
@@ -189,17 +184,27 @@ const currentChapter =
   currentChapterIndex >= 0 ? navChapters[currentChapterIndex] : null;
 const currentChapterRaw =
   currentChapterIndex >= 0 ? outlineChapters[currentChapterIndex] : null;
-const currentChapterQuiz =
-  currentChapterRaw && isRecord(currentChapterRaw.quiz)
-    ? currentChapterRaw.quiz
+const currentLessonRaw =
+  currentChapterRaw && Array.isArray(currentChapterRaw.lessons)
+    ? (currentChapterRaw.lessons
+        .filter(isRecord)
+        .find((entry) => entry.id === lessonId) ?? null)
     : null;
-const quizHref = currentChapter
-  ? `/jalur/${pathId}/kuis/${currentChapter.id}`
-  : null;
-const quizStatusText = String(currentChapterRaw?.quizStatusLabel ?? '').trim();
+const currentChapterQuiz =
+  currentLessonRaw && isRecord(currentLessonRaw.quiz)
+    ? currentLessonRaw.quiz
+    : null;
+const quizHref = `/jalur/${pathId}/kuis/${lessonId}`;
+const quizStatusText = String(currentLessonRaw?.quizStatusLabel ?? '').trim();
 const quizChipText = currentChapterQuiz
-  ? `Kuis · ${quizStatusText || 'siap'}`
-  : 'Kuis · belum dibuat';
+  ? `Kuis sub-bab · ${quizStatusText || 'siap'}`
+  : 'Kuis sub-bab · belum dibuat';
+const quizScore =
+  currentChapterQuiz &&
+  isRecord(currentChapterQuiz.attempt) &&
+  typeof currentChapterQuiz.attempt.scorePercent === 'number'
+    ? Number(currentChapterQuiz.attempt.scorePercent)
+    : null;
 const quizAffordable = hasEnoughCredits(balance, quizCost);
 const lessonAffordable = hasEnoughCredits(balance, cost);
 const resumeAction = String(Astro.url.searchParams.get('lanjut') ?? '');
@@ -319,7 +324,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
       </p>
       <p class="mt-1 text-sm text-tinta-lembut">
         {resumeAction === 'kuis'
-          ? `Menyusun kuis bab ini memakai ${quizCost} kredit.`
+          ? `Menyusun kuis sub-bab ini memakai ${quizCost} kredit.`
           : `Menyusun pelajaran ini memakai ${cost} kredit.`}
       </p>
       <div class="mt-3 flex flex-wrap items-center gap-2">
@@ -327,14 +332,13 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
           quizHref && currentChapter ? (
             currentChapterQuiz ? (
               <a class="inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white" href={quizHref}>
-                Buka kuis
+                Buka kuis sub-bab
               </a>
             ) : (
               <form method="post">
                 <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                 <input type="hidden" name="aksi" value="kuis" />
-                <input type="hidden" name="chapterId" value={currentChapter.id} />
-                <button class="min-h-11 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white" type="submit">
+                                <button class="min-h-11 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white" type="submit">
                   Ya, buat kuis
                 </button>
               </form>
@@ -510,24 +514,23 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
                     <svg class="size-5 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    Kerjakan kuis
+                    {quizScore !== null ? `Ulangi kuis · ${quizScore}%` : 'Kerjakan kuis sub-bab'}
                   </a>
                 ) : quizAffordable ? (
                   <form
                     class="min-[560px]:w-auto"
                     method="post"
-                    data-confirm="Buat kuis bab ini?"
+                    data-confirm="Buat kuis sub-bab ini?"
                     data-confirm-detail={String(currentChapter.title)}
                     data-confirm-cost={quizCost}
                     data-confirm-balance={balance}
-                    data-confirm-label="Ya, buat kuis"
-                    data-confirm-impact={`Soal dibuat dari ${currentChapter.lessons.length} pelajaran di bab ini. Progres tidak terkunci, dan mengirim ulang jawaban tidak memakai kredit.`}
+                    data-confirm-label="Ya, buat kuis sub-bab"
+                    data-confirm-impact="Soal dibuat dari materi sub-bab ini. Progres tidak terkunci; mengirim ulang jawaban tidak memakai kredit."
                   >
                     <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                     <input type="hidden" name="aksi" value="kuis" />
-                    <input type="hidden" name="chapterId" value={currentChapter.id} />
-                    <button class="min-h-11 w-full rounded-kontrol border border-garis bg-kartu px-6 font-semibold text-tinta transition-colors hover:border-jalur/40 disabled:cursor-not-allowed disabled:opacity-60 min-[560px]:w-auto" type="submit" disabled={Boolean(activeJob)}>
-                      Buat kuis · {quizCost} kredit
+                                        <button class="min-h-11 w-full rounded-kontrol border border-garis bg-kartu px-6 font-semibold text-tinta transition-colors hover:border-jalur/40 disabled:cursor-not-allowed disabled:opacity-60 min-[560px]:w-auto" type="submit" disabled={Boolean(activeJob)}>
+                      Buat kuis sub-bab · {quizCost} kredit
                     </button>
                   </form>
                 ) : (

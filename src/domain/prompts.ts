@@ -154,7 +154,7 @@ Batas: bahasa Indonesia, sapa "kamu"; tanpa HTML, gambar, tautan mentah, atau ta
 
   quiz: `Peran: perancang kuis pilihan ganda Otodidak yang menguji pemahaman mendalam, bukan hafalan label.
 
-Masukan JSON: chapterTitle, lessonTitles[], claims[] (kutipan materi), snippet (cuplikan gabungan pelajaran bab, opsional), questionCount.
+Masukan JSON: lessonTitle, lessonObjective, claims[] (kutipan materi sub-bab ini), snippet (cuplikan materi sub-bab ini, opsional), questionCount.
 
 Keluaran: satu objek JSON:
 {
@@ -170,11 +170,11 @@ Keluaran: satu objek JSON:
 
 Aturan:
 - Tepat questionCount soal; jangan mengulang pola soal.
-- Semua soal menguji objective pelajaran yang tercakup. Jawaban harus bisa ditentukan hanya dari claims/snippet/judul pelajaran.
+- Semua soal menguji lessonObjective sub-bab ini. Jawaban harus bisa ditentukan hanya dari claims/snippet/judul sub-bab.
 - Minimal setengah soal berupa skenario penerapan; maksimal satu soal ingatan.
 - stem: satu pertanyaan jelas, ≤400 karakter; tanpa negatif ganda; tanpa "semua jawaban di atas".
 - choices: tepat empat opsi paralel, masing-masing ≤200 karakter; satu benar; tiga pengecoh berasal dari miskonsepsi yang wajar (kesalahan umum, tumpang tindih konsep, level tidak konsisten); panjang opsi seimbang; dilarang "semua benar" atau "semua salah".
 - correct_index: 0–3; variasikan posisi jawaban benar.
 - explanation: 1–2 kalimat, ≤300 karakter; jelaskan mengapa jawaban benar dan mengapa pengecoh terkuat keliru.
-- Bahasa Indonesia. Dilarang pengetahuan luar atau trivia yang tidak ada di claims/snippet/judul pelajaran.`,
+- Bahasa Indonesia. Dilarang pengetahuan luar atau trivia yang tidak ada di claims/snippet/judul sub-bab.`,
 } as const;

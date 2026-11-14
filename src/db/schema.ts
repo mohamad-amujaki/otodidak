@@ -222,6 +222,11 @@ export const lessons = sqliteTable(
     objective: text('objective').notNull(),
     keyMessage: text('key_message'),
     coreConcept: text('core_concept'),
+    quizStatus: text('quiz_status', {
+      enum: ['unchecked', 'retry', 'understood'],
+    })
+      .notNull()
+      .default('unchecked'),
     body: text('body'),
     status: text('status', {
       enum: ['outline', 'queued', 'ready', 'failed'],
@@ -258,13 +263,18 @@ export const lessonClaims = sqliteTable('lesson_claim', {
   sourceId: text('source_id'),
 });
 
-export const quizzes = sqliteTable('quiz', {
-  id: text('id').primaryKey(),
-  chapterId: text('chapter_id')
-    .notNull()
-    .references(() => chapters.id),
-  createdAt: text('created_at').notNull(),
-});
+export const quizzes = sqliteTable(
+  'quiz',
+  {
+    id: text('id').primaryKey(),
+    chapterId: text('chapter_id')
+      .notNull()
+      .references(() => chapters.id),
+    lessonId: text('lesson_id'),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [index('quiz_lesson').on(table.lessonId)],
+);
 
 export const quizQuestions = sqliteTable('quiz_question', {
   id: text('id').primaryKey(),

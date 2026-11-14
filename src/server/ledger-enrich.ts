@@ -107,7 +107,11 @@ export async function enrichLedgerEntries(
       : Promise.resolve([]),
     quizIds.length > 0
       ? db
-          .select({ id: quizzes.id, chapterId: quizzes.chapterId })
+          .select({
+            id: quizzes.id,
+            chapterId: quizzes.chapterId,
+            lessonId: quizzes.lessonId,
+          })
           .from(quizzes)
           .where(inArray(quizzes.id, quizIds))
       : Promise.resolve([]),
@@ -177,7 +181,9 @@ export async function enrichLedgerEntries(
         const quiz = quizMap.get(job.refId);
         const chapter = quiz ? chapterMap.get(quiz.chapterId) : undefined;
         if (chapter) {
-          href = `/jalur/${chapter.pathId}/kuis/${chapter.id}`;
+          href = quiz?.lessonId
+            ? `/jalur/${chapter.pathId}/kuis/${quiz.lessonId}`
+            : `/jalur/${chapter.pathId}`;
           contextLabel = chapter.title;
         }
       }

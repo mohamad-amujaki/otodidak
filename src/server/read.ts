@@ -178,6 +178,7 @@ export async function pathDetail(db: Database, userId: string, pathId: string) {
             objective: lessons.objective,
             position: lessons.position,
             status: lessons.status,
+            quizStatus: lessons.quizStatus,
             completedAt: lessons.completedAt,
             hasBody: sql<number>`case when ${lessons.body} is not null then 1 else 0 end`,
           })
@@ -187,7 +188,11 @@ export async function pathDetail(db: Database, userId: string, pathId: string) {
       : Promise.resolve([]),
     chapterIds.length > 0
       ? db
-          .select({ id: quizzes.id, chapterId: quizzes.chapterId })
+          .select({
+            id: quizzes.id,
+            chapterId: quizzes.chapterId,
+            lessonId: quizzes.lessonId,
+          })
           .from(quizzes)
           .where(inArray(quizzes.chapterId, chapterIds))
           .orderBy(desc(quizzes.createdAt))
@@ -198,30 +203,53 @@ export async function pathDetail(db: Database, userId: string, pathId: string) {
     quizRows.map((quiz) => quiz.id),
   );
   const lessonsByChapter = groupBy(lessonRows, (lesson) => lesson.chapterId);
-  const quizIdsByChapter = groupBy(quizRows, (quiz) => quiz.chapterId);
+  const quizIdsByLesson = groupBy(
+    quizRows.filter((quiz) => quiz.lessonId),
+    (quiz) => String(quiz.lessonId),
+  );
   const chapterPayload = chapterRows.map((chapter) => {
-    const quizzesForChapter = quizIdsByChapter.get(chapter.id) ?? [];
-    const quiz =
-      quizzesForChapter
-        .map((quiz) => quizPayloads.get(quiz.id))
-        .find((payload) => payload !== undefined) ?? null;
-    return {
-      id: chapter.id,
-      title: chapter.title,
-      summary: chapter.summary,
-      position: chapter.position,
-      quizStatus: chapter.quizStatus,
-      quizStatusLabel: quizStatusLabel(chapter.quizStatus),
-      quiz,
-      lessons: (lessonsByChapter.get(chapter.id) ?? []).map((lesson) => ({
+    const lessons = (lessonsByChapter.get(chapter.id) ?? []).map((lesson) => {
+      const lessonQuizIds = quizIdsByLesson.get(lesson.id) ?? [];
+      const quiz =
+        lessonQuizIds
+          .map((row) => quizPayloads.get(row.id))
+          .find((payload) => payload !== undefined) ?? null;
+      return {
         id: lesson.id,
         title: lesson.title,
         objective: lesson.objective,
         position: lesson.position,
         status: lesson.status,
+        quizStatus: lesson.quizStatus,
+        quizStatusLabel: quizStatusLabel(lesson.quizStatus),
+        quiz,
         hasBody: lesson.hasBody === 1 && lesson.status === 'ready',
         completedAt: lesson.completedAt,
-      })),
+      };
+    });
+    const quizzed = lessons.filter((lesson) => lesson.quiz !== null);
+    const quizCount = quizzed.length;
+    const quizPassed = quizzed.filter(
+      (lesson) => lesson.quizStatus === 'understood',
+    ).length;
+    const quizStatus =
+      quizCount === 0
+        ? ('unchecked' as const)
+        : quizPassed === quizCount
+          ? ('understood' as const)
+          : quizzed.some((lesson) => lesson.quizStatus === 'retry')
+            ? ('retry' as const)
+            : ('unchecked' as const);
+    return {
+      id: chapter.id,
+      title: chapter.title,
+      summary: chapter.summary,
+      position: chapter.position,
+      quizStatus,
+      quizStatusLabel: quizStatusLabel(quizStatus),
+      quizCount,
+      quizPassed,
+      lessons,
     };
   });
   const progress = await progressFor(db, path.id);

@@ -255,7 +255,7 @@ export function createApp() {
     ),
   );
 
-  app.post('/api/chapters/:id/quiz', async (c) => {
+  app.post('/api/lessons/:id/quiz', async (c) => {
     const started = await startQuiz(
       c.env,
       c.req.raw,

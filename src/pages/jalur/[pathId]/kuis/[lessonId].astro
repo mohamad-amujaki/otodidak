@@ -20,8 +20,8 @@ import { submitQuizAttempt } from '../../../../server/quiz-actions';
 import { pathDetail } from '../../../../server/read';
 import { pageMe } from '../../../../server/ssr';
 
-const { pathId, chapterId } = Astro.params;
-if (!pathId || !chapterId) return Astro.redirect('/dasbor');
+const { pathId, lessonId } = Astro.params;
+if (!pathId || !lessonId) return Astro.redirect('/dasbor');
 const page = await pageMe(Astro.request, env);
 if ('redirect' in page) return Astro.redirect(page.redirect);
 const { session, me: meRaw } = page;
@@ -53,8 +53,21 @@ const detail = record(pathRaw);
 const chapters = Array.isArray(detail.chapters)
   ? detail.chapters.filter(isRecord)
   : [];
-const chapter = chapters.find((item) => item.id === chapterId) ?? null;
-const quiz = chapter && isRecord(chapter.quiz) ? chapter.quiz : null;
+let chapter: Record<string, unknown> | null = null;
+let lesson: Record<string, unknown> | null = null;
+let lessonPosition = -1;
+for (const item of chapters) {
+  const list = Array.isArray(item.lessons) ? item.lessons.filter(isRecord) : [];
+  const index = list.findIndex((entry) => entry.id === lessonId);
+  if (index >= 0) {
+    chapter = item;
+    lesson = list[index] ?? null;
+    lessonPosition = index;
+    break;
+  }
+}
+if (!chapter || !lesson) return Astro.redirect(`/jalur/${pathId}`);
+const quiz = isRecord(lesson.quiz) ? lesson.quiz : null;
 const questions =
   quiz && Array.isArray(quiz.questions) ? quiz.questions.filter(isRecord) : [];
 const attempt = quiz && isRecord(quiz.attempt) ? quiz.attempt : null;
@@ -65,7 +78,7 @@ if (Astro.request.method === 'POST') {
     message = 'Muat ulang halaman, lalu kirim lagi.';
   else if (String(form.get('aksi') ?? '') === 'ulang') {
     try {
-      await startQuiz(env, Astro.request, session.user, chapterId);
+      await startQuiz(env, Astro.request, session.user, lessonId);
       message = 'Kuis sedang disusun. Halaman ini akan diperbarui otomatis.';
       messageIsInfo = true;
     } catch (error) {
@@ -95,7 +108,6 @@ if (Astro.request.method === 'POST') {
 
 const pass =
   typeof config.passThreshold === 'number' ? config.passThreshold : 80;
-const pathTitle = String(detail.title ?? 'jalur');
 const resultReview =
   result && Array.isArray(result.review) ? result.review.filter(isRecord) : [];
 const reviewItems =
@@ -117,7 +129,7 @@ const correctCount = reviewItems.filter(
 const statusText =
   typeof result?.quizStatus === 'string'
     ? quizStatusLabel(result.quizStatus as 'understood' | 'retry')
-    : String(chapter?.quizStatusLabel ?? '');
+    : String(lesson?.quizStatusLabel ?? '');
 const showReview = reviewItems.length > 0 && (!redoMode || result !== null);
 const attemptAt =
   typeof attempt?.createdAt === 'string' ? attempt.createdAt : '';
@@ -131,26 +143,26 @@ const bestScore = attempts.reduce(
     ),
   0,
 );
-const chapterTitle = String(chapter?.title ?? 'Kuis bab');
-const chapterNumber = chapters.findIndex((item) => item.id === chapterId) + 1;
-const lessonCount =
-  chapter && Array.isArray(chapter.lessons) ? chapter.lessons.length : 0;
+const lessonTitle = String(lesson?.title ?? 'Kuis sub-bab');
+const chapterNumber = chapters.findIndex((item) => item.id === chapter?.id) + 1;
 ---
 
-<Shell title={chapter ? `Kuis: ${chapterTitle}` : 'Kuis'} balance={typeof me.balance === 'number' ? me.balance : 0} lowCredit={lowCredit} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
+<Shell title={`Kuis sub-bab: ${lessonTitle}`} balance={typeof me.balance === 'number' ? me.balance : 0} lowCredit={lowCredit} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
   <div class="mx-auto w-full max-w-[44rem]">
     <a
       class="inline-flex min-h-11 items-center gap-1.5 text-sm text-tinta-lembut transition-colors hover:text-jalur"
-      href={`/jalur/${pathId}`}
+      href={`/jalur/${pathId}/pelajaran/${lessonId}`}
     >
       <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
       </svg>
-      {pathTitle}
+      Kembali ke sub-bab
     </a>
 
-    <p class="eyebrow mt-4">Kuis{chapterNumber > 0 ? ` · Bab ${chapterNumber}` : ''}</p>
-    <h1 class="judul mt-1.5">{chapterTitle}</h1>
+    <p class="eyebrow mt-4">
+      Kuis sub-bab{chapterNumber > 0 ? ` · Bab ${chapterNumber}` : ''}{lessonPosition >= 0 ? ` · Sub-bab ${alphaLabel(lessonPosition)}` : ''}
+    </p>
+    <h1 class="judul mt-1.5">{lessonTitle}</h1>
     <div class="mt-3 flex flex-wrap items-center gap-2">
       {questions.length > 0 && (
         <span class="rounded-full border border-garis bg-kartu px-2.5 py-1 text-[11px] font-medium text-tinta-lembut">
@@ -195,7 +207,7 @@ const lessonCount =
       <div class="mt-4 rounded-kontrol border border-jalur/30 bg-jalur-lembut p-4">
         <p class="text-sm font-semibold text-jalur">Kredit kamu sekarang {balance}.</p>
         <p class="mt-1 text-sm text-tinta-lembut">
-          Pakai tombol “Susun kuis baru” di bawah untuk menyusun ulang.
+          Pakai tombol “Susun ulang kuis sub-bab” di bawah untuk menyusun ulang.
         </p>
         <a class="mt-3 inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta" href={resumeDismissHref}>
           Tutup
@@ -206,11 +218,11 @@ const lessonCount =
     {!quiz && (
       <section class="mt-6 rounded-kartu border border-garis bg-kartu p-6 text-center">
         <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-tinta-lembut">
-          Kuis belum disusun
+          Kuis sub-bab belum disusun
         </p>
-        <h2 class="mt-2 text-lg font-bold text-tinta">Uji pemahaman bab ini</h2>
+        <h2 class="mt-2 text-lg font-bold text-tinta">Uji pemahaman sub-bab ini</h2>
         <p class="mx-auto mt-2 max-w-sm text-sm text-tinta-lembut">
-          Soal dibuat dari {lessonCount > 0 ? `${lessonCount} pelajaran` : 'materi'} di bab ini, lalu bisa diulang tanpa kredit tambahan. Menyusun kuis memakai {cost} kredit.
+          Soal dibuat dari materi sub-bab ini, lalu bisa diulang tanpa kredit tambahan. Menyusun kuis memakai {cost} kredit.
         </p>
         <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
           {quizAffordable ? (
@@ -218,14 +230,14 @@ const lessonCount =
               <input type="hidden" name="csrf" value={Astro.locals.csrf} />
               <input type="hidden" name="aksi" value="ulang" />
               <button class="btn-jalur min-h-11 px-5 text-sm" type="submit">
-                Susun kuis
+                Susun kuis sub-bab
               </button>
             </form>
           ) : (
             <a class="btn-jalur min-h-11 px-5 text-sm" href={quizTopUpHref}>Isi kredit</a>
           )}
-          <a class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40" href={`/jalur/${pathId}`}>
-            Kembali ke bab
+          <a class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40" href={`/jalur/${pathId}/pelajaran/${lessonId}`}>
+            Kembali ke sub-bab
           </a>
         </div>
         {!quizAffordable && (
@@ -240,7 +252,7 @@ const lessonCount =
       <div class="mt-6 space-y-3">
         <GenerationWait
           title="Menyusun kuis"
-          description="Soal sedang dibuat dari materi bab ini."
+          description="Soal sedang dibuat dari materi sub-bab ini."
           compact
           jobId={activeJob ? String(activeJob.id) : undefined}
         />
@@ -294,14 +306,14 @@ const lessonCount =
           />
         </div>
         <p class="mt-3 text-sm text-tinta-lembut">
-          Pelajaran berikutnya tetap terbuka. Kuis ini hanya untuk memeriksa pemahaman, bukan syarat lanjut.
+          Sub-bab berikutnya tetap terbuka. Kuis ini memeriksa pemahaman sub-bab ini, bukan syarat lanjut.
         </p>
         <div class="mt-4 flex flex-wrap items-center gap-2">
-          <a class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40" href={`/jalur/${pathId}/kuis/${chapterId}?ulang=1`}>
+          <a class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40" href={`/jalur/${pathId}/kuis/${lessonId}?ulang=1`}>
             Kerjakan ulang
           </a>
-          <a class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40" href={`/jalur/${pathId}`}>
-            Kembali ke bab
+          <a class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40" href={`/jalur/${pathId}/pelajaran/${lessonId}`}>
+            Kembali ke sub-bab
           </a>
         </div>
       </section>
@@ -547,18 +559,18 @@ const lessonCount =
       <form
         class="mt-8 rounded-kartu border border-garis bg-kartu p-4"
         method="post"
-        data-confirm="Susun kuis baru untuk bab ini?"
-        data-confirm-detail={chapterTitle}
+        data-confirm="Susun ulang kuis sub-bab ini?"
+        data-confirm-detail={lessonTitle}
         data-confirm-cost={cost}
         data-confirm-balance={balance}
-        data-confirm-label="Ya, susun kuis"
-        data-confirm-impact="Set soal baru dibuat dari materi bab ini. Percobaan lama tetap tersimpan."
+        data-confirm-label="Ya, susun ulang"
+        data-confirm-impact="Set soal baru dibuat dari materi sub-bab ini. Percobaan lama tetap tersimpan."
       >
         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
         <input type="hidden" name="aksi" value="ulang" />
-        <p class="text-sm font-medium text-tinta">Susun kuis baru</p>
+        <p class="text-sm font-medium text-tinta">Susun ulang kuis sub-bab</p>
         <p class="mt-1 text-sm text-tinta-lembut">
-          Membuat set soal baru dari materi bab ini. Percobaan lama tetap tersimpan.
+          Membuat set soal baru dari materi sub-bab ini. Percobaan lama tetap tersimpan.
         </p>
         <button
           class="mt-3 min-h-11 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:border-jalur/40 disabled:cursor-not-allowed disabled:opacity-50"
@@ -569,7 +581,7 @@ const lessonCount =
             ? 'Kredit tidak cukup'
             : activeJob
               ? 'Sedang menyusun…'
-              : `Susun kuis baru · ${cost} kredit`}
+              : `Susun ulang kuis sub-bab · ${cost} kredit`}
         </button>
         {!quizAffordable && (
           <p class="mt-2 text-sm tabular-nums text-tinta-lembut">

@@ -47,6 +47,7 @@ describe('QA eval rubrik (mock, tanpa biaya)', () => {
     if (!chapter) throw new Error('bab tidak ada');
     const lessonId = chapter.lessons[0]?.id;
     if (!lessonId) throw new Error('pelajaran tidak ada');
+    if (!lessonId) throw new Error('pelajaran tidak ada');
 
     const opened = await api(`/api/lessons/${lessonId}/open`, {
       method: 'POST',
@@ -77,7 +78,7 @@ describe('QA eval rubrik (mock, tanpa biaya)', () => {
       expect(content.body).toContain(`[[${source.id}]]`);
     }
 
-    const quiz = await api(`/api/chapters/${chapter.id}/quiz`, {
+    const quiz = await api(`/api/lessons/${lessonId}/quiz`, {
       method: 'POST',
       json: {},
       cookie,
