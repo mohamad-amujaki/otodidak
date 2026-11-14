@@ -1,5 +1,17 @@
 (() => {
   const format = (value) => value.toLocaleString('id-ID');
+  const CONFIRM_ABOVE = 100;
+  const CONFIRM_KEYS = [
+    'confirm',
+    'confirmDetail',
+    'confirmCost',
+    'confirmBalance',
+    'confirmCostLabel',
+    'confirmBalanceLabel',
+    'confirmEffect',
+    'confirmLabel',
+    'confirmImpact',
+  ];
 
   const init = (form) => {
     const rawBalance = form.getAttribute('data-credit-balance');
@@ -9,14 +21,7 @@
     const result = form.querySelector('[data-credit-result]');
     const preview = form.querySelector('[data-credit-preview]');
     const count = form.querySelector('[data-credit-count]');
-    const confirmBox = form.querySelector('[data-credit-confirm]');
-    const confirmText = form.querySelector('[data-credit-confirm-text]');
-    const confirmYes = form.querySelector('[data-credit-confirm-yes]');
-    const confirmNo = form.querySelector('[data-credit-confirm-no]');
     if (!(amountInput instanceof HTMLInputElement)) return;
-
-    const CONFIRM_ABOVE = 100;
-    let confirmed = false;
 
     const items = () =>
       Array.from(form.querySelectorAll('[data-bulk-item]')).filter(
@@ -59,17 +64,11 @@
       if (preview) preview.textContent = text;
     };
 
-    const closeConfirm = () => {
-      if (confirmBox) confirmBox.classList.add('hidden');
-      confirmed = false;
-    };
-
     for (const button of form.querySelectorAll('[data-credit-preset]')) {
       button.addEventListener('click', () => {
         const value = button.getAttribute('data-credit-preset');
         if (value === null) return;
         amountInput.value = value;
-        closeConfirm();
         paint();
         amountInput.focus();
       });
@@ -79,7 +78,6 @@
     if (selectAll instanceof HTMLInputElement) {
       selectAll.addEventListener('change', () => {
         for (const item of items()) item.checked = selectAll.checked;
-        closeConfirm();
         paint();
       });
     }
@@ -90,40 +88,46 @@
           selectAll.checked =
             all.length > 0 && all.every((node) => node.checked);
         }
-        closeConfirm();
         paint();
       });
     }
 
-    amountInput.addEventListener('input', () => {
-      closeConfirm();
-      paint();
-    });
+    amountInput.addEventListener('input', paint);
 
-    confirmNo?.addEventListener('click', () => {
-      closeConfirm();
-      amountInput.focus();
-    });
+    const clearConfirm = () => {
+      for (const key of CONFIRM_KEYS) delete form.dataset[key];
+    };
 
-    confirmYes?.addEventListener('click', () => {
-      confirmed = true;
-      form.requestSubmit();
-    });
-
-    form.addEventListener('submit', (event) => {
+    // Dialog konfirmasi ditangani confirm-dialog.js (Shell). Di sini kita hanya
+    // menyiapkan atribut lalu membiarkan listener global yang menahan submit.
+    form.addEventListener('submit', () => {
+      if (form.dataset.confirmBypass === '1') return;
       const amount = readAmount();
-      if (amount === null || confirmed) return;
-      if (amount > 0 && amount < CONFIRM_ABOVE) return;
-      event.preventDefault();
-      if (confirmBox && confirmText) {
-        const verb = amount > 0 ? 'Menambah' : 'Mengurangi';
-        const total = selected();
-        const scope =
-          balance === null ? ` untuk ${total} pengguna terpilih` : '';
-        confirmText.textContent = `${verb} ${format(Math.abs(amount))} kredit${scope}.`;
-        confirmBox.classList.remove('hidden');
-        if (confirmYes instanceof HTMLElement) confirmYes.focus();
+      const total = selected();
+      const bulk = balance === null;
+      const needsConfirm =
+        amount !== null && (amount < 0 || Math.abs(amount) >= CONFIRM_ABOVE);
+      if (!needsConfirm) {
+        clearConfirm();
+        return;
       }
+      form.dataset.confirm = amount > 0 ? 'Tambah kredit?' : 'Kurangi kredit?';
+      form.dataset.confirmDetail = bulk
+        ? `${total} pengguna terpilih`
+        : 'Penyesuaian saldo pengguna';
+      form.dataset.confirmCost = String(bulk ? amount * total : amount);
+      if (bulk) {
+        delete form.dataset.confirmBalance;
+      } else {
+        form.dataset.confirmBalance = String(balance);
+      }
+      form.dataset.confirmCostLabel = bulk ? 'Total' : 'Jumlah';
+      form.dataset.confirmBalanceLabel = 'Saldo';
+      form.dataset.confirmEffect = 'apply';
+      form.dataset.confirmLabel = 'Ya, terapkan';
+      form.dataset.confirmImpact = bulk
+        ? `Diterapkan ke ${total} pengguna dan tercatat di buku kredit.`
+        : 'Tercatat di buku kredit dan tidak bisa dihapus.';
     });
 
     paint();

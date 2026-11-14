@@ -27,6 +27,9 @@
   const detailEl = pick('[data-konfirmasi-detail]');
   const costWrap = pick('[data-konfirmasi-biaya]');
   const costEl = pick('[data-konfirmasi-cost]');
+  const costLabelEl = pick('[data-konfirmasi-cost-label]');
+  const balanceRow = pick('[data-konfirmasi-saldo-row]');
+  const balanceLabelEl = pick('[data-konfirmasi-saldo-label]');
   const balanceEl = pick('[data-konfirmasi-saldo]');
   const impactEl = pick('[data-konfirmasi-dampak]');
   const warnEl = pick('[data-konfirmasi-peringatan]');
@@ -54,20 +57,44 @@
     setText(detailEl, data.confirmDetail || '');
     setText(impactEl, data.confirmImpact || '');
 
+    const effect = data.confirmEffect === 'apply' ? 'apply' : 'deduct';
     const cost = Number(data.confirmCost);
-    const balance = Number(data.confirmBalance);
-    const hasCost = Number.isFinite(cost) && cost > 0;
-    if (costWrap instanceof HTMLElement) costWrap.hidden = !hasCost;
+    const hasCost = Number.isFinite(cost) && cost !== 0;
+    const rawBalance = data.confirmBalance;
+    const balance =
+      rawBalance === undefined || rawBalance === '' ? null : Number(rawBalance);
+    const hasBalance = balance !== null && Number.isFinite(balance);
+
+    setText(costLabelEl, data.confirmCostLabel || 'Biaya');
+    setText(balanceLabelEl, data.confirmBalanceLabel || 'Saldo kamu');
+    if (costWrap instanceof HTMLElement)
+      costWrap.hidden = !hasCost && !hasBalance;
+    if (balanceRow instanceof HTMLElement) balanceRow.hidden = !hasBalance;
+
     if (hasCost) {
-      setText(costEl, `${format(cost)} kredit`);
-      const hasBalance = Number.isFinite(balance);
+      const sign = cost > 0 ? '+' : '\u2212';
       setText(
-        balanceEl,
-        hasBalance ? `${format(balance)} → ${format(balance - cost)}` : '—',
+        costEl,
+        effect === 'apply'
+          ? `${sign}${format(Math.abs(cost))} kredit`
+          : `${format(Math.abs(cost))} kredit`,
       );
-      const drained = hasBalance && balance - cost <= 0;
-      setText(warnEl, drained ? 'Sisa saldo setelah ini: 0 kredit.' : '');
     } else {
+      setText(costEl, '');
+    }
+
+    if (hasBalance) {
+      if (hasCost) {
+        const next =
+          effect === 'apply' ? balance + cost : balance - Math.abs(cost);
+        setText(balanceEl, `${format(balance)} → ${format(next)}`);
+        setText(warnEl, next <= 0 ? 'Sisa saldo setelah ini: 0 kredit.' : '');
+      } else {
+        setText(balanceEl, format(balance));
+        setText(warnEl, '');
+      }
+    } else {
+      setText(balanceEl, '');
       setText(warnEl, '');
     }
 
