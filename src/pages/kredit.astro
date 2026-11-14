@@ -115,7 +115,7 @@ const kodeJumlah = Number(Astro.url.searchParams.get('jumlah') ?? 0);
   <div class="mx-auto w-full max-w-6xl space-y-8">
     <div>
       <h1 class="judul">Kredit</h1>
-      <div class="mt-4 rounded-kartu border border-garis bg-gradient-to-br from-jalur-lembut to-kartu p-5 shadow-sm min-[640px]:p-6">
+      <div class="mt-4 rounded-kartu border border-garis border-l-4 border-l-jalur bg-kartu p-5 shadow-sm sm:p-6">
         <div class="flex flex-wrap items-end justify-between gap-4">
           <div class="flex items-center gap-3">
             <div class="flex size-12 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
@@ -126,7 +126,7 @@ const kodeJumlah = Number(Astro.url.searchParams.get('jumlah') ?? 0);
             <div>
               <p class="text-sm text-tinta-lembut">Saldo kredit</p>
               <p
-                class="text-3xl font-bold tabular-nums tracking-tight text-tinta min-[768px]:text-4xl"
+                class="text-3xl font-bold tabular-nums tracking-tight text-tinta md:text-4xl"
                 data-count-up={balance}
                 aria-live="polite"
               >
@@ -154,13 +154,13 @@ const kodeJumlah = Number(Astro.url.searchParams.get('jumlah') ?? 0);
           </a>
         </div>
         <nav class="mt-4 flex flex-wrap gap-2 border-t border-garis pt-4" aria-label="Pintasan kredit">
-          <a class="rounded-kontrol border border-garis bg-kartu px-3 py-1.5 text-sm font-medium text-tinta transition-colors hover:border-jalur/40 hover:bg-kertas" href="/kredit/riwayat">
+          <a class="chip border border-garis bg-kartu text-tinta transition-colors hover:border-jalur/40 hover:bg-kertas" href="/kredit/riwayat">
             Buku besar
           </a>
-          <a class="rounded-kontrol border border-garis bg-kartu px-3 py-1.5 text-sm font-medium text-tinta transition-colors hover:border-jalur/40 hover:bg-kertas" href="/kredit/pesanan">
+          <a class="chip border border-garis bg-kartu text-tinta transition-colors hover:border-jalur/40 hover:bg-kertas" href="/kredit/pesanan">
             Pesanan
           </a>
-          <a class="rounded-kontrol border border-garis bg-kartu px-3 py-1.5 text-sm font-medium text-tinta transition-colors hover:border-jalur/40 hover:bg-kertas" href="/api/credits/ledger/export">
+          <a class="chip border border-garis bg-kartu text-tinta transition-colors hover:border-jalur/40 hover:bg-kertas" href="/api/credits/ledger/export">
             Unduh CSV
           </a>
         </nav>
@@ -173,7 +173,7 @@ const kodeJumlah = Number(Astro.url.searchParams.get('jumlah') ?? 0);
           Kredit belum cukup untuk menyusun materi. Setelah kredit masuk, kamu bisa melanjutkan dari halaman tadi.
         </p>
         <a
-          class="inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta transition-colors hover:border-jalur/40"
+          class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta transition-colors hover:border-jalur/40"
           href={kembali}
         >
           Kembali ke materi
@@ -186,18 +186,18 @@ const kodeJumlah = Number(Astro.url.searchParams.get('jumlah') ?? 0);
         <p class="min-w-0 flex-1 text-sm tabular-nums text-tinta">
           Kode berhasil ditukar. <span class="font-semibold text-jalur">+{kodeJumlah} kredit</span> sudah masuk ke saldo kamu.
         </p>
-        <a class="inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta" href="/kredit">
+        <a class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta" href="/kredit">
           Lihat saldo
         </a>
       </div>
     )}
 
-    <section class="rounded-kartu border border-garis bg-kartu p-4 shadow-sm min-[640px]:p-5">
+    <section class="rounded-kartu border border-garis bg-kartu p-4 shadow-sm sm:p-5">
       <h2 class="text-lg font-bold text-tinta">Punya kode akses?</h2>
       <p class="mt-1 text-sm text-tinta-lembut">
         Masukkan kode dari admin. Setiap kode hanya bisa ditukar sekali per akun dan langsung menambah saldo.
       </p>
-      <form class="mt-3 flex flex-col gap-2 min-[640px]:flex-row" method="post">
+      <form class="mt-3 flex flex-col gap-2 sm:flex-row" method="post">
         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
         <input type="hidden" name="aksi" value="kode" />
         <input
@@ -242,7 +242,7 @@ const kodeJumlah = Number(Astro.url.searchParams.get('jumlah') ?? 0);
 
     <section id="paket-kredit">
       <h2 class="text-xl font-bold text-tinta">Paket kredit</h2>
-      <ul class="mt-4 grid gap-4 min-[768px]:grid-cols-2 min-[1100px]:grid-cols-3">
+      <ul class="mt-4 grid gap-4 md:grid-cols-2 min-[1100px]:grid-cols-3">
         {packs.map((pack, index) => {
           const isPopular = index === 1;
           const isBestValue = index === 2;
@@ -292,7 +292,7 @@ const kodeJumlah = Number(Astro.url.searchParams.get('jumlah') ?? 0);
     </section>
 
     <div class="grid gap-6 min-[900px]:grid-cols-2 min-[900px]:gap-8">
-      <section class="rounded-kartu border border-garis bg-kartu p-4 shadow-sm min-[640px]:p-5">
+      <section class="rounded-kartu border border-garis bg-kartu p-4 shadow-sm sm:p-5">
         <div class="mb-3 flex items-baseline justify-between gap-2">
           <h2 class="text-lg font-bold text-tinta">Aktivitas terakhir</h2>
           <a class="text-sm font-medium text-jalur hover:underline" href="/kredit/riwayat">
@@ -319,7 +319,7 @@ const kodeJumlah = Number(Astro.url.searchParams.get('jumlah') ?? 0);
         )}
       </section>
 
-      <section class="rounded-kartu border border-garis bg-kartu p-4 shadow-sm min-[640px]:p-5">
+      <section class="rounded-kartu border border-garis bg-kartu p-4 shadow-sm sm:p-5">
         <div class="mb-3 flex items-baseline justify-between gap-2">
           <h2 class="text-lg font-bold text-tinta">Pesanan</h2>
           <a class="text-sm font-medium text-jalur hover:underline" href="/kredit/pesanan">

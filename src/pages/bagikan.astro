@@ -79,7 +79,7 @@ const isDead = (share: (typeof shares)[number]) =>
     </p>
   )}
 
-  <div class="mt-6 grid gap-3 min-[640px]:grid-cols-3">
+  <div class="mt-6 grid gap-3 sm:grid-cols-3">
     <div class="rounded-kartu border border-garis bg-kartu p-4">
       <p class="text-2xl font-bold tabular-nums text-tinta">{active.length}</p>
       <p class="text-sm text-tinta-lembut">Link aktif</p>
@@ -148,14 +148,14 @@ const isDead = (share: (typeof shares)[number]) =>
             <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs tabular-nums text-tinta-lembut">
               <span>Dibuka {share.views}×</span>
               <span>CTA {share.ctaClicks}×</span>
-              <a class="truncate text-jalur hover:underline" href={`/s/${share.token}`}>
+              <a class="min-w-0 truncate text-jalur hover:underline" href={`/s/${share.token}`}>
                 {url}
               </a>
             </div>
 
             <div class="mt-3 flex flex-wrap items-center gap-2">
               <button
-                class="inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta"
+                class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta"
                 type="button"
                 data-copy={url}
               >
@@ -163,7 +163,7 @@ const isDead = (share: (typeof shares)[number]) =>
               </button>
               {!dead && (
                 <a
-                  class="inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta"
+                  class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta"
                   href={whatsappHref(
                     shareMessage(
                       share.title,
@@ -180,17 +180,17 @@ const isDead = (share: (typeof shares)[number]) =>
                 </a>
               )}
               <a
-                class="inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta"
+                class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta"
                 href={`/s/${share.token}`}
               >
                 Buka
               </a>
               {!dead && (
-                <form method="post" class="ml-auto">
+                <form method="post" class="ml-auto" data-confirm="Cabut link ini? Pembaca yang sudah menerimanya tidak bisa membukanya lagi.">
                   <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                   <input type="hidden" name="aksi" value="cabut-bagikan" />
                   <input type="hidden" name="token" value={share.token} />
-                  <button class="text-xs font-medium text-bahaya hover:underline" type="submit">
+                  <button class="inline-flex min-h-11 items-center rounded-kontrol px-3 text-xs font-medium text-bahaya hover:underline" type="submit">
                     Cabut
                   </button>
                 </form>

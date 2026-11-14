@@ -201,21 +201,21 @@ const jsonLd = JSON.stringify({
   <section class="grid items-center gap-10 min-[900px]:grid-cols-[minmax(0,1fr)_22rem] min-[900px]:gap-12">
     <div>
       <p class="eyebrow">Belajar mandiri, terstruktur</p>
-      <h1 class="mt-3 text-4xl font-bold leading-tight tracking-tight text-tinta min-[768px]:text-5xl min-[1100px]:text-6xl">
+      <h1 class="mt-3 text-4xl font-bold leading-tight tracking-tight text-tinta md:text-5xl min-[1100px]:text-6xl">
         Ubah satu topik jadi jalur belajar yang utuh
       </h1>
-      <p class="mt-6 max-w-2xl text-lg leading-relaxed text-tinta-lembut min-[768px]:text-xl">
+      <p class="mt-6 max-w-2xl text-lg leading-relaxed text-tinta-lembut md:text-xl">
         Tulis apa yang ingin kamu kuasai. Otodidak menyusun roadmap-nya lebih dulu,
         lalu menulis pelajaran saat kamu membukanya.
       </p>
-      <div class="mt-8 flex flex-col items-stretch gap-3 min-[768px]:flex-row min-[768px]:items-center">
+      <div class="mt-8 flex flex-col items-stretch gap-3 md:flex-row md:items-center">
         <AuthButton
-          class="btn-jalur w-full min-[768px]:w-auto min-[768px]:px-8"
+          class="btn-jalur w-full md:w-auto md:px-8"
           label="Mulai gratis dengan Google"
           real={realAuth}
         />
         <a
-          class="inline-flex min-h-12 w-full items-center justify-center rounded-kontrol border border-garis bg-kartu px-8 text-base font-semibold text-tinta shadow-sm transition-colors hover:border-jalur/40 min-[768px]:w-auto"
+          class="inline-flex min-h-12 w-full items-center justify-center rounded-kontrol border border-garis bg-kartu px-8 text-base font-semibold text-tinta shadow-sm transition-colors hover:border-jalur/40 md:w-auto"
           href="#cara-kerja"
         >
           Lihat cara kerjanya
@@ -231,7 +231,7 @@ const jsonLd = JSON.stringify({
       </p>
     </div>
 
-    <div class="rounded-kartu border border-garis bg-kartu p-5 shadow-sm min-[768px]:p-6">
+    <div class="rounded-kartu border border-garis bg-kartu p-5 shadow-sm md:p-6">
       <p class="text-xs font-semibold uppercase tracking-wide text-tinta-lembut">Contoh jalur</p>
       <p class="mt-1 text-base font-bold text-tinta">Menanam kopi di rumah</p>
       <ol class="mt-4">
@@ -252,15 +252,15 @@ const jsonLd = JSON.stringify({
   </section>
 
   <!-- Untuk siapa -->
-  <section class="mt-16 min-[768px]:mt-20 min-[1100px]:mt-24" aria-labelledby="untuk-siapa-heading">
+  <section class="mt-16 md:mt-20 min-[1100px]:mt-24" aria-labelledby="untuk-siapa-heading">
     <p class="eyebrow text-center">Untuk siapa</p>
-    <h2 id="untuk-siapa-heading" class="mt-2 text-center text-2xl font-bold text-tinta min-[768px]:text-3xl">
+    <h2 id="untuk-siapa-heading" class="mt-2 text-center text-2xl font-bold text-tinta md:text-3xl">
       Tujuan berbeda, satu cara belajar yang runtut
     </h2>
     <p class="mx-auto mt-3 max-w-2xl text-center text-sm text-tinta-lembut">
       Mulai dari tujuanmu, bukan dari daftar materi.
     </p>
-    <ul class="mx-auto mt-10 grid max-w-5xl gap-6 min-[768px]:grid-cols-3 min-[768px]:gap-8">
+    <ul class="mx-auto mt-10 grid max-w-5xl gap-6 md:grid-cols-3 md:gap-8">
       {personas.map((persona) => (
         <li class="rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
           <p class="text-sm font-semibold text-tinta">{persona.label}, {persona.umur}</p>
@@ -275,9 +275,9 @@ const jsonLd = JSON.stringify({
   </section>
 
   <!-- Cara kerja -->
-  <section id="cara-kerja" class="mx-auto mt-16 max-w-3xl scroll-mt-24 min-[768px]:mt-20 min-[1100px]:mt-24" aria-labelledby="cara-kerja-heading">
+  <section id="cara-kerja" class="mx-auto mt-16 max-w-3xl scroll-mt-24 md:mt-20 min-[1100px]:mt-24" aria-labelledby="cara-kerja-heading">
     <p class="eyebrow text-center">Cara kerja</p>
-    <h2 id="cara-kerja-heading" class="mt-2 text-center text-2xl font-bold text-tinta min-[768px]:text-3xl">
+    <h2 id="cara-kerja-heading" class="mt-2 text-center text-2xl font-bold text-tinta md:text-3xl">
       Dari satu kalimat jadi jalur yang bisa kamu selesaikan
     </h2>
     <ol class="mt-10 grid gap-4">
@@ -296,15 +296,15 @@ const jsonLd = JSON.stringify({
   </section>
 
   <!-- Masalah -->
-  <section class="mt-16 min-[768px]:mt-20 min-[1100px]:mt-24" aria-labelledby="masalah-heading">
+  <section class="mt-16 md:mt-20 min-[1100px]:mt-24" aria-labelledby="masalah-heading">
     <p class="eyebrow text-center">Kenapa Otodidak</p>
-    <h2 id="masalah-heading" class="mt-2 text-center text-2xl font-bold text-tinta min-[768px]:text-3xl">
+    <h2 id="masalah-heading" class="mt-2 text-center text-2xl font-bold text-tinta md:text-3xl">
       Chat AI menjawab. Otodidak menyusun jalurnya.
     </h2>
     <p class="mx-auto mt-3 max-w-2xl text-center text-sm text-tinta-lembut">
       Belajar sendiri sering berhenti karena urutannya tak jelas, bukan karena materinya kurang.
     </p>
-    <ul class="mx-auto mt-10 grid max-w-5xl gap-4 min-[768px]:grid-cols-2 min-[1100px]:grid-cols-3">
+    <ul class="mx-auto mt-10 grid max-w-5xl gap-4 md:grid-cols-2 min-[1100px]:grid-cols-3">
       {masalah.map((item, index) => (
         <li class="rounded-kartu border border-garis bg-kartu p-5 shadow-sm">
           <p class="text-xs font-bold tabular-nums text-tinta-lembut">{String(index + 1).padStart(2, '0')}</p>
@@ -323,15 +323,15 @@ const jsonLd = JSON.stringify({
   </section>
 
   <!-- Prinsip -->
-  <section class="mt-16 min-[768px]:mt-20 min-[1100px]:mt-24" aria-labelledby="prinsip-heading">
+  <section class="mt-16 md:mt-20 min-[1100px]:mt-24" aria-labelledby="prinsip-heading">
     <p class="eyebrow text-center">Prinsip</p>
-    <h2 id="prinsip-heading" class="mt-2 text-center text-2xl font-bold text-tinta min-[768px]:text-3xl">
+    <h2 id="prinsip-heading" class="mt-2 text-center text-2xl font-bold text-tinta md:text-3xl">
       Dibangun untuk belajar mandiri
     </h2>
     <p class="mx-auto mt-3 max-w-2xl text-center text-sm text-tinta-lembut">
       Bukan angka pengguna atau testimoni palsu — hanya cara kerja produk yang bisa kamu cek sendiri.
     </p>
-    <ul class="mx-auto mt-10 grid max-w-3xl gap-6 min-[768px]:grid-cols-2 min-[768px]:gap-8">
+    <ul class="mx-auto mt-10 grid max-w-3xl gap-6 md:grid-cols-2 md:gap-8">
       {prinsip.map((item) => (
         <li class="rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
           <h3 class="text-lg font-semibold text-tinta">{item.judul}</h3>
@@ -342,9 +342,9 @@ const jsonLd = JSON.stringify({
   </section>
 
   <!-- FAQ -->
-  <section class="mx-auto mt-16 max-w-3xl min-[768px]:mt-20 min-[1100px]:mt-24" aria-labelledby="faq-heading">
+  <section class="mx-auto mt-16 max-w-3xl md:mt-20 min-[1100px]:mt-24" aria-labelledby="faq-heading">
     <p class="eyebrow text-center">FAQ</p>
-    <h2 id="faq-heading" class="mt-2 text-center text-2xl font-bold text-tinta min-[768px]:text-3xl">
+    <h2 id="faq-heading" class="mt-2 text-center text-2xl font-bold text-tinta md:text-3xl">
       Pertanyaan yang sering muncul
     </h2>
     <div class="mt-8 grid gap-3">
@@ -363,9 +363,9 @@ const jsonLd = JSON.stringify({
   </section>
 
   <!-- CTA penutup -->
-  <section class="mx-auto mt-16 max-w-5xl pb-24 min-[768px]:mt-20 min-[768px]:pb-0 min-[1100px]:mt-24" aria-labelledby="cta-heading">
-    <div class="rounded-kartu border border-garis bg-gradient-to-br from-jalur-lembut to-kartu p-8 text-center shadow-sm min-[768px]:p-12">
-      <h2 id="cta-heading" class="text-2xl font-bold text-tinta min-[768px]:text-3xl">
+  <section class="mx-auto mt-16 max-w-5xl md:mt-20 min-[1100px]:mt-24" aria-labelledby="cta-heading">
+    <div class="rounded-kartu border border-garis border-l-4 border-l-jalur bg-jalur-lembut/50 p-8 text-center shadow-sm md:p-12">
+      <h2 id="cta-heading" class="text-2xl font-bold text-tinta md:text-3xl">
         Ada yang ingin kamu kuasai? Beri dia sebuah jalur.
       </h2>
       <p class="mx-auto mt-4 max-w-2xl text-lg text-tinta-lembut">
@@ -383,7 +383,7 @@ const jsonLd = JSON.stringify({
   </section>
 
   <div
-    class="fixed inset-x-0 bottom-0 z-30 border-t border-garis bg-kertas/95 p-4 backdrop-blur-sm min-[768px]:hidden"
+    class="bar-aksi-bawah md:hidden"
     role="region"
     aria-label="Mulai belajar"
   >

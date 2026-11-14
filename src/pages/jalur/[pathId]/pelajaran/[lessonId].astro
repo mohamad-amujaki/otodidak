@@ -233,7 +233,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
 ---
 <Shell title={String(lesson.title ?? 'Pelajaran')} balance={typeof me.balance === 'number' ? me.balance : 0} lowCredit={lowCredit} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
   <div class="flex flex-wrap items-center gap-2">
-    <a class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta-lembut transition-colors hover:border-jalur/40 hover:text-tinta" href={`/jalur/${pathId}`} data-lesson-path>
+    <a class="inline-flex min-h-11 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta-lembut transition-colors hover:border-jalur/40 hover:text-tinta" href={`/jalur/${pathId}`} data-lesson-path>
       <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
       </svg>
@@ -244,7 +244,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
         <input type="hidden" name="aksi" value="bagikan" />
         <button
-          class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta-lembut transition-colors hover:border-jalur/40 hover:text-tinta"
+          class="inline-flex min-h-11 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta-lembut transition-colors hover:border-jalur/40 hover:text-tinta"
           type="submit"
         >
           <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -256,19 +256,19 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
     )}
     <div class="ml-auto flex items-center gap-2">
       {previousLesson ? (
-        <a class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta-lembut transition-colors hover:border-jalur/40 hover:text-tinta" href={lessonHref(previousLesson.id)} aria-keyshortcuts="ArrowLeft" title="Sebelumnya (←)" data-lesson-prev>
+        <a class="inline-flex min-h-11 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta-lembut transition-colors hover:border-jalur/40 hover:text-tinta" href={lessonHref(previousLesson.id)} aria-keyshortcuts="ArrowLeft" title="Sebelumnya (←)" data-lesson-prev>
           <span aria-hidden="true">←</span> Sebelumnya
-          <kbd class="kbd-hint hidden min-[1024px]:inline-flex">←</kbd>
+          <kbd class="kbd-hint hidden lg:inline-flex">←</kbd>
         </a>
       ) : (
-        <span class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-garis/60 px-3 text-xs font-medium text-tinta-lembut/50" aria-disabled="true">
+        <span class="inline-flex min-h-11 items-center gap-1.5 rounded-kontrol border border-garis/60 px-3 text-xs font-medium text-tinta-lembut/50" aria-disabled="true">
           <span aria-hidden="true">←</span> Sebelumnya
         </span>
       )}
       {nextLesson && (
-        <a class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol bg-jalur px-3 text-xs font-semibold text-white shadow-sm transition-all hover:brightness-110" href={lessonHref(nextLesson.id)} aria-keyshortcuts="ArrowRight" title="Berikutnya (→)" data-lesson-next>
+        <a class="inline-flex min-h-11 items-center gap-1.5 rounded-kontrol bg-jalur px-3 text-xs font-semibold text-white shadow-sm transition-all hover:brightness-110" href={lessonHref(nextLesson.id)} aria-keyshortcuts="ArrowRight" title="Berikutnya (→)" data-lesson-next>
           Berikutnya <span aria-hidden="true">→</span>
-          <kbd class="kbd-hint hidden min-[1024px]:inline-flex">→</kbd>
+          <kbd class="kbd-hint hidden lg:inline-flex">→</kbd>
         </a>
       )}
     </div>
@@ -321,7 +321,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
         {resumeAction === 'kuis' ? (
           quizHref && currentChapter ? (
             currentChapterQuiz ? (
-              <a class="inline-flex min-h-9 items-center rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white" href={quizHref}>
+              <a class="inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white" href={quizHref}>
                 Buka kuis
               </a>
             ) : (
@@ -329,7 +329,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
                 <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                 <input type="hidden" name="aksi" value="kuis" />
                 <input type="hidden" name="chapterId" value={currentChapter.id} />
-                <button class="min-h-9 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white" type="submit">
+                <button class="min-h-11 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white" type="submit">
                   Ya, buat kuis
                 </button>
               </form>
@@ -339,12 +339,12 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
           <form method="post">
             <input type="hidden" name="csrf" value={Astro.locals.csrf} />
             <input type="hidden" name="aksi" value="buka" />
-            <button class="min-h-9 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white" type="submit">
+            <button class="min-h-11 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white" type="submit">
               Ya, buat pelajaran
             </button>
           </form>
         )}
-        <a class="inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta" href={resumeDismissHref}>
+        <a class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta" href={resumeDismissHref}>
           Nanti
         </a>
       </div>
@@ -361,7 +361,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
     />
   )}
 
-  <div class:list={["mt-8", navChapters.length > 0 && "min-[1024px]:grid min-[1024px]:grid-cols-[280px_minmax(0,1fr)] min-[1024px]:items-start min-[1024px]:gap-10 min-[1280px]:grid-cols-[320px_minmax(0,1fr)] min-[1280px]:gap-12 min-[1536px]:grid-cols-[340px_minmax(0,1fr)] min-[1536px]:gap-14"]}>
+  <div class:list={["mt-8", navChapters.length > 0 && "lg:grid lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start lg:gap-10 xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-12 2xl:grid-cols-[340px_minmax(0,1fr)] 2xl:gap-14"]}>
     {navChapters.length > 0 && (
       <ChapterNav
         pathId={pathId}
@@ -384,7 +384,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
           <form method="post">
             <input type="hidden" name="csrf" value={Astro.locals.csrf} />
             <input type="hidden" name="aksi" value="buka" />
-            <button class="w-full rounded-kontrol bg-jalur px-4 text-white min-[768px]:w-auto" type="submit">Buat pelajaran</button>
+            <button class="w-full rounded-kontrol bg-jalur px-4 text-white md:w-auto" type="submit">Buat pelajaran</button>
             <p class="mt-2 text-sm leading-[1.4] text-tinta-lembut">Memakai {cost} kredit. Membaca ulang tidak mengurangi kredit.</p>
           </form>
         ) : (
@@ -412,7 +412,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
       )}
       {html && (
         <div class="min-w-0 max-w-[70ch]">
-          <div class="sticky top-[68px] z-10 mb-6 border-b border-garis bg-kertas/95 py-2 backdrop-blur-sm">
+          <div class="lengket-header z-10 mb-6 border-b border-garis bg-kertas py-2">
             <div
               id="reading-progress-wrap"
               class="h-1 w-full overflow-hidden rounded-full bg-garis"
@@ -544,7 +544,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
           <!-- Keyboard Shortcuts Hint -->
           <div class="mt-8 rounded-lg border border-garis bg-kertas p-4">
             <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-tinta-lembut">Pintasan Keyboard</p>
-            <div class="grid gap-2 text-sm min-[768px]:grid-cols-2">
+            <div class="grid gap-2 text-sm md:grid-cols-2">
               <div class="flex items-center gap-2">
                 <kbd class="kbd-hint min-h-6 min-w-6 px-2">←</kbd>
                 <span class="text-tinta-lembut">Sebelumnya</span>
@@ -573,7 +573,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
       {html && <script src="/scripts/lesson-reading.js" defer />}
     </div>
   </div>
-  <div class="fixed inset-x-0 bottom-0 z-30 border-t border-garis bg-kertas/95 p-3 backdrop-blur-sm min-[1024px]:hidden" role="region" aria-label="Navigasi pelajaran">
+  <div class="bar-aksi-bawah lg:hidden" role="region" aria-label="Navigasi pelajaran">
     <div class="flex items-center gap-2">
       {previousLesson ? (
         <a class="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta" href={lessonHref(previousLesson.id)} data-lesson-prev>
@@ -595,5 +595,5 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
       )}
     </div>
   </div>
-  <div class="h-20 min-[1024px]:hidden" aria-hidden="true"></div>
+  <div class="h-20 lg:hidden" aria-hidden="true"></div>
 </Shell>

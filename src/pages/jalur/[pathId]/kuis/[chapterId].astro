@@ -197,7 +197,7 @@ const lessonCount =
         <p class="mt-1 text-sm text-tinta-lembut">
           Pakai tombol “Susun kuis baru” di bawah untuk menyusun ulang.
         </p>
-        <a class="mt-3 inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta" href={resumeDismissHref}>
+        <a class="mt-3 inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta" href={resumeDismissHref}>
           Tutup
         </a>
       </div>
@@ -324,12 +324,20 @@ const lessonCount =
               <div class="flex items-start gap-2">
                 <span
                   class:list={[
-                    'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white',
+                    'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-white',
                     isRight ? 'bg-jalur' : 'bg-bahaya',
                   ]}
                   aria-hidden="true"
                 >
-                  {isRight ? '✓' : '✗'}
+                  {isRight ? (
+                    <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  )}
                 </span>
                 <h3 class="text-sm font-semibold leading-snug text-tinta">
                   {index + 1}. {String(item.stem ?? '')}
@@ -492,7 +500,7 @@ const lessonCount =
           );
         })}
         <div
-          class="sticky bottom-0 z-20 rounded-kontrol border-t border-garis bg-kertas/95 py-3 backdrop-blur-sm min-[1024px]:static min-[1024px]:border-0 min-[1024px]:bg-transparent min-[1024px]:py-0"
+          class="sticky bottom-0 z-20 border-t border-garis bg-kertas pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:static lg:border-0 lg:bg-transparent lg:pt-0 lg:pb-0"
           data-quiz-actions
         >
           <div class="flex flex-wrap items-center gap-2">

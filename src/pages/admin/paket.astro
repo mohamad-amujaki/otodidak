@@ -66,7 +66,7 @@ const showPreview = Astro.url.searchParams.get('pratinjau') !== '0';
     ]}
   />
 
-  <div class="mt-4 flex flex-col gap-3 min-[768px]:flex-row min-[768px]:items-end min-[768px]:justify-between">
+  <div class="mt-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
     <div>
       <h1 class="judul">Paket kredit</h1>
       <p class="mt-2 text-sm text-tinta-lembut">
@@ -84,13 +84,13 @@ const showPreview = Astro.url.searchParams.get('pratinjau') !== '0';
     </div>
     <div class="flex flex-wrap gap-2">
       <a
-        class="inline-flex min-h-10 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-jalur hover:border-jalur/40"
+        class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-jalur hover:border-jalur/40"
         href={showPreview ? '/admin/paket?pratinjau=0' : '/admin/paket'}
       >
         {showPreview ? 'Sembunyikan pratinjau' : 'Tampilkan pratinjau'}
       </a>
       <a
-        class="inline-flex min-h-10 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-jalur hover:border-jalur/40"
+        class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-jalur hover:border-jalur/40"
         href="/kredit#paket-kredit"
         target="_blank"
         rel="noopener noreferrer"
@@ -121,25 +121,25 @@ const showPreview = Astro.url.searchParams.get('pratinjau') !== '0';
           { label: 'Status' },
           { label: 'Aksi', srOnly: true },
         ]}
-        grid="min-[1024px]:grid-cols-[2rem_3.5rem_minmax(0,1fr)_5rem_7rem_6rem_4.5rem_auto] min-[1024px]:gap-2"
+        grid="lg:grid-cols-[2rem_3.5rem_minmax(0,1fr)_5rem_7rem_6rem_4.5rem_auto] lg:gap-2"
         ulAttrs={{ 'data-pack-sortable': '' }}
       >
         <Fragment slot="atas">
-          <p class="px-4 pt-3 pb-2 text-xs text-tinta-lembut min-[1024px]:hidden">
-            Tahan ikon seret untuk mengubah urutan tampil, lalu simpan tiap baris.
+          <p class="px-4 pt-3 pb-2 text-xs text-tinta-lembut lg:hidden">
+            Ubah urutan lewat kolom Urutan, lalu simpan tiap baris.
           </p>
-          <p class="hidden px-4 pt-3 pb-2 text-xs text-tinta-lembut min-[1024px]:block">
+          <p class="hidden px-4 pt-3 pb-2 text-xs text-tinta-lembut lg:block">
             Seret baris untuk mengubah urutan tampil di halaman pelajar.
           </p>
         </Fragment>
       {sorted.map((pack) => (
         <li class="px-4 py-4" data-pack-row data-pack-id={pack.id} data-was-active={pack.active ? '1' : '0'}>
-          <form class="grid gap-3 min-[1024px]:grid-cols-[2rem_3.5rem_minmax(0,1fr)_5rem_7rem_6rem_4.5rem_auto] min-[1024px]:items-center min-[1024px]:gap-2" method="post">
+          <form class="grid grid-cols-2 gap-3 lg:grid-cols-[2rem_3.5rem_minmax(0,1fr)_5rem_7rem_6rem_4.5rem_auto] lg:items-center lg:gap-2" method="post">
             <input type="hidden" name="csrf" value={Astro.locals.csrf} />
             <input type="hidden" name="aksi" value="paket" />
             <input type="hidden" name="id" value={pack.id} />
             <button
-              class="inline-flex size-10 cursor-grab items-center justify-center rounded-kontrol border border-garis bg-kertas text-tinta-lembut active:cursor-grabbing min-[1024px]:size-8"
+              class="inline-flex size-10 cursor-grab items-center justify-center rounded-kontrol border border-garis bg-kertas text-tinta-lembut active:cursor-grabbing max-lg:hidden lg:size-8"
               type="button"
               data-drag-handle
               aria-label={`Seret untuk mengurutkan ${pack.name}`}
@@ -147,55 +147,59 @@ const showPreview = Astro.url.searchParams.get('pratinjau') !== '0';
             >
               <span aria-hidden="true">⋮⋮</span>
             </button>
-            <label class="text-sm min-[1024px]:contents">
-              <span class="min-[1024px]:sr-only font-medium">Urutan</span>
+            <label class="text-sm lg:contents">
+              <span class="lg:sr-only font-medium">Urutan</span>
               <input
-                class="min-h-10 w-full rounded-kontrol border border-garis px-2 text-center tabular-nums min-[1024px]:w-full"
+                class="min-h-11 w-full rounded-kontrol border border-garis px-2 text-center tabular-nums lg:w-full"
                 name="sort"
                 type="number"
+                inputmode="numeric"
                 min="0"
                 value={String(pack.sort)}
                 aria-label={`Urutan ${pack.name}`}
               />
             </label>
-            <label class="text-sm min-[1024px]:contents">
-              <span class="min-[1024px]:sr-only font-medium">Nama</span>
+            <label class="col-span-2 text-sm lg:col-span-1 lg:contents">
+              <span class="lg:sr-only font-medium">Nama</span>
               <input
-                class="min-h-10 w-full rounded-kontrol border border-garis px-3"
+                class="min-h-11 w-full rounded-kontrol border border-garis px-3"
                 name="name"
                 value={pack.name}
                 required
                 aria-label={`Nama ${pack.id}`}
               />
-              <span class="mt-1 block font-mono text-[11px] text-tinta-lembut min-[1024px]:hidden">{pack.id}</span>
+              <span class="mt-1 block font-mono text-[11px] text-tinta-lembut lg:hidden">{pack.id}</span>
             </label>
-            <label class="text-sm min-[1024px]:contents">
-              <span class="min-[1024px]:sr-only font-medium">Kredit</span>
+            <label class="text-sm lg:contents">
+              <span class="lg:sr-only font-medium">Kredit</span>
               <input
-                class="min-h-10 w-full rounded-kontrol border border-garis px-2 tabular-nums"
+                class="min-h-11 w-full rounded-kontrol border border-garis px-2 tabular-nums"
                 name="credits"
                 type="number"
+                inputmode="numeric"
                 min="1"
                 value={String(pack.credits)}
               />
             </label>
-            <label class="text-sm min-[1024px]:contents">
-              <span class="min-[1024px]:sr-only font-medium">Harga IDR</span>
+            <label class="text-sm lg:contents">
+              <span class="lg:sr-only font-medium">Harga IDR</span>
               <input
-                class="min-h-10 w-full rounded-kontrol border border-garis px-2 tabular-nums"
+                class="min-h-11 w-full rounded-kontrol border border-garis px-2 tabular-nums"
                 name="priceIdr"
                 type="number"
+                inputmode="numeric"
                 min="1"
                 value={String(pack.priceIdr)}
               />
             </label>
             <p
-              class="text-sm font-medium tabular-nums text-tinta-lembut min-[1024px]:text-center"
+              class="text-sm font-medium tabular-nums text-tinta-lembut lg:text-center"
               data-rp-per-credit
             >
+              <span class="mr-1 text-xs uppercase tracking-wide text-tinta-lembut lg:hidden">Rp/kredit</span>
               {formatIdr(pricePerCredit(pack.priceIdr, pack.credits))}
             </p>
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="col-span-2 flex flex-wrap items-center gap-2 lg:col-span-1">
               <AdminBadge tone={pack.active ? 'success' : 'neutral'}>
                 {pack.active ? 'Aktif' : 'Nonaktif'}
               </AdminBadge>
@@ -205,7 +209,7 @@ const showPreview = Astro.url.searchParams.get('pratinjau') !== '0';
               </label>
             </div>
             <button
-              class="min-h-10 rounded-kontrol border border-garis bg-kertas px-4 text-sm font-medium hover:border-jalur/40"
+              class="col-span-2 min-h-11 w-full rounded-kontrol border border-garis bg-kertas px-4 text-sm font-medium hover:border-jalur/40 lg:col-span-1 lg:w-auto"
               type="submit"
             >
               Simpan

@@ -145,7 +145,7 @@ if (auth.superadmin) {
           <li>
             <a
               class:list={[
-                'flex min-h-10 items-center justify-between gap-2 rounded-kontrol border bg-kartu px-3 text-sm font-medium transition-colors hover:bg-kertas',
+                'flex min-h-11 items-center justify-between gap-2 rounded-kontrol border bg-kartu px-3 text-sm font-medium transition-colors hover:bg-kertas',
                 item.tone === 'danger' ? 'border-bahaya/30 text-bahaya' : 'border-hangat/30 text-hangat',
               ]}
               href={item.href}
@@ -159,7 +159,7 @@ if (auth.superadmin) {
     </section>
   )}
 
-  <div class="mt-8 grid gap-4 min-[768px]:grid-cols-2 min-[1100px]:grid-cols-3">
+  <div class="mt-8 grid grid-cols-2 gap-3 md:gap-4 min-[1100px]:grid-cols-3">
     {cards.map((card) => (
       <AdminStatCard
         label={card.label}
@@ -174,7 +174,7 @@ if (auth.superadmin) {
 
   {auth.superadmin && platformModels.length > 0 && (
     <section class="mt-8 rounded-kartu border border-garis bg-kartu p-4" aria-label="Status platform">
-      <div class="flex flex-col gap-2 min-[768px]:flex-row min-[768px]:items-center min-[768px]:justify-between">
+      <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 class="text-sm font-semibold text-tinta">Platform</h2>
           <p class="mt-1 text-sm text-tinta-lembut">
@@ -210,7 +210,7 @@ if (auth.superadmin) {
         {recentUsers.map((item) => (
           <li>
             <a
-              class="flex flex-col gap-2 px-4 py-3 text-sm hover:bg-kertas/60 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between"
+              class="flex flex-col gap-2 px-4 py-3 text-sm hover:bg-kertas/60 sm:flex-row sm:items-center sm:justify-between"
               href={`/admin/pengguna/${String(item.id)}`}
             >
               <span class="min-w-0">

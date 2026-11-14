@@ -69,7 +69,7 @@ const statusConfig = {
     bgColor: 'bg-hangat-lembut',
     borderColor: 'border-hangat',
     textColor: 'text-hangat',
-    iconBg: 'bg-hangat',
+    railColor: 'border-l-hangat',
     icon: 'clock',
   },
   paid: {
@@ -78,7 +78,7 @@ const statusConfig = {
     bgColor: 'bg-jalur-lembut',
     borderColor: 'border-jalur',
     textColor: 'text-jalur',
-    iconBg: 'bg-jalur',
+    railColor: 'border-l-jalur',
     icon: 'check',
   },
   failed: {
@@ -87,7 +87,7 @@ const statusConfig = {
     bgColor: 'bg-bahaya/10',
     borderColor: 'border-bahaya',
     textColor: 'text-bahaya',
-    iconBg: 'bg-bahaya',
+    railColor: 'border-l-bahaya',
     icon: 'x',
   },
 };
@@ -98,28 +98,22 @@ const config =
 <Shell title="Pesanan" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
   <div class="mx-auto max-w-3xl">
     <!-- Status Header -->
-    <div class={`mb-6 overflow-hidden rounded-kartu border ${config.borderColor} ${config.bgColor} shadow-sm`}>
-      <div class="p-6 min-[768px]:p-8">
-        <div class="flex flex-col items-center text-center">
-          <div class={`flex size-16 items-center justify-center rounded-kontrol ${config.iconBg} text-white shadow-lg`}>
-            {config.icon === 'clock' && (
-              <svg class="size-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            )}
-            {config.icon === 'check' && (
-              <svg class="size-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            )}
-            {config.icon === 'x' && (
-              <svg class="size-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            )}
-          </div>
-          <h1 class={`mt-4 text-2xl font-bold ${config.textColor} min-[768px]:text-3xl`}>{config.title}</h1>
-          <p class="mt-2 text-tinta-lembut">{config.description}</p>
+    <div class={`mb-6 rounded-kartu border border-garis border-l-4 bg-kartu p-5 shadow-sm md:p-6 ${config.railColor}`}>
+      <div class="flex items-start gap-3">
+        <svg class={`mt-0.5 size-5 shrink-0 ${config.textColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          {config.icon === 'clock' && (
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          )}
+          {config.icon === 'check' && (
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          )}
+          {config.icon === 'x' && (
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          )}
+        </svg>
+        <div class="min-w-0">
+          <h1 class={`text-xl font-bold ${config.textColor} md:text-2xl`}>{config.title}</h1>
+          <p class="mt-1 text-sm text-tinta-lembut">{config.description}</p>
         </div>
       </div>
     </div>
@@ -137,14 +131,14 @@ const config =
 
     <!-- Order Details Card -->
     <div class="mb-6 rounded-kartu border border-garis bg-kartu shadow-sm">
-      <div class="border-b border-garis p-4 min-[768px]:p-6">
+      <div class="border-b border-garis p-4 md:p-6">
         <h2 class="text-lg font-bold text-tinta">Detail Pesanan</h2>
       </div>
-      <div class="p-4 min-[768px]:p-6">
+      <div class="p-4 md:p-6">
         <dl class="grid gap-4">
-          <div class="flex justify-between">
+          <div class="flex flex-wrap items-baseline justify-between gap-x-3">
             <dt class="text-sm text-tinta-lembut">ID Pesanan</dt>
-            <dd class="font-mono text-sm font-medium text-tinta">{orderId}</dd>
+            <dd class="min-w-0 break-all font-mono text-sm font-medium text-tinta">{orderId}</dd>
           </div>
           <div class="flex justify-between">
             <dt class="text-sm text-tinta-lembut">Tanggal</dt>
@@ -191,30 +185,30 @@ const config =
     <!-- Payment Instructions for Pending Orders -->
     {status === 'pending' && typeof order.paymentLinkUrl === 'string' && (
       <div class="mb-6 rounded-kartu border border-garis bg-kartu shadow-sm">
-        <div class="border-b border-garis p-4 min-[768px]:p-6">
+        <div class="border-b border-garis p-4 md:p-6">
           <h2 class="text-lg font-bold text-tinta">Cara Pembayaran</h2>
         </div>
-        <div class="p-4 min-[768px]:p-6">
+        <div class="p-4 md:p-6">
           <ol class="space-y-3">
             <li class="flex gap-3">
-              <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-jalur text-xs font-bold text-white">1</span>
+              <span class="mt-0.5 shrink-0 text-xs font-semibold tabular-nums text-tinta-lembut">1</span>
               <p class="text-sm text-tinta">Klik tombol "Buka Halaman Pembayaran" di bawah</p>
             </li>
             <li class="flex gap-3">
-              <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-jalur text-xs font-bold text-white">2</span>
+              <span class="mt-0.5 shrink-0 text-xs font-semibold tabular-nums text-tinta-lembut">2</span>
               <p class="text-sm text-tinta">Scan QR Code dengan aplikasi pembayaran Anda</p>
             </li>
             <li class="flex gap-3">
-              <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-jalur text-xs font-bold text-white">3</span>
+              <span class="mt-0.5 shrink-0 text-xs font-semibold tabular-nums text-tinta-lembut">3</span>
               <p class="text-sm text-tinta">Selesaikan pembayaran di aplikasi</p>
             </li>
             <li class="flex gap-3">
-              <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-jalur text-xs font-bold text-white">4</span>
+              <span class="mt-0.5 shrink-0 text-xs font-semibold tabular-nums text-tinta-lembut">4</span>
               <p class="text-sm text-tinta">Kredit akan otomatis ditambahkan ke akun Anda</p>
             </li>
           </ol>
 
-          <div class="mt-6 rounded-kontrol border border-jalur/30 bg-jalur-lembut p-4">
+          <div class="mt-6 border-l-4 border-l-jalur bg-jalur-lembut/40 px-4 py-3">
             <div class="flex items-start gap-3">
               <svg class="size-5 shrink-0 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
@@ -227,7 +221,7 @@ const config =
           </div>
 
           <a 
-            class="mt-6 flex w-full min-h-12 items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 text-base font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:brightness-110" 
+            class="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 text-base font-semibold text-white transition-[filter] hover:brightness-110" 
             href={paymentHref}
             target={typeof order.paymentCode === 'string' ? '_self' : '_blank'}
             rel={typeof order.paymentCode === 'string' ? undefined : 'noopener noreferrer'}
@@ -247,9 +241,9 @@ const config =
 
     <!-- Success Actions -->
     {status === 'paid' && (
-      <div class="mb-6 grid gap-3 min-[768px]:grid-cols-2">
+      <div class="mb-6 grid gap-3 md:grid-cols-2">
         <a 
-          class="flex min-h-11 items-center justify-center gap-2 rounded-kontrol border border-garis bg-kartu font-medium text-tinta shadow-sm transition-all hover:shadow-md hover:border-jalur" 
+          class="flex min-h-11 items-center justify-center gap-2 rounded-kontrol border border-garis bg-kartu font-medium text-tinta transition-colors hover:border-jalur/40 hover:bg-kertas" 
           href="/kredit"
         >
           <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -258,7 +252,7 @@ const config =
           Lihat Saldo Kredit
         </a>
         <a 
-          class="flex min-h-11 items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110" 
+          class="flex min-h-11 items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white transition-[filter] hover:brightness-110" 
           href={kembali ?? '/dasbor'}
         >
           <span>{kembali ? 'Kembali ke materi' : 'Mulai Belajar'}</span>
@@ -273,7 +267,7 @@ const config =
     {status === 'failed' && (
       <div class="mb-6">
         <a 
-          class="flex w-full min-h-11 items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110" 
+          class="flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white transition-[filter] hover:brightness-110" 
           href="/kredit"
         >
           <span>Coba Lagi</span>
@@ -286,7 +280,7 @@ const config =
 
     <!-- Development Mock Payment Button -->
     {status === 'pending' && env.SUMOPOD_API_KEY === 'mock' && (
-      <div class="mb-6 rounded-kartu border border-hangat/30 bg-hangat-lembut p-4">
+      <div class="mb-6 border-l-4 border-l-hangat bg-hangat-lembut/40 px-4 py-3">
         <div class="mb-3 flex items-start gap-3">
           <svg class="size-5 shrink-0 text-hangat" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -309,14 +303,14 @@ const config =
     )}
 
     <!-- Support Section -->
-    <div class="rounded-kartu border border-garis bg-kartu p-4 shadow-sm min-[768px]:p-6">
+    <section class="border-t border-garis pt-6">
       <h3 class="font-bold text-tinta">Butuh Bantuan?</h3>
       <p class="mt-2 text-sm text-tinta-lembut">
         Jika Anda mengalami masalah dengan pembayaran atau memiliki pertanyaan, silakan hubungi tim support kami.
       </p>
-      <div class="mt-4 flex flex-col gap-2 min-[768px]:flex-row">
+      <div class="mt-4 flex flex-col gap-2 md:flex-row">
         <a 
-          class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-kontrol border border-garis bg-kartu font-medium text-tinta transition-all hover:bg-kertas" 
+          class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-kontrol border border-garis bg-kartu font-medium text-tinta transition-colors hover:bg-kertas" 
           href="/kredit"
         >
           <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -326,14 +320,14 @@ const config =
         </a>
         {kembali && (
           <a
-            class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110"
+            class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white transition-[filter] hover:brightness-110"
             href={kembali}
           >
             Kembali ke materi
           </a>
         )}
       </div>
-    </div>
+    </section>
   </div>
 
   {status === 'pending' && <meta http-equiv="refresh" content="5" />}

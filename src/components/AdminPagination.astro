@@ -29,7 +29,7 @@ function href(off: number): string {
 {(hasPrev || hasNext || total !== undefined) && (
   <nav class="mt-4 flex flex-wrap items-center justify-between gap-2 text-sm" aria-label="Paginasi">
   {hasPrev ? (
-      <a class="inline-flex min-h-10 items-center rounded-kontrol border border-garis bg-kartu px-3" href={href(prev)}>← Sebelumnya</a>
+      <a class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-3" href={href(prev)}>← Sebelumnya</a>
     ) : (
       <span class="text-tinta-lembut">← Sebelumnya</span>
     )}
@@ -41,7 +41,7 @@ function href(off: number): string {
         : `Offset ${offset}`}
     </span>
     {hasNext ? (
-      <a class="inline-flex min-h-10 items-center rounded-kontrol border border-garis bg-kartu px-3" href={href(next)}>Berikutnya →</a>
+      <a class="inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-3" href={href(next)}>Berikutnya →</a>
     ) : (
       <span class="text-tinta-lembut">Berikutnya →</span>
     )}

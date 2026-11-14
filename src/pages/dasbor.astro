@@ -93,7 +93,7 @@ const streakCount =
 const balance = typeof me.balance === 'number' ? me.balance : 0;
 ---
 <Shell title="Dasbor" sectionLabel="Dasbor" balance={balance} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
-  <div class="mb-6 flex flex-col gap-4 min-[640px]:flex-row min-[640px]:items-end min-[640px]:justify-between">
+  <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
     <div>
       <h1 class="judul">Dasbor</h1>
       <p class="mt-2 text-tinta-lembut">Selamat datang kembali, {user.name}</p>
@@ -143,7 +143,7 @@ const balance = typeof me.balance === 'number' ? me.balance : 0;
   )}
 
   {activePath && nextLesson && (
-    <article class="mb-8 rounded-kartu border border-garis border-l-4 border-l-hangat bg-kartu p-5 shadow-sm min-[768px]:p-6">
+    <article class="mb-8 rounded-kartu border border-garis border-l-4 border-l-hangat bg-kartu p-5 shadow-sm md:p-6">
       <p class="text-sm text-tinta-lembut">{String(activePath.title)}</p>
       <h2 class="mt-1 text-xl font-bold text-tinta">{String(nextLesson.title)}</h2>
       <p class="mt-2 text-sm text-tinta-lembut">
@@ -182,45 +182,45 @@ const balance = typeof me.balance === 'number' ? me.balance : 0;
   )}
 
   {totalPaths > 0 && (
-    <div class="mb-8 grid gap-4 min-[768px]:grid-cols-3">
-      <div class="flex items-center gap-4 rounded-kartu border border-garis bg-kartu p-5 shadow-sm">
+    <div class="mb-8 grid grid-cols-3 gap-2 rounded-kartu border border-garis bg-kartu p-3 shadow-sm md:gap-4 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none">
+      <div class="flex min-w-0 flex-col gap-0.5 [&>div:first-child]:hidden md:flex-row md:items-center md:gap-4 md:rounded-kartu md:border md:border-garis md:bg-kartu md:p-5 md:shadow-sm md:[&>div:first-child]:flex">
         <div class="flex size-12 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
           <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
           </svg>
         </div>
         <div>
-          <p class="text-2xl font-bold tabular-nums text-tinta">{totalPaths}</p>
-          <p class="text-sm text-tinta-lembut">Jalur di pustaka</p>
+          <p class="text-lg font-bold tabular-nums text-tinta md:text-2xl">{totalPaths}</p>
+          <p class="text-xs leading-tight text-tinta-lembut md:text-sm">Jalur di pustaka</p>
         </div>
       </div>
-      <div class="flex items-center gap-4 rounded-kartu border border-garis bg-kartu p-5 shadow-sm">
+      <div class="flex min-w-0 flex-col gap-0.5 [&>div:first-child]:hidden md:flex-row md:items-center md:gap-4 md:rounded-kartu md:border md:border-garis md:bg-kartu md:p-5 md:shadow-sm md:[&>div:first-child]:flex">
         <div class="flex size-12 shrink-0 items-center justify-center rounded-kontrol bg-jalur text-white">
           <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
         <div>
-          <p class="text-2xl font-bold tabular-nums text-tinta">{completedLessons}/{totalLessons}</p>
-          <p class="text-sm text-tinta-lembut">Pelajaran selesai</p>
+          <p class="text-lg font-bold tabular-nums text-tinta md:text-2xl">{completedLessons}/{totalLessons}</p>
+          <p class="text-xs leading-tight text-tinta-lembut md:text-sm">Pelajaran selesai</p>
         </div>
       </div>
-      <div class="flex items-center gap-4 rounded-kartu border border-garis border-jalur/20 bg-jalur-lembut/30 p-5 shadow-sm">
+      <div class="flex min-w-0 flex-col gap-0.5 [&>div:first-child]:hidden md:flex-row md:items-center md:gap-4 md:rounded-kartu md:border md:border-jalur/20 md:bg-jalur-lembut/30 md:p-5 md:shadow-sm md:[&>div:first-child]:flex">
         <div class="flex size-12 shrink-0 items-center justify-center rounded-kontrol bg-jalur text-white">
           <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
         </div>
         <div>
-          <p class="text-2xl font-bold tabular-nums text-jalur">{activePaths}</p>
-          <p class="text-sm text-tinta-lembut">Jalur aktif</p>
+          <p class="text-lg font-bold tabular-nums text-jalur md:text-2xl">{activePaths}</p>
+          <p class="text-xs leading-tight text-tinta-lembut md:text-sm">Jalur aktif</p>
         </div>
       </div>
     </div>
   )}
 
   <!-- Quick Actions -->
-  <div class="mb-6 grid gap-4 min-[768px]:grid-cols-2">
+  <div class="mb-6 grid gap-4 md:grid-cols-2">
     <a 
       class="flex items-center gap-4 rounded-kartu border border-garis bg-kartu p-4 shadow-sm transition-all hover:shadow-md hover:border-jalur/30" 
       href="/kredit"
@@ -260,7 +260,7 @@ const balance = typeof me.balance === 'number' ? me.balance : 0;
 
   <!-- New Path Form -->
   {showForm && (
-    <div class="rounded-kartu border border-garis bg-kartu p-6 shadow-sm min-[768px]:p-8">
+    <div class="rounded-kartu border border-garis bg-kartu p-6 shadow-sm md:p-8">
       <div class="mb-4 flex items-start gap-3">
         <div class="flex size-10 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
           <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -285,7 +285,7 @@ const balance = typeof me.balance === 'number' ? me.balance : 0;
           aria-describedby="topic-help"
           placeholder="Tulis topik yang ingin kamu pelajari..."
         >{topicPrefill}</textarea>
-        <div class="mt-4 flex flex-col items-start gap-3 min-[768px]:flex-row min-[768px]:items-center min-[768px]:justify-between">
+        <div class="mt-4 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
           <div class="flex items-center gap-2 text-sm text-tinta-lembut">
             <svg class="size-5 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -293,7 +293,7 @@ const balance = typeof me.balance === 'number' ? me.balance : 0;
             <span>Memakai <strong class="font-semibold text-tinta">{cost} kredit</strong></span>
           </div>
           <button 
-            class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed min-[768px]:w-auto" 
+            class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed md:w-auto" 
             type="submit" 
             disabled={Boolean(activeJob)}
           >

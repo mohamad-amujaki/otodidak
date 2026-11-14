@@ -44,9 +44,14 @@ const groupKeys = Object.keys(
     <input type="hidden" name="csrf" value={Astro.locals.csrf} />
     <input type="hidden" name="aksi" value="konfigurasi" />
     {groupKeys.map((group) => (
-      <section class="rounded-kartu border border-garis bg-kartu p-5 shadow-sm">
-        <h2 class="text-lg font-semibold text-tinta">{configGroupTitles[group]}</h2>
-        <div class="mt-4 grid gap-4">
+      <details open class="daftar rounded-kartu border border-garis bg-kartu shadow-sm">
+        <summary class="px-5 py-3.5">
+          <h2 class="text-lg font-semibold text-tinta">{configGroupTitles[group]}</h2>
+          <svg class="size-4 shrink-0 text-tinta-lembut" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </summary>
+        <div class="grid gap-4 border-t border-garis px-5 pt-4 pb-5">
           {configFieldGroups[group].map((field) => (
             <label class="block text-sm">
               <span class="font-medium">{configFieldLabels[field]}</span>
@@ -54,18 +59,19 @@ const groupKeys = Object.keys(
                 <span class="mt-0.5 block text-xs text-tinta-lembut">{configFieldHints[field]}</span>
               )}
               <input
-                class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-3"
+                class="mt-2 min-h-11 w-full rounded-kontrol border border-garis px-3 tabular-nums"
                 name={field}
                 type="number"
+                inputmode="numeric"
                 value={String(config[field] ?? '')}
               />
             </label>
           ))}
         </div>
-      </section>
+      </details>
     ))}
-    <div class="min-[900px]:col-span-2">
-      <button class="min-h-11 rounded-kontrol bg-jalur px-6 text-sm font-semibold text-white" type="submit">
+    <div class="sticky bottom-0 z-20 -mx-4 border-t border-garis bg-kertas px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] min-[900px]:static min-[900px]:col-span-2 min-[900px]:mx-0 min-[900px]:border-0 min-[900px]:bg-transparent min-[900px]:p-0">
+      <button class="min-h-11 w-full rounded-kontrol bg-jalur px-6 text-sm font-semibold text-white min-[900px]:w-auto" type="submit">
         Simpan konfigurasi
       </button>
     </div>

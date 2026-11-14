@@ -354,7 +354,7 @@ function actionFrom(form: FormData): OutlineAction {
 
 <Shell title={String(detail.title ?? 'Jalur')} balance={typeof me.balance === 'number' ? me.balance : 0} lowCredit={lowCredit} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
   <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-sm text-tinta-lembut">
-    <a class="inline-flex min-h-8 items-center transition-colors hover:text-jalur" href="/pustaka">Pustaka</a>
+    <a class="inline-flex min-h-11 items-center transition-colors hover:text-jalur" href="/pustaka">Pustaka</a>
     <svg class="size-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
     </svg>
@@ -496,7 +496,7 @@ function actionFrom(form: FormData): OutlineAction {
       <p class="mt-1 text-sm text-tinta-lembut">
         Pilih bab yang ingin kamu susun, lalu klik tombolnya lagi.
       </p>
-      <a class="mt-3 inline-flex min-h-9 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta" href={resumeDismissHref}>
+      <a class="mt-3 inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta" href={resumeDismissHref}>
         Tutup
       </a>
     </div>
@@ -605,7 +605,7 @@ function actionFrom(form: FormData): OutlineAction {
                         <li id={`pelajaran-${lesson.id}`} class="scroll-mt-24">
                           <a
                             class:list={[
-                              "group flex min-h-14 items-center gap-3 px-4 py-3 transition-colors hover:bg-kertas min-[640px]:px-5",
+                              "group flex min-h-14 items-center gap-3 px-4 py-3 transition-colors hover:bg-kertas sm:px-5",
                               isNext && "bg-jalur-lembut/50",
                             ]}
                             href={`/jalur/${pathId}/pelajaran/${lesson.id}`}
@@ -637,8 +637,8 @@ function actionFrom(form: FormData): OutlineAction {
                                 <span class="mt-0.5 block text-xs text-tinta-lembut">Menyusun pelajaran…</span>
                               )}
                             </span>
-                            <span class="shrink-0 text-[11px] tabular-nums text-tinta-lembut min-[640px]:text-xs">±{minutes} mnt</span>
-                            <svg class="hidden size-4 shrink-0 text-garis transition-transform group-hover:translate-x-0.5 group-hover:text-jalur min-[640px]:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <span class="shrink-0 text-[11px] tabular-nums text-tinta-lembut sm:text-xs">±{minutes} mnt</span>
+                            <svg class="hidden size-4 shrink-0 text-garis transition-transform group-hover:translate-x-0.5 group-hover:text-jalur sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                             </svg>
                           </a>
@@ -665,7 +665,7 @@ function actionFrom(form: FormData): OutlineAction {
                       )}
                     </div>
                     {chapter.quiz ? (
-                      <a class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol px-2 text-sm font-medium text-jalur transition-colors hover:bg-jalur-lembut" href={`/jalur/${pathId}/kuis/${chapter.id}`}>
+                      <a class="inline-flex min-h-11 items-center gap-1.5 rounded-kontrol px-2 text-sm font-medium text-jalur transition-colors hover:bg-jalur-lembut" href={`/jalur/${pathId}/kuis/${chapter.id}`}>
                         Kerjakan kuis
                         <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -684,7 +684,7 @@ function actionFrom(form: FormData): OutlineAction {
                         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                         <input type="hidden" name="aksi" value="kuis" />
                         <input type="hidden" name="chapterId" value={chapter.id} />
-                        <button class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta transition-colors hover:bg-kertas disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={Boolean(activeJob)}>
+                        <button class="inline-flex min-h-11 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta transition-colors hover:bg-kertas disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={Boolean(activeJob)}>
                           <svg class="size-4 text-tinta-lembut" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                           </svg>
@@ -692,7 +692,7 @@ function actionFrom(form: FormData): OutlineAction {
                         </button>
                       </form>
                     ) : (
-                      <a class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-hangat/40 bg-hangat-lembut px-3 text-sm font-medium text-hangat transition-colors hover:border-hangat/60" href={quizTopUpHref}>
+                      <a class="inline-flex min-h-11 items-center gap-1.5 rounded-kontrol border border-hangat/40 bg-hangat-lembut px-3 text-sm font-medium text-hangat transition-colors hover:border-hangat/60" href={quizTopUpHref}>
                         Kredit tidak cukup
                       </a>
                     )}
@@ -727,19 +727,19 @@ function actionFrom(form: FormData): OutlineAction {
 
   <dialog id="tinjau-sheet" class="tinjau" aria-labelledby="tinjau-judul" data-open={reopenReview && isReady ? 'true' : undefined}>
     <div class="flex max-h-[95dvh] w-[min(100vw-1rem,52rem)] flex-col overflow-hidden rounded-kartu border border-garis bg-kartu shadow-2xl">
-      <header class="shrink-0 border-b border-garis px-5 py-4 min-[640px]:px-6 min-[640px]:py-5">
+      <header class="shrink-0 border-b border-garis px-5 py-4 sm:px-6 sm:py-5">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
             <p class="eyebrow">Tinjau jalurmu</p>
-            <h2 id="tinjau-judul" class="mt-1 text-lg font-bold leading-tight text-tinta min-[640px]:text-xl">{detail.title}</h2>
-            <p class="line-clamp-3 mt-2 max-w-[60ch] text-sm leading-[1.55] text-tinta-lembut min-[640px]:line-clamp-none">{detail.topic}</p>
-            <p class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-tinta-lembut min-[640px]:mt-3">
+            <h2 id="tinjau-judul" class="mt-1 text-lg font-bold leading-tight text-tinta sm:text-xl">{detail.title}</h2>
+            <p class="line-clamp-3 mt-2 max-w-[60ch] text-sm leading-[1.55] text-tinta-lembut sm:line-clamp-none">{detail.topic}</p>
+            <p class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-tinta-lembut sm:mt-3">
               <span>{chapterViews.length} bab</span>
               <span>{lessonCount} pelajaran</span>
               <span>±{totalMinutes} mnt</span>
             </p>
           </div>
-          <button class="flex size-9 shrink-0 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta" type="button" data-close-tinjau aria-label="Tutup tinjauan">
+          <button class="flex size-11 shrink-0 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta" type="button" data-close-tinjau aria-label="Tutup tinjauan">
             <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -747,7 +747,7 @@ function actionFrom(form: FormData): OutlineAction {
         </div>
       </header>
 
-      <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 min-[640px]:px-6 min-[640px]:py-5" data-tinjau-scroll>
+      <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5" data-tinjau-scroll>
         {message && reopenReview && (
           <div class="mb-4 rounded-kontrol border border-bahaya/30 bg-bahaya/10 p-3 text-sm text-bahaya">{message}</div>
         )}
@@ -769,30 +769,30 @@ function actionFrom(form: FormData): OutlineAction {
           <h3 class="text-[11px] font-bold uppercase tracking-[0.08em] text-tinta-lembut">Urutan yang diusulkan</h3>
           <p class="mt-1 text-sm text-tinta-lembut">Sunting apa pun sebelum kursus dibuat. Ganti nama, tambah, hapus, atau ubah urutan — lalu simpan tiap bagian.</p>
 
-          <div class="mt-4 space-y-4">
+          <div class="mt-4 divide-y divide-garis">
             {chapterViews.map((chapter, chapterIndex) => (
-              <div class="rounded-xl border border-garis bg-kertas/50 p-4">
+              <div class="py-4">
                 <div class="flex flex-wrap items-start gap-2">
                   <span class="mt-1 flex size-7 shrink-0 items-center justify-center rounded-lg bg-jalur-lembut text-xs font-bold text-jalur">{chapterIndex + 1}</span>
-                  <form class="order-3 w-full min-w-0 min-[640px]:order-none min-[640px]:w-auto min-[640px]:flex-1" method="post">
+                  <form class="order-3 w-full min-w-0 sm:order-none sm:w-auto sm:flex-1" method="post">
                     <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                     <input type="hidden" name="tinjau" value="1" />
                     <input type="hidden" name="aksi" value="bab" />
                     <input type="hidden" name="chapterId" value={chapter.id} />
                     <label class="sr-only" for={`tinjau-bab-${chapter.id}`}>Judul bab</label>
                     <div class="flex flex-wrap items-center gap-2">
-                      <input class="min-h-10 min-w-0 flex-1 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-semibold" id={`tinjau-bab-${chapter.id}`} name="title" value={chapter.title} />
-                      <button class="min-h-10 shrink-0 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium transition-colors hover:bg-kertas" type="submit">Simpan</button>
+                      <input class="min-h-11 min-w-0 flex-1 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-semibold" id={`tinjau-bab-${chapter.id}`} name="title" value={chapter.title} />
+                      <button class="min-h-11 shrink-0 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium transition-colors hover:bg-kertas" type="submit">Simpan</button>
                     </div>
                   </form>
-                  <div class="order-2 ml-auto flex shrink-0 items-center gap-1 min-[640px]:order-none min-[640px]:ml-0">
+                  <div class="order-2 ml-auto flex shrink-0 items-center gap-1 sm:order-none sm:ml-0">
                     <form method="post">
                       <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                       <input type="hidden" name="tinjau" value="1" />
                       <input type="hidden" name="aksi" value="geser-bab" />
                       <input type="hidden" name="arah" value="naik" />
                       <input type="hidden" name="chapterId" value={chapter.id} />
-                      <button class="flex size-9 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-kartu hover:text-tinta disabled:opacity-30" type="submit" aria-label={`Naikkan bab ${chapter.title}`} disabled={chapterIndex === 0}>
+                      <button class="flex size-11 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-kartu hover:text-tinta disabled:opacity-30" type="submit" aria-label={`Naikkan bab ${chapter.title}`} disabled={chapterIndex === 0}>
                         <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
                         </svg>
@@ -804,7 +804,7 @@ function actionFrom(form: FormData): OutlineAction {
                       <input type="hidden" name="aksi" value="geser-bab" />
                       <input type="hidden" name="arah" value="turun" />
                       <input type="hidden" name="chapterId" value={chapter.id} />
-                      <button class="flex size-9 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-kartu hover:text-tinta disabled:opacity-30" type="submit" aria-label={`Turunkan bab ${chapter.title}`} disabled={chapterIndex === chapterViews.length - 1}>
+                      <button class="flex size-11 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-kartu hover:text-tinta disabled:opacity-30" type="submit" aria-label={`Turunkan bab ${chapter.title}`} disabled={chapterIndex === chapterViews.length - 1}>
                         <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                         </svg>
@@ -823,7 +823,7 @@ function actionFrom(form: FormData): OutlineAction {
                       <input type="hidden" name="aksi" value="hapus-bab" />
                       <input type="hidden" name="konfirmasi" value="ya" />
                       <input type="hidden" name="chapterId" value={chapter.id} />
-                      <button class="flex size-9 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-bahaya/10 hover:text-bahaya disabled:opacity-30" type="submit" aria-label={`Hapus bab ${chapter.title}`} disabled={chapterViews.length <= 1}>
+                      <button class="flex size-11 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-bahaya/10 hover:text-bahaya disabled:opacity-30" type="submit" aria-label={`Hapus bab ${chapter.title}`} disabled={chapterViews.length <= 1}>
                         <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -833,7 +833,7 @@ function actionFrom(form: FormData): OutlineAction {
                 </div>
 
                 <details class="group mt-2 pl-9">
-                  <summary class="inline-flex min-h-8 cursor-pointer items-center gap-1 text-xs font-medium text-tinta-lembut hover:text-jalur">
+                  <summary class="inline-flex min-h-11 cursor-pointer items-center gap-1 text-xs font-medium text-tinta-lembut hover:text-jalur">
                     Ringkasan bab
                     <svg class="size-3.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -846,20 +846,20 @@ function actionFrom(form: FormData): OutlineAction {
                     <input type="hidden" name="chapterId" value={chapter.id} />
                     <label class="sr-only" for={`tinjau-ringkas-${chapter.id}`}>Ringkasan bab</label>
                     <textarea class="min-h-20 rounded-kontrol border border-garis bg-kartu px-3 py-2 text-sm" id={`tinjau-ringkas-${chapter.id}`} name="summary">{chapter.summary}</textarea>
-                    <button class="min-h-9 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium transition-colors hover:bg-kertas" type="submit">Simpan ringkasan</button>
+                    <button class="min-h-11 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium transition-colors hover:bg-kertas" type="submit">Simpan ringkasan</button>
                   </form>
                 </details>
 
                 <div class="mt-3 space-y-2 pl-9">
                   {chapter.lessons.map((lesson, lessonIndex) => (
                     <div class="rounded-kontrol border border-garis bg-kartu">
-                      <div class="flex flex-wrap items-center gap-1 p-1.5 min-[640px]:flex-nowrap">
+                      <div class="flex flex-wrap items-center gap-1 p-1.5 sm:flex-nowrap">
                         <span class="order-1 flex size-7 shrink-0 items-center justify-center rounded-md bg-kertas text-xs font-medium text-tinta-lembut">{alphaLabel(lessonIndex)}</span>
-                        <details class="group order-3 w-full min-w-0 min-[640px]:order-2 min-[640px]:w-auto min-[640px]:flex-1">
-                          <summary class="flex min-h-9 cursor-pointer items-center gap-2 rounded-kontrol px-2 transition-colors hover:bg-kertas">
+                        <details class="group order-3 w-full min-w-0 sm:order-2 sm:w-auto sm:flex-1">
+                          <summary class="flex min-h-11 cursor-pointer items-center gap-2 rounded-kontrol px-2 transition-colors hover:bg-kertas">
                             <span class="line-clamp-2 min-w-0 flex-1 text-sm font-medium leading-snug text-tinta">{lesson.title}</span>
-                            <span class="hidden shrink-0 text-xs tabular-nums text-tinta-lembut min-[640px]:inline">±{minutes} mnt</span>
-                            <svg class="size-4 shrink-0 text-tinta-lembut transition-transform group-open:rotate-180 min-[640px]:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <span class="hidden shrink-0 text-xs tabular-nums text-tinta-lembut sm:inline">±{minutes} mnt</span>
+                            <svg class="size-4 shrink-0 text-tinta-lembut transition-transform group-open:rotate-180 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                             </svg>
                           </summary>
@@ -869,20 +869,20 @@ function actionFrom(form: FormData): OutlineAction {
                             <input type="hidden" name="aksi" value="pelajaran" />
                             <input type="hidden" name="lessonId" value={lesson.id} />
                             <label class="block text-xs font-medium text-tinta-lembut" for={`tinjau-judul-${lesson.id}`}>Judul pelajaran</label>
-                            <input class="min-h-10 rounded-kontrol border border-garis bg-kartu px-3 text-sm" id={`tinjau-judul-${lesson.id}`} name="title" value={lesson.title} />
+                            <input class="min-h-11 rounded-kontrol border border-garis bg-kartu px-3 text-sm" id={`tinjau-judul-${lesson.id}`} name="title" value={lesson.title} />
                             <label class="block text-xs font-medium text-tinta-lembut" for={`tinjau-tujuan-${lesson.id}`}>Tujuan</label>
-                            <input class="min-h-10 rounded-kontrol border border-garis bg-kartu px-3 text-sm" id={`tinjau-tujuan-${lesson.id}`} name="objective" value={lesson.objective} />
-                            <button class="min-h-9 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium transition-colors hover:bg-kertas" type="submit">Simpan pelajaran</button>
+                            <input class="min-h-11 rounded-kontrol border border-garis bg-kartu px-3 text-sm" id={`tinjau-tujuan-${lesson.id}`} name="objective" value={lesson.objective} />
+                            <button class="min-h-11 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium transition-colors hover:bg-kertas" type="submit">Simpan pelajaran</button>
                           </form>
                         </details>
-                        <div class="order-2 ml-auto flex shrink-0 items-center gap-0.5 min-[640px]:order-3 min-[640px]:ml-0">
+                        <div class="order-2 ml-auto flex shrink-0 items-center gap-0.5 sm:order-3 sm:ml-0">
                         <form method="post">
                           <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                           <input type="hidden" name="tinjau" value="1" />
                           <input type="hidden" name="aksi" value="geser-pelajaran" />
                           <input type="hidden" name="arah" value="naik" />
                           <input type="hidden" name="lessonId" value={lesson.id} />
-                          <button class="flex size-8 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta disabled:opacity-30" type="submit" aria-label={`Naikkan pelajaran ${lesson.title}`} disabled={lessonIndex === 0}>
+                          <button class="flex size-11 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta disabled:opacity-30" type="submit" aria-label={`Naikkan pelajaran ${lesson.title}`} disabled={lessonIndex === 0}>
                             <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
                             </svg>
@@ -894,7 +894,7 @@ function actionFrom(form: FormData): OutlineAction {
                           <input type="hidden" name="aksi" value="geser-pelajaran" />
                           <input type="hidden" name="arah" value="turun" />
                           <input type="hidden" name="lessonId" value={lesson.id} />
-                          <button class="flex size-8 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta disabled:opacity-30" type="submit" aria-label={`Turunkan pelajaran ${lesson.title}`} disabled={lessonIndex === chapter.lessons.length - 1}>
+                          <button class="flex size-11 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-kertas hover:text-tinta disabled:opacity-30" type="submit" aria-label={`Turunkan pelajaran ${lesson.title}`} disabled={lessonIndex === chapter.lessons.length - 1}>
                             <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                             </svg>
@@ -913,7 +913,7 @@ function actionFrom(form: FormData): OutlineAction {
                           <input type="hidden" name="aksi" value="hapus-pelajaran" />
                           <input type="hidden" name="konfirmasi" value="ya" />
                           <input type="hidden" name="lessonId" value={lesson.id} />
-                          <button class="flex size-8 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-bahaya/10 hover:text-bahaya disabled:opacity-30" type="submit" aria-label={`Hapus pelajaran ${lesson.title}`} disabled={chapter.lessons.length <= 1}>
+                          <button class="flex size-11 items-center justify-center rounded-kontrol text-tinta-lembut transition-colors hover:bg-bahaya/10 hover:text-bahaya disabled:opacity-30" type="submit" aria-label={`Hapus pelajaran ${lesson.title}`} disabled={chapter.lessons.length <= 1}>
                             <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -931,7 +931,7 @@ function actionFrom(form: FormData): OutlineAction {
                     <input type="hidden" name="tinjau" value="1" />
                     <input type="hidden" name="aksi" value="tambah" />
                     <input type="hidden" name="chapterId" value={chapter.id} />
-                    <button class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-dashed border-garis bg-kartu px-3 text-sm font-medium text-tinta-lembut transition-colors hover:border-jalur/40 hover:text-jalur disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={chapter.lessons.length >= maxLessonsPerChapter || Boolean(activeJob)}>
+                    <button class="inline-flex min-h-11 items-center gap-1.5 rounded-kontrol border border-dashed border-garis bg-kartu px-3 text-sm font-medium text-tinta-lembut transition-colors hover:border-jalur/40 hover:text-jalur disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={chapter.lessons.length >= maxLessonsPerChapter || Boolean(activeJob)}>
                       <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                       </svg>
@@ -951,7 +951,7 @@ function actionFrom(form: FormData): OutlineAction {
                     <input type="hidden" name="tinjau" value="1" />
                     <input type="hidden" name="aksi" value="tambah-ai" />
                     <input type="hidden" name="chapterId" value={chapter.id} />
-                    <button class="inline-flex min-h-9 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta transition-colors hover:border-jalur/30 hover:bg-jalur-lembut/40 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={chapter.lessons.length >= maxLessonsPerChapter || Boolean(activeJob) || !lessonAffordable}>
+                    <button class="inline-flex min-h-11 items-center gap-1.5 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium text-tinta transition-colors hover:border-jalur/30 hover:bg-jalur-lembut/40 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={chapter.lessons.length >= maxLessonsPerChapter || Boolean(activeJob) || !lessonAffordable}>
                       <svg class="size-4 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                       </svg>
@@ -983,15 +983,15 @@ function actionFrom(form: FormData): OutlineAction {
               <input type="hidden" name="aksi" value="judul" />
               <label class="sr-only" for="tinjau-judul-jalur">Judul jalur</label>
               <div class="flex flex-wrap items-center gap-2">
-                <input class="min-h-10 min-w-0 flex-1 rounded-kontrol border border-garis bg-kartu px-3 text-sm" id="tinjau-judul-jalur" name="title" value={String(detail.title ?? '')} />
-                <button class="min-h-10 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium transition-colors hover:bg-kertas" type="submit">Simpan judul</button>
+                <input class="min-h-11 min-w-0 flex-1 rounded-kontrol border border-garis bg-kartu px-3 text-sm" id="tinjau-judul-jalur" name="title" value={String(detail.title ?? '')} />
+                <button class="min-h-11 rounded-kontrol border border-garis bg-kartu px-3 text-sm font-medium transition-colors hover:bg-kertas" type="submit">Simpan judul</button>
               </div>
             </form>
           </section>
         )}
       </div>
 
-      <footer class="flex shrink-0 flex-col gap-3 border-t border-garis bg-kartu px-5 py-3 min-[640px]:px-6 min-[640px]:py-4">
+      <footer class="flex shrink-0 flex-col gap-3 border-t border-garis bg-kartu px-5 py-3 sm:px-6 sm:py-4">
         {isReady && !isActive && (
           <label class="flex cursor-pointer items-start gap-2 text-sm text-tinta">
             <input class="mt-1 size-4 rounded border-garis text-jalur" type="checkbox" id="konfirmasi-tinjau" />
@@ -999,17 +999,17 @@ function actionFrom(form: FormData): OutlineAction {
           </label>
         )}
         <div class="flex flex-wrap items-center justify-end gap-2">
-          <p class="mr-auto hidden text-xs text-tinta-lembut min-[640px]:block">Perubahan langsung diterapkan ke jalur ini.</p>
-          <button class="min-h-10 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:bg-kertas" type="button" data-close-tinjau>Nanti dulu</button>
+          <p class="mr-auto hidden text-xs text-tinta-lembut sm:block">Perubahan langsung diterapkan ke jalur ini.</p>
+          <button class="min-h-11 rounded-kontrol border border-garis bg-kartu px-4 text-sm font-medium text-tinta transition-colors hover:bg-kertas" type="button" data-close-tinjau>Nanti dulu</button>
           {isReady && !isActive && (
-            <form class="w-full min-[640px]:w-auto" method="post" id="setujui-jalur-form">
+            <form class="w-full sm:w-auto" method="post" id="setujui-jalur-form">
               <input type="hidden" name="csrf" value={Astro.locals.csrf} />
               <input type="hidden" name="aksi" value="aktif" />
-              <button class="min-h-10 w-full rounded-kontrol bg-tinta px-4 text-sm font-semibold text-white transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40" type="submit" id="setujui-jalur-btn" disabled>Setujui & buat</button>
+              <button class="min-h-11 w-full rounded-kontrol bg-tinta px-4 text-sm font-semibold text-white transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40" type="submit" id="setujui-jalur-btn" disabled>Setujui & buat</button>
             </form>
           )}
           {isReady && isActive && (
-            <button class="min-h-10 rounded-kontrol bg-tinta px-4 text-sm font-semibold text-white transition-all hover:brightness-110" type="button" data-close-tinjau>Selesai meninjau</button>
+            <button class="min-h-11 rounded-kontrol bg-tinta px-4 text-sm font-semibold text-white transition-all hover:brightness-110" type="button" data-close-tinjau>Selesai meninjau</button>
           )}
         </div>
       </footer>

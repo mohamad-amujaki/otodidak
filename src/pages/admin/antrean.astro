@@ -67,7 +67,7 @@ function jobStatusTone(status: string) {
   <nav class="mt-4 flex flex-wrap gap-2" aria-label="Filter cepat">
     <a
       class:list={[
-        'inline-flex min-h-9 items-center rounded-kontrol px-3 text-sm font-medium',
+        'inline-flex min-h-11 items-center rounded-kontrol px-3 text-sm font-medium',
         !jobStatus && !jobKind ? 'bg-jalur-lembut text-jalur' : 'border border-garis text-tinta-lembut hover:bg-kartu',
       ]}
       href="/admin/antrean"
@@ -76,7 +76,7 @@ function jobStatusTone(status: string) {
     </a>
     <a
       class:list={[
-        'inline-flex min-h-9 items-center gap-1.5 rounded-kontrol px-3 text-sm font-medium',
+        'inline-flex min-h-11 items-center gap-1.5 rounded-kontrol px-3 text-sm font-medium',
         jobStatus === 'failed' ? 'border border-bahaya/40 bg-bahaya/10 text-bahaya' : 'border border-garis text-tinta hover:bg-kartu',
       ]}
       href="/admin/antrean?jobStatus=failed"
@@ -88,7 +88,7 @@ function jobStatusTone(status: string) {
     </a>
     <a
       class:list={[
-        'inline-flex min-h-9 items-center rounded-kontrol px-3 text-sm font-medium',
+        'inline-flex min-h-11 items-center rounded-kontrol px-3 text-sm font-medium',
         jobStatus === 'queued' ? 'bg-hangat-lembut text-hangat' : 'border border-garis text-tinta-lembut hover:bg-kartu',
       ]}
       href="/admin/antrean?jobStatus=queued"
@@ -97,7 +97,7 @@ function jobStatusTone(status: string) {
     </a>
     <a
       class:list={[
-        'inline-flex min-h-9 items-center rounded-kontrol px-3 text-sm font-medium',
+        'inline-flex min-h-11 items-center rounded-kontrol px-3 text-sm font-medium',
         jobStatus === 'running' ? 'bg-hangat-lembut text-hangat' : 'border border-garis text-tinta-lembut hover:bg-kartu',
       ]}
       href="/admin/antrean?jobStatus=running"
@@ -109,7 +109,7 @@ function jobStatusTone(status: string) {
   <form method="get" class="mt-6 flex flex-wrap items-end gap-2">
     <label class="text-sm">
       <span class="font-medium">Status</span>
-      <select class="mt-1 min-h-10 rounded-kontrol border border-garis bg-kartu px-2" name="jobStatus">
+      <select class="mt-1 min-h-11 rounded-kontrol border border-garis bg-kartu px-2" name="jobStatus">
         <option value="">Semua</option>
         {Object.entries(jobStatusLabels).map(([value, label]) => (
           <option value={value} selected={jobStatus === value}>{label}</option>
@@ -118,14 +118,14 @@ function jobStatusTone(status: string) {
     </label>
     <label class="text-sm">
       <span class="font-medium">Jenis</span>
-      <select class="mt-1 min-h-10 rounded-kontrol border border-garis bg-kartu px-2" name="jobKind">
+      <select class="mt-1 min-h-11 rounded-kontrol border border-garis bg-kartu px-2" name="jobKind">
         <option value="">Semua</option>
         {Object.entries(jobKindLabels).map(([value, label]) => (
           <option value={value} selected={jobKind === value}>{label}</option>
         ))}
       </select>
     </label>
-    <button class="min-h-10 rounded-kontrol border border-garis bg-kartu px-4 text-sm" type="submit">Terapkan</button>
+    <button class="min-h-11 rounded-kontrol border border-garis bg-kartu px-4 text-sm" type="submit">Terapkan</button>
   </form>
 
   {jobs.length === 0 ? (
@@ -139,26 +139,48 @@ function jobStatusTone(status: string) {
         { label: 'Pengguna' },
         { label: 'Percobaan' },
         { label: 'Waktu' },
+        { label: 'Aksi', srOnly: true },
       ]}
-      grid="min-[1024px]:grid-cols-[5.5rem_5.5rem_minmax(0,1fr)_5rem_8rem] min-[1024px]:gap-4"
+      grid="grid-cols-2 gap-x-4 gap-y-2 lg:grid-cols-[5.5rem_5.5rem_minmax(0,1fr)_5rem_8rem_auto] lg:gap-4"
     >
       {jobs.map((job) => {
         const status = String(job.status);
         return (
           <AdminRow
-            grid="min-[1024px]:grid-cols-[5.5rem_5.5rem_minmax(0,1fr)_5rem_8rem] min-[1024px]:gap-4"
+            grid="grid-cols-2 gap-x-4 gap-y-2 lg:grid-cols-[5.5rem_5.5rem_minmax(0,1fr)_5rem_8rem_auto] lg:gap-4"
             danger={status === 'failed'}
           >
-            <AdminBadge tone={jobStatusTone(status)}>{jobStatusLabels[status] ?? status}</AdminBadge>
+            <div class="justify-self-start">
+              <AdminBadge tone={jobStatusTone(status)}>{jobStatusLabels[status] ?? status}</AdminBadge>
+            </div>
             <span class="text-tinta-lembut">{jobKindLabels[String(job.kind)] ?? job.kind}</span>
-            <div class="min-w-0">
-              <a class="font-medium text-jalur hover:underline" href={`/admin/pengguna/${String(job.userId)}`}>
+            <div class="col-span-2 min-w-0 lg:col-span-1">
+              <a class="break-all font-medium text-jalur hover:underline" href={`/admin/pengguna/${String(job.userId)}`}>
                 {job.userEmail}
               </a>
               {job.errorCode && <p class="text-xs text-bahaya">{job.errorCode}</p>}
             </div>
-            <span class="tabular-nums text-tinta-lembut">{job.attempts}×</span>
-            <span class="text-xs text-tinta-lembut">{formatWhenShort(String(job.createdAt ?? ''))}</span>
+            <span class="text-tinta-lembut">
+              <span class="mr-1 text-xs uppercase tracking-wide lg:hidden">Percobaan</span>
+              <span class="tabular-nums">{job.attempts}×</span>
+            </span>
+            <span class="text-xs text-tinta-lembut">
+              <span class="mr-1 uppercase tracking-wide lg:hidden">Waktu</span>
+              {formatWhenShort(String(job.createdAt ?? ''))}
+            </span>
+            {auth.superadmin && status === 'failed' && (
+              <form class="col-span-2 justify-self-start lg:col-span-1" method="post">
+                <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+                <input type="hidden" name="aksi" value="job-ulang" />
+                <input type="hidden" name="jobId" value={String(job.id)} />
+                <button
+                  class="min-h-11 rounded-kontrol border border-garis bg-kartu px-3 text-xs font-medium text-tinta transition-colors hover:border-jalur/40"
+                  type="submit"
+                >
+                  Antrikan ulang
+                </button>
+              </form>
+            )}
           </AdminRow>
         );
       })}

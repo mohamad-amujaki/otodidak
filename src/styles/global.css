@@ -41,6 +41,10 @@
 }
 
 @layer base {
+  :root {
+    --header-h: 4.3125rem;
+  }
+
   html {
     background: var(--color-kertas);
     color: var(--color-tinta);
@@ -142,6 +146,35 @@
 
   .bingkai-lebar {
     width: min(100%, 80rem);
+  }
+
+  /* Chip filter/aksi: satu ukuran sentuh untuk tautan berbentuk chip. */
+  .chip {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    border-radius: var(--radius-kontrol);
+    padding-inline: 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  /* Bar aksi tetap di dasar layar: sadar safe-area iOS. */
+  .bar-aksi-bawah {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 30;
+    border-top: 1px solid var(--color-garis);
+    background: var(--color-kertas);
+    padding: 0.75rem;
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+
+  /* Lengket tepat di bawah header sticky. */
+  .lengket-header {
+    position: sticky;
+    top: var(--header-h);
   }
 
   .judul {
