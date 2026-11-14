@@ -4,13 +4,13 @@ import Shell from '../components/Shell.astro';
 import { AppError } from '../domain/errors';
 import { formatWhen } from '../domain/format';
 import { isRecord, record } from '../domain/guard';
-import { pageMe } from '../server/ssr';
 import {
   listOwnerShares,
   revokeShareLink,
   shareMessage,
   whatsappHref,
 } from '../server/share';
+import { pageMe } from '../server/ssr';
 
 const page = await pageMe(Astro.request, env);
 if ('redirect' in page) return Astro.redirect(page.redirect);
@@ -43,7 +43,8 @@ const shares = await listOwnerShares(session.db, session.user.id);
 const origin = (Astro.site ?? new URL(Astro.url.origin)).origin;
 const active = shares.filter(
   (share) =>
-    !share.revokedAt && (!share.expiresAt || share.expiresAt > new Date().toISOString()),
+    !share.revokedAt &&
+    (!share.expiresAt || share.expiresAt > new Date().toISOString()),
 );
 const totals = active.reduce(
   (sum, share) => ({
