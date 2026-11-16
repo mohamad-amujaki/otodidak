@@ -57,5 +57,24 @@
   next?.addEventListener('click', () => step(1));
   previous?.addEventListener('click', () => step(-1));
 
+  document.addEventListener('keydown', (event) => {
+    if (
+      event.defaultPrevented ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.altKey
+    )
+      return;
+    const tag = event.target instanceof HTMLElement ? event.target.tagName : '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      step(-1);
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      step(1);
+    }
+  });
+
   paint();
 })();

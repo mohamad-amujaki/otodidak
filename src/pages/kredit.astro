@@ -242,7 +242,7 @@ const kodeJumlah = Number(Astro.url.searchParams.get('jumlah') ?? 0);
 
     <section id="paket-kredit">
       <h2 class="text-xl font-bold text-tinta">Paket kredit</h2>
-      <ul class="mt-4 grid gap-4 md:grid-cols-2 min-[1100px]:grid-cols-3">
+      <ul class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {packs.map((pack, index) => {
           const isPopular = index === 1;
           const isBestValue = index === 2;
@@ -291,7 +291,7 @@ const kodeJumlah = Number(Astro.url.searchParams.get('jumlah') ?? 0);
       </p>
     </section>
 
-    <div class="grid gap-6 min-[900px]:grid-cols-2 min-[900px]:gap-8">
+    <div class="grid gap-6 lg:grid-cols-2 lg:gap-8">
       <section class="rounded-kartu border border-garis bg-kartu p-4 shadow-sm sm:p-5">
         <div class="mb-3 flex items-baseline justify-between gap-2">
           <h2 class="text-lg font-bold text-tinta">Aktivitas terakhir</h2>

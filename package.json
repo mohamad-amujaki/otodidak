@@ -7,7 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "wrangler d1 migrations apply otodidak --local && astro dev",
+    "dev": "node scripts/dev-db-migrate.mjs && astro dev",
     "db:migrate": "wrangler d1 migrations apply otodidak --local",
     "build": "astro build",
     "preview": "astro preview",
@@ -16,7 +16,8 @@
     "test": "vitest run",
     "qa": "vitest run tests/eval.test.ts",
     "db:generate": "drizzle-kit generate",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "db:migrate:dev": "node scripts/dev-db-migrate.mjs"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.4.7",

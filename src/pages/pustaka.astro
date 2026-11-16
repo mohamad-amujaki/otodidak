@@ -238,7 +238,7 @@ const filtering = Boolean(query) || status !== 'semua';
         </a>
       </div>
     ) : (
-    <ul class="grid gap-4 md:grid-cols-2 min-[1100px]:grid-cols-3">
+    <ul class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
       {paths.map((path) => {
         const progress = record(path.progress);
         const done = Number(progress.done ?? 0);
