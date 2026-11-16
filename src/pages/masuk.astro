@@ -1,14 +1,18 @@
 ---
 import { env } from 'cloudflare:workers';
 import Shell from '../components/Shell.astro';
-import { clerkHost, clerkPublishableKeyFromEnv } from '../domain/guard';
+import {
+  clerkHost,
+  clerkPublishableKeyFromEnv,
+  devAuthEnabled,
+} from '../domain/guard';
 import { devSessionSchema } from '../domain/schemas';
 import { database, ensureUser } from '../server/account';
 import { devIdentityFor } from '../server/auth';
 import { signInDevSession } from '../server/profile-actions';
 import { pageSession } from '../server/ssr';
 
-const mock = env.CLERK_SECRET_KEY === 'mock';
+const devAuth = devAuthEnabled(env);
 const existing = await pageSession(Astro.request, env);
 const topik = String(Astro.url.searchParams.get('topik') ?? '').trim();
 if (existing)
@@ -21,7 +25,7 @@ if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   if (String(form.get('csrf') ?? '') !== Astro.locals.csrf)
     message = 'Muat ulang halaman, lalu kirim lagi.';
-  else if (mock) {
+  else if (devAuth) {
     const parsed = devSessionSchema.safeParse({
       email: String(form.get('email') ?? ''),
       name: String(form.get('name') ?? ''),
@@ -53,7 +57,7 @@ const host = clerkHost(publishableKey);
   <div class="max-w-md pb-24 md:pb-0">
     <h1 class="judul">Masuk</h1>
     <p class="mt-2 text-tinta-lembut">Tidak ada kata sandi.</p>
-    {mock ? (
+    {devAuth ? (
       <form class="mt-6 grid gap-4" method="post">
         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
         <p class="text-sm leading-[1.4] text-tinta-lembut">Lingkungan lokal memakai sesi percobaan sampai kunci Clerk diisi.</p>

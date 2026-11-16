@@ -1,5 +1,9 @@
 import { createClerkClient } from '@clerk/backend';
-import { clerkPublishableKeyFromEnv } from '../domain/guard';
+import {
+  clerkConfigured,
+  clerkPublishableKeyFromEnv,
+  devAuthEnabled,
+} from '../domain/guard';
 import {
   decodeBase64Url,
   encodeBase64Url,
@@ -8,6 +12,7 @@ import {
   sha256Hex,
   timingSafeEqual,
 } from './crypto';
+import { logEvent } from './log';
 
 export type Identity = { clerkUserId: string; email: string; name: string };
 
@@ -25,6 +30,12 @@ export async function identify(
 ): Promise<Identity | null> {
   if (env.CLERK_SECRET_KEY === 'mock')
     return readDevSession(request, env.CLERK_SECRET_KEY);
+  if (!clerkConfigured(env)) {
+    if (devAuthEnabled(env))
+      return readDevSession(request, env.CLERK_SECRET_KEY);
+    logEvent({ message: 'clerk_unconfigured', status: 'fail_closed' });
+    return null;
+  }
   return readClerk(request, env);
 }
 
@@ -105,6 +116,21 @@ function clerkEmail(user: {
 }
 
 async function readClerk(request: Request, env: Env): Promise<Identity | null> {
+  try {
+    return await readClerkUnsafe(request, env);
+  } catch (error) {
+    logEvent({
+      message: 'clerk_auth_failed',
+      errorCode: error instanceof Error ? error.name : 'error',
+    });
+    return null;
+  }
+}
+
+async function readClerkUnsafe(
+  request: Request,
+  env: Env,
+): Promise<Identity | null> {
   const publishableKey = clerkPublishableKeyFromEnv(env);
   const client = createClerkClient({
     secretKey: env.CLERK_SECRET_KEY,

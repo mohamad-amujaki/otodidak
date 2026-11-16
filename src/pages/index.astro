@@ -1,11 +1,10 @@
 ---
 import { env } from 'cloudflare:workers';
 import AuthButton from '../components/AuthButton.astro';
-import PathMark from '../components/PathMark.astro';
 import Shell from '../components/Shell.astro';
 import { SEED_CONFIG } from '../domain/defaults';
 import {
-  activePublishableKey,
+  clerkConfigured,
   clerkHost,
   clerkPublishableKeyFromEnv,
 } from '../domain/guard';
@@ -13,13 +12,9 @@ import { pageSession } from '../server/ssr';
 
 const existing = await pageSession(Astro.request, env);
 if (existing) return Astro.redirect('/dasbor');
-const mock = env.CLERK_SECRET_KEY === 'mock';
-const publishableKey = activePublishableKey(
-  clerkPublishableKeyFromEnv(env),
-  import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY,
-);
+const publishableKey = clerkPublishableKeyFromEnv(env);
 const host = clerkHost(publishableKey);
-const realAuth = !mock && Boolean(host);
+const realAuth = clerkConfigured(env) && Boolean(host);
 
 const siteTitle = 'Otodidak — Ubah Satu Topik Jadi Jalur Belajar Otomatis';
 const siteDescription = `Tulis satu topik. Otodidak menyusun roadmap-nya lebih dulu, lalu menulis pelajaran sesuai kebutuhanmu saat kamu buka — ${SEED_CONFIG.signupCredits} kredit gratis, tanpa kartu kredit.`;
@@ -198,187 +193,211 @@ const jsonLd = JSON.stringify({
   <script type="application/ld+json" set:html={jsonLd} />
 
   <!-- Hero -->
-  <section class="grid items-center gap-10 min-[900px]:grid-cols-[minmax(0,1fr)_22rem] min-[900px]:gap-12">
+  <section class="grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_21rem]">
     <div>
-      <p class="eyebrow">Belajar mandiri, terstruktur</p>
-      <h1 class="mt-3 text-4xl font-bold leading-tight tracking-tight text-tinta md:text-5xl min-[1100px]:text-6xl">
+      <p class="eyebrow flex items-center gap-3">
+        <span class="h-px w-8 bg-jalur/40" aria-hidden="true"></span>
+        Belajar mandiri, terstruktur
+      </p>
+      <h1 class="mt-5 max-w-3xl text-4xl font-bold leading-[1.08] tracking-tight text-tinta md:text-5xl min-[1100px]:text-6xl">
         Ubah satu topik jadi jalur belajar yang utuh
       </h1>
-      <p class="mt-6 max-w-2xl text-lg leading-relaxed text-tinta-lembut md:text-xl">
-        Tulis apa yang ingin kamu kuasai. Otodidak menyusun roadmap-nya lebih dulu,
-        lalu menulis pelajaran saat kamu membukanya.
+      <p class="mt-6 max-w-xl text-lg leading-relaxed text-tinta-lembut md:text-xl">
+        Tulis apa yang ingin kamu kuasai. Otodidak menyusun roadmap-nya lebih dulu, lalu menulis pelajarannya saat kamu buka.
       </p>
-      <div class="mt-8 flex flex-col items-stretch gap-3 md:flex-row md:items-center">
+      <div class="mt-8 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
         <AuthButton
-          class="btn-jalur w-full max-md:hidden md:w-auto md:px-8"
+          class="btn-jalur w-full max-md:hidden sm:w-auto sm:px-8"
           label="Mulai gratis dengan Google"
           real={realAuth}
         />
         <a
-          class="inline-flex min-h-12 w-full items-center justify-center rounded-kontrol border border-garis bg-kartu px-8 text-base font-semibold text-tinta shadow-sm transition-colors hover:border-jalur/40 md:w-auto"
+          class="inline-flex min-h-12 w-full items-center justify-center rounded-kontrol border border-garis bg-kartu px-8 text-base font-semibold text-tinta transition-colors hover:border-jalur/40 sm:w-auto"
           href="#cara-kerja"
         >
           Lihat cara kerjanya
         </a>
       </div>
-      <p class="mt-4 flex items-center gap-2 text-sm text-tinta-lembut">
-        <svg class="size-5 shrink-0 text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-        </svg>
-        <span class="font-medium tabular-nums">
-          {SEED_CONFIG.signupCredits} kredit awal · tanpa kartu kredit
-        </span>
-      </p>
+      <dl class="mt-10 flex flex-wrap items-baseline gap-x-8 gap-y-3 border-t border-garis pt-5 text-sm">
+        <div class="flex items-baseline gap-2">
+          <dt class="text-tinta-lembut">Kredit awal</dt>
+          <dd class="font-semibold tabular-nums text-tinta">{SEED_CONFIG.signupCredits}</dd>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <dt class="text-tinta-lembut">Kartu kredit</dt>
+          <dd class="font-semibold text-tinta">tidak perlu</dd>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <dt class="text-tinta-lembut">Langganan</dt>
+          <dd class="font-semibold text-tinta">tidak ada</dd>
+        </div>
+      </dl>
     </div>
 
-    <div class="rounded-kartu border border-garis bg-kartu p-5 shadow-sm md:p-6">
-      <p class="text-xs font-semibold uppercase tracking-wide text-tinta-lembut">Contoh jalur</p>
+    <div class="lg:pt-2">
+      <p class="text-xs font-semibold uppercase tracking-[0.08em] text-tinta-lembut">Contoh kerangka</p>
       <p class="mt-1 text-base font-bold text-tinta">Menanam kopi di rumah</p>
-      <ol class="mt-4">
+      <ol class="relative mt-5 pl-6">
+        <span class="absolute bottom-2 left-[3px] top-2 w-px bg-garis" aria-hidden="true"></span>
         {contoh.map((bab, index) => (
-          <li class="flex gap-3">
-            <PathMark last={index === contoh.length - 1} />
-            <div class:list={[index < contoh.length - 1 && 'pb-4']}>
-              <p class="text-sm font-semibold text-tinta">{bab.judul}</p>
-              <p class="mt-1 text-sm leading-[1.4] text-tinta-lembut">{bab.isi}</p>
-            </div>
+          <li class="relative pb-6 last:pb-0">
+            <span
+              class:list={[
+                'absolute -left-6 top-1.5 size-[7px] rounded-full',
+                index === 0 ? 'bg-jalur' : 'bg-garis',
+              ]}
+              aria-hidden="true"
+            />
+            <p class="text-sm font-semibold text-tinta">{bab.judul}</p>
+            <p class="mt-1 text-sm leading-[1.45] text-tinta-lembut">{bab.isi}</p>
           </li>
         ))}
       </ol>
-      <p class="mt-5 border-t border-garis pt-3 text-xs text-tinta-lembut">
+      <p class="mt-6 border-t border-garis pt-3 text-xs text-tinta-lembut">
         Contoh kerangka, bukan jalur sungguhan.
       </p>
     </div>
   </section>
 
-  <!-- Untuk siapa -->
-  <section class="mt-16 md:mt-20 min-[1100px]:mt-24" aria-labelledby="untuk-siapa-heading">
-    <p class="eyebrow text-center">Untuk siapa</p>
-    <h2 id="untuk-siapa-heading" class="mt-2 text-center text-2xl font-bold text-tinta md:text-3xl">
-      Tujuan berbeda, satu cara belajar yang runtut
-    </h2>
-    <p class="mx-auto mt-3 max-w-2xl text-center text-sm text-tinta-lembut">
-      Mulai dari tujuanmu, bukan dari daftar materi.
-    </p>
-    <ul class="mx-auto mt-10 grid max-w-5xl gap-6 md:grid-cols-3 md:gap-8">
+  <!-- 01 · Untuk siapa -->
+  <section class="mt-20 md:mt-28" aria-labelledby="untuk-siapa-heading">
+    <div class="flex items-baseline gap-4 border-t border-garis pt-5">
+      <span class="text-xs font-semibold tabular-nums text-tinta-lembut">01</span>
+      <p class="eyebrow">Untuk siapa</p>
+    </div>
+    <div class="mt-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <h2 id="untuk-siapa-heading" class="max-w-2xl text-2xl font-bold leading-tight text-tinta md:text-3xl">
+        Tujuan berbeda, satu cara belajar yang runtut
+      </h2>
+      <p class="max-w-sm text-sm text-tinta-lembut md:text-right">
+        Mulai dari tujuanmu, bukan dari daftar materi.
+      </p>
+    </div>
+    <ul class="mt-8 divide-y divide-garis border-y border-garis">
       {personas.map((persona) => (
-        <li class="rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
-          <p class="text-sm font-semibold text-tinta">{persona.label}, {persona.umur}</p>
-          <p class="mt-1 text-sm text-tinta-lembut">{persona.konteks}</p>
-          <p class="mt-4 text-xs font-semibold uppercase tracking-wide text-tinta-lembut">Ingin belajar</p>
-          <p class="mt-1 font-semibold text-tinta">{persona.topik}</p>
-          <p class="mt-2 text-xs text-tinta-lembut">{persona.detail}</p>
-          <p class="mt-3 text-sm leading-[1.4] text-jalur">{persona.alur}</p>
+        <li class="grid gap-2 py-5 md:grid-cols-[9rem_minmax(0,1fr)_auto] md:items-baseline md:gap-6">
+          <p class="text-sm tabular-nums text-tinta-lembut">{persona.label} · {persona.umur}</p>
+          <div class="min-w-0">
+            <p class="font-semibold text-tinta">{persona.topik}</p>
+            <p class="mt-1 text-sm text-tinta-lembut">{persona.konteks}</p>
+          </div>
+          <p class="text-sm font-medium text-jalur md:text-right">{persona.alur}</p>
         </li>
       ))}
     </ul>
   </section>
 
-  <!-- Cara kerja -->
-  <section id="cara-kerja" class="mx-auto mt-16 max-w-3xl scroll-mt-24 md:mt-20 min-[1100px]:mt-24" aria-labelledby="cara-kerja-heading">
-    <p class="eyebrow text-center">Cara kerja</p>
-    <h2 id="cara-kerja-heading" class="mt-2 text-center text-2xl font-bold text-tinta md:text-3xl">
+  <!-- 02 · Cara kerja -->
+  <section id="cara-kerja" class="mt-20 scroll-mt-24 md:mt-28" aria-labelledby="cara-kerja-heading">
+    <div class="flex items-baseline gap-4 border-t border-garis pt-5">
+      <span class="text-xs font-semibold tabular-nums text-tinta-lembut">02</span>
+      <p class="eyebrow">Cara kerja</p>
+    </div>
+    <h2 id="cara-kerja-heading" class="mt-4 max-w-2xl text-2xl font-bold leading-tight text-tinta md:text-3xl">
       Dari satu kalimat jadi jalur yang bisa kamu selesaikan
     </h2>
-    <ol class="mt-10 grid gap-4">
+    <ol class="mt-10 grid gap-x-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-5">
       {langkah.map((step, index) => (
-        <li class="flex gap-4 rounded-kartu border border-garis bg-kartu p-5 shadow-sm">
-          <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-jalur-lembut text-sm font-bold text-jalur tabular-nums" aria-hidden="true">
-            {index + 1}
-          </span>
-          <div class="min-w-0">
-            <h3 class="font-semibold text-tinta">{step.judul}</h3>
-            <p class="mt-1 text-sm leading-relaxed text-tinta-lembut">{step.isi}</p>
-          </div>
+        <li class="border-t border-garis pt-4">
+          <p class="text-xs font-semibold tabular-nums text-jalur">{String(index + 1).padStart(2, '0')}</p>
+          <h3 class="mt-2 font-semibold text-tinta">{step.judul}</h3>
+          <p class="mt-1.5 text-sm leading-relaxed text-tinta-lembut">{step.isi}</p>
         </li>
       ))}
     </ol>
   </section>
 
-  <!-- Masalah -->
-  <section class="mt-16 md:mt-20 min-[1100px]:mt-24" aria-labelledby="masalah-heading">
-    <p class="eyebrow text-center">Kenapa Otodidak</p>
-    <h2 id="masalah-heading" class="mt-2 text-center text-2xl font-bold text-tinta md:text-3xl">
-      Chat AI menjawab. Otodidak menyusun jalurnya.
-    </h2>
-    <p class="mx-auto mt-3 max-w-2xl text-center text-sm text-tinta-lembut">
-      Belajar sendiri sering berhenti karena urutannya tak jelas, bukan karena materinya kurang.
-    </p>
-    <ul class="mx-auto mt-10 grid max-w-5xl gap-4 md:grid-cols-2 min-[1100px]:grid-cols-3">
-      {masalah.map((item, index) => (
-        <li class="rounded-kartu border border-garis bg-kartu p-5 shadow-sm">
-          <p class="text-xs font-bold tabular-nums text-tinta-lembut">{String(index + 1).padStart(2, '0')}</p>
-          <h3 class="mt-2 font-semibold text-tinta">{item.judul}</h3>
-          <p class="mt-1 text-sm leading-relaxed text-tinta-lembut">{item.isi}</p>
-        </li>
-      ))}
-    </ul>
-    <div class="mx-auto mt-8 max-w-3xl rounded-kartu border border-garis border-l-4 border-l-jalur bg-jalur-lembut/40 p-6">
-      <h3 class="font-semibold text-tinta">Struktur, tanpa kaku</h3>
-      <p class="mt-2 text-sm leading-relaxed text-tinta-lembut">
-        Bukan menggantikan rasa ingin tahumu. Kamu tetap yang memilih topik dan tempo
-        belajarnya — Otodidak menjaga langkahnya tetap runtut dan tidak melompat.
-      </p>
+  <!-- 03 · Kenapa Otodidak -->
+  <section class="mt-20 md:mt-28" aria-labelledby="masalah-heading">
+    <div class="flex items-baseline gap-4 border-t border-garis pt-5">
+      <span class="text-xs font-semibold tabular-nums text-tinta-lembut">03</span>
+      <p class="eyebrow">Kenapa Otodidak</p>
+    </div>
+    <div class="mt-4 grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-16">
+      <div>
+        <h2 id="masalah-heading" class="max-w-2xl text-2xl font-bold leading-tight text-tinta md:text-3xl">
+          Chat AI menjawab. Otodidak menyusun jalurnya.
+        </h2>
+        <p class="mt-3 max-w-xl text-sm text-tinta-lembut">
+          Belajar sendiri sering berhenti karena urutannya tak jelas, bukan karena materinya kurang.
+        </p>
+        <ul class="mt-8 divide-y divide-garis border-t border-garis">
+          {masalah.map((item, index) => (
+            <li class="grid gap-1 py-4 sm:grid-cols-[2.5rem_minmax(0,1fr)] sm:gap-4">
+              <p class="text-xs font-semibold tabular-nums text-tinta-lembut">{String(index + 1).padStart(2, '0')}</p>
+              <div class="min-w-0">
+                <h3 class="font-semibold text-tinta">{item.judul}</h3>
+                <p class="mt-1 text-sm leading-relaxed text-tinta-lembut">{item.isi}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <aside class="lg:pt-14">
+        <div class="border-l-2 border-jalur pl-5">
+          <h3 class="font-semibold text-tinta">Struktur, tanpa kaku</h3>
+          <p class="mt-2 text-sm leading-relaxed text-tinta-lembut">
+            Bukan menggantikan rasa ingin tahumu. Kamu tetap yang memilih topik dan tempo belajarnya — Otodidak menjaga langkahnya tetap runtut dan tidak melompat.
+          </p>
+        </div>
+        <dl class="mt-8 grid gap-6">
+          {prinsip.map((item) => (
+            <div class="border-t border-garis pt-4">
+              <dt class="font-semibold text-tinta">{item.judul}</dt>
+              <dd class="mt-1 text-sm leading-relaxed text-tinta-lembut">{item.isi}</dd>
+            </div>
+          ))}
+        </dl>
+      </aside>
     </div>
   </section>
 
-  <!-- Prinsip -->
-  <section class="mt-16 md:mt-20 min-[1100px]:mt-24" aria-labelledby="prinsip-heading">
-    <p class="eyebrow text-center">Prinsip</p>
-    <h2 id="prinsip-heading" class="mt-2 text-center text-2xl font-bold text-tinta md:text-3xl">
-      Dibangun untuk belajar mandiri
-    </h2>
-    <p class="mx-auto mt-3 max-w-2xl text-center text-sm text-tinta-lembut">
-      Bukan angka pengguna atau testimoni palsu — hanya cara kerja produk yang bisa kamu cek sendiri.
-    </p>
-    <ul class="mx-auto mt-10 grid max-w-3xl gap-6 md:grid-cols-2 md:gap-8">
-      {prinsip.map((item) => (
-        <li class="rounded-kartu border border-garis bg-kartu p-6 shadow-sm">
-          <h3 class="text-lg font-semibold text-tinta">{item.judul}</h3>
-          <p class="mt-2 text-sm leading-relaxed text-tinta-lembut">{item.isi}</p>
-        </li>
-      ))}
-    </ul>
-  </section>
-
-  <!-- FAQ -->
-  <section class="mx-auto mt-16 max-w-3xl md:mt-20 min-[1100px]:mt-24" aria-labelledby="faq-heading">
-    <p class="eyebrow text-center">FAQ</p>
-    <h2 id="faq-heading" class="mt-2 text-center text-2xl font-bold text-tinta md:text-3xl">
+  <!-- 04 · FAQ -->
+  <section class="mt-20 max-w-3xl md:mt-28" aria-labelledby="faq-heading">
+    <div class="flex items-baseline gap-4 border-t border-garis pt-5">
+      <span class="text-xs font-semibold tabular-nums text-tinta-lembut">04</span>
+      <p class="eyebrow">FAQ</p>
+    </div>
+    <h2 id="faq-heading" class="mt-4 text-2xl font-bold leading-tight text-tinta md:text-3xl">
       Pertanyaan yang sering muncul
     </h2>
-    <div class="mt-8 grid gap-3">
+    <div class="mt-6 divide-y divide-garis border-y border-garis">
       {faq.map((item) => (
-        <details class="group rounded-kartu border border-garis bg-kartu p-5 shadow-sm">
-          <summary class="flex w-full cursor-pointer items-center justify-between gap-3 text-left font-semibold text-tinta">
+        <details class="group">
+          <summary class="flex min-h-14 w-full cursor-pointer items-center justify-between gap-4 py-4 text-left font-semibold text-tinta">
             <h3 class="text-base font-semibold">{item.t}</h3>
-            <svg class="size-5 shrink-0 text-tinta-lembut transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <svg class="size-4 shrink-0 text-tinta-lembut transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
             </svg>
           </summary>
-          <p class="mt-3 text-sm leading-relaxed text-tinta-lembut">{item.j}</p>
+          <p class="pb-5 pr-8 text-sm leading-relaxed text-tinta-lembut">{item.j}</p>
         </details>
       ))}
     </div>
   </section>
 
   <!-- CTA penutup -->
-  <section class="mx-auto mt-16 max-w-5xl md:mt-20 min-[1100px]:mt-24" aria-labelledby="cta-heading">
-    <div class="rounded-kartu border border-garis border-l-4 border-l-jalur bg-jalur-lembut/50 p-8 text-center shadow-sm md:p-12">
-      <h2 id="cta-heading" class="text-2xl font-bold text-tinta md:text-3xl">
-        Ada yang ingin kamu kuasai? Beri dia sebuah jalur.
-      </h2>
-      <p class="mx-auto mt-4 max-w-2xl text-lg text-tinta-lembut">
-        Cukup satu topik untuk mulai. Jalurnya tersusun rapi, kamu tinggal mengikuti.
-      </p>
-      <AuthButton
-        class="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-kontrol bg-jalur px-8 text-base font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:brightness-110 focus-visible:ring-2 focus-visible:ring-jalur focus-visible:ring-offset-2 max-md:hidden"
-        label="Mulai gratis dengan Google"
-        real={realAuth}
-      />
-      <p class="mt-3 text-sm text-tinta-lembut">
-        Tanpa langganan bulanan · isi ulang saat kamu butuh
-      </p>
+  <section class="mt-20 border-t border-garis pt-12 md:mt-28 md:pt-16" aria-labelledby="cta-heading">
+    <div class="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+      <div class="max-w-2xl">
+        <p class="eyebrow">Mulai dari satu topik</p>
+        <h2 id="cta-heading" class="mt-3 text-2xl font-bold leading-tight text-tinta md:text-4xl">
+          Ada yang ingin kamu kuasai? Beri dia sebuah jalur.
+        </h2>
+        <p class="mt-3 text-base text-tinta-lembut">
+          Cukup satu topik untuk mulai. Jalurnya tersusun rapi, kamu tinggal mengikuti.
+        </p>
+      </div>
+      <div class="shrink-0">
+        <AuthButton
+          class="inline-flex min-h-12 items-center justify-center gap-2 rounded-kontrol bg-jalur px-8 text-base font-semibold text-white transition-[filter] hover:brightness-110 max-md:hidden"
+          label="Mulai gratis dengan Google"
+          real={realAuth}
+        />
+        <p class="mt-3 text-sm text-tinta-lembut md:text-right">
+          Tanpa langganan bulanan · isi ulang saat kamu butuh
+        </p>
+      </div>
     </div>
   </section>
 

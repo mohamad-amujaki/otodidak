@@ -16,6 +16,7 @@ import {
   errorMessage,
   errorStatus,
 } from '../domain/errors';
+import { devAuthEnabled } from '../domain/guard';
 import { assertAllowedLlmBaseUrl } from '../domain/provider-url';
 import {
   adminAdjustSchema,
@@ -126,7 +127,7 @@ export function createApp() {
   });
 
   app.post('/api/dev/session', async (c) => {
-    if (c.env.CLERK_SECRET_KEY !== 'mock') throw new AppError('not_found');
+    if (!devAuthEnabled(c.env)) throw new AppError('not_found');
     const body = await readJson(c, devSessionSchema);
     const identity = await devIdentityFor(body.email, body.name);
     const db = await database(c.env);
