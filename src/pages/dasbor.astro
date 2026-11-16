@@ -182,8 +182,9 @@ const lowCredit = balance < cost;
     </div>
   )}
 
+  <aside class="xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:self-start xl:sticky xl:top-[calc(var(--header-h)+1rem)] xl:space-y-6">
   {totalPaths > 0 && (
-    <div class="mb-8 grid grid-cols-3 gap-2 rounded-kartu border border-garis bg-kartu p-3 shadow-sm md:gap-4 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none xl:col-start-2 xl:row-start-1 xl:mb-0 xl:grid-cols-1">
+    <div class="mb-8 grid grid-cols-3 gap-2 rounded-kartu border border-garis bg-kartu p-3 shadow-sm md:gap-4 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none xl:mb-0 xl:grid-cols-1">
       <div class="flex min-w-0 flex-col gap-0.5 [&>div:first-child]:hidden md:flex-row md:items-center md:gap-4 md:rounded-kartu md:border md:border-garis md:bg-kartu md:p-5 md:shadow-sm md:[&>div:first-child]:flex">
         <div class="flex size-12 shrink-0 items-center justify-center rounded-kontrol bg-jalur-lembut text-jalur">
           <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -221,7 +222,7 @@ const lowCredit = balance < cost;
   )}
 
   <!-- Quick Actions -->
-  <div class="mb-6 grid gap-4 md:grid-cols-3 xl:col-start-2 xl:row-start-2 xl:mb-0 xl:grid-cols-1">
+  <div class="mb-6 grid gap-4 md:grid-cols-3 xl:mb-0 xl:grid-cols-1">
     <a
       class:list={[
         'flex items-center gap-4 rounded-kartu border p-4 transition-colors',
@@ -287,6 +288,8 @@ const lowCredit = balance < cost;
       </a>
     )}
   </div>
+
+  </aside>
 
   <!-- New Path Form -->
   {showForm && (
