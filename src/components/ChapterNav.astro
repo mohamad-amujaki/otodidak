@@ -38,7 +38,7 @@ const ringkas =
 ---
 {chapters.length > 0 && (
   <nav
-    class="chapter-nav min-w-0 [scrollbar-width:thin] lg:sticky lg:top-[84px] lg:max-h-[calc(100dvh-7.5rem)] lg:overflow-y-auto"
+    class="chapter-nav min-w-0 [scrollbar-width:thin] lg:sticky lg:top-[calc(var(--header-h)+0.75rem)] lg:max-h-[calc(100dvh-var(--header-h)-2rem)] lg:overflow-y-auto"
     aria-label="Daftar bab"
   >
     <details class="daftar chapter-nav-drawer lg:hidden [&[open]>summary]:sticky [&[open]>summary]:top-[var(--header-h)] [&[open]>summary]:z-10">

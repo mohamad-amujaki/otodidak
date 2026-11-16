@@ -148,6 +148,10 @@
     width: min(100%, 80rem);
   }
 
+  .bingkai-ekstra {
+    width: min(100%, 88rem);
+  }
+
   /* Chip filter/aksi: satu ukuran sentuh untuk tautan berbentuk chip. */
   .chip {
     display: inline-flex;

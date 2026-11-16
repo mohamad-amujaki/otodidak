@@ -15,6 +15,7 @@ interface Props {
   userName?: string;
   userEmail?: string;
   noindex?: boolean;
+  extraWide?: boolean;
   image?: string;
 }
 const DEFAULT_DESCRIPTION =
@@ -31,6 +32,7 @@ const {
   userName,
   userEmail,
   noindex = false,
+  extraWide = false,
   image,
 } = Astro.props;
 const wide = role !== null;
@@ -143,7 +145,7 @@ const showAccountMenu = role !== null;
   <body class="flex flex-col bg-kertas text-tinta">
     <a class="lewati" href="#isi">Langsung ke isi</a>
     <header class="sticky top-0 z-20 border-b border-garis bg-kertas/95 backdrop-blur-sm">
-      <div class:list={['bingkai relative flex items-center gap-2 py-3', wide && 'bingkai-lebar']}>
+      <div class:list={['bingkai relative flex items-center gap-2 py-3', wide && 'bingkai-lebar', extraWide && 'bingkai-ekstra']}>
         <a class="inline-flex min-h-11 shrink-0 items-center gap-2 px-1 text-xl font-bold text-jalur" href={role ? '/dasbor' : '/'}>
           <svg class="size-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -158,6 +160,24 @@ const showAccountMenu = role !== null;
         )}
 
         <div class="ml-auto flex items-center gap-2">
+          {showAccountMenu && (
+            <nav class="hidden items-center gap-1 md:flex" aria-label="Navigasi utama">
+              {primaryNav.map((item) => (
+                <a
+                  class:list={[
+                    'inline-flex min-h-11 items-center rounded-kontrol px-3 text-sm font-medium transition-colors',
+                    isNavActive(item.match)
+                      ? 'bg-jalur-lembut text-jalur'
+                      : 'text-tinta-lembut hover:bg-kartu hover:text-tinta',
+                  ]}
+                  href={item.href}
+                  aria-current={isNavActive(item.match) ? 'page' : undefined}
+                >
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+          )}
           {balance !== null && (
             <a class:list={["inline-flex min-h-11 items-center gap-1.5 rounded-kontrol border px-3 text-sm font-medium tabular-nums whitespace-nowrap shadow-sm transition-all hover:shadow-md",
               lowCredit
@@ -239,18 +259,20 @@ const showAccountMenu = role !== null;
                   </span>
                 </div>
 
-                {primaryNav.map((item) => (
-                  <a
-                    class:list={['group', isNavActive(item.match) && 'menu-aktif']}
-                    href={item.href}
-                    aria-current={isNavActive(item.match) ? 'page' : undefined}
-                  >
-                    <svg class="size-5 text-tinta-lembut group-hover:text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={navIcons[item.icon]} />
-                    </svg>
-                    <span>{item.label}</span>
-                  </a>
-                ))}
+                <div class="contents md:hidden">
+                  {primaryNav.map((item) => (
+                    <a
+                      class:list={['group', isNavActive(item.match) && 'menu-aktif']}
+                      href={item.href}
+                      aria-current={isNavActive(item.match) ? 'page' : undefined}
+                    >
+                      <svg class="size-5 text-tinta-lembut group-hover:text-jalur" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={navIcons[item.icon]} />
+                      </svg>
+                      <span>{item.label}</span>
+                    </a>
+                  ))}
+                </div>
 
                 {accountNav.map((item) => (
                   <a
@@ -294,12 +316,12 @@ const showAccountMenu = role !== null;
         </div>
       </div>
     )}
-    <main id="isi" class:list={['bingkai min-w-0 flex-1 py-8 min-[1100px]:py-12', wide && 'bingkai-lebar']}>
+    <main id="isi" tabindex="-1" class:list={['bingkai min-w-0 flex-1 py-8 focus:outline-none min-[1100px]:py-12', wide && 'bingkai-lebar', extraWide && 'bingkai-ekstra']}>
       <slot />
     </main>
     {wide ? (
       <footer class="border-t border-garis bg-kartu">
-        <div class="bingkai bingkai-lebar py-5">
+        <div class:list={['bingkai py-5', extraWide ? 'bingkai-ekstra' : 'bingkai-lebar']}>
           <div class="flex flex-col items-center justify-between gap-3 text-sm text-tinta-lembut md:flex-row">
             <p>&copy; {new Date().getFullYear()} Otodidak</p>
             <nav class="flex flex-wrap items-center gap-x-5" aria-label="Tautan footer">
