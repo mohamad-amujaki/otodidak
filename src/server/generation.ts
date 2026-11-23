@@ -830,7 +830,41 @@ async function runModel(
   const raw = await completeJson(env, model, input, task, {
     tool: generatorTools[task],
   });
-  return parseModelOutput(task, raw);
+  try {
+    return parseModelOutput(task, raw);
+  } catch (error) {
+    // Hanya bentuk output yang bisa diperbaiki dengan instruksi ulang.
+    if (!(error instanceof ModelError) || error.errorCode !== 'invalid_output')
+      throw error;
+    logEvent({
+      message: 'model_repair_attempt',
+      status: task,
+      detail: error.detail ?? undefined,
+    });
+    const repaired = await completeJson(env, model, input, task, {
+      tool: generatorTools[task],
+      repair: error.detail ?? 'Bentuk JSON tidak sesuai skema.',
+    });
+    try {
+      const parsed = parseModelOutput(task, repaired);
+      logEvent({ message: 'model_repair_succeeded', status: task });
+      return parsed;
+    } catch (repairError) {
+      logEvent({
+        message: 'model_repair_failed',
+        status: task,
+        errorCode:
+          repairError instanceof ModelError
+            ? repairError.errorCode
+            : 'invalid_output',
+        detail:
+          repairError instanceof ModelError
+            ? (repairError.detail ?? undefined)
+            : undefined,
+      });
+      throw repairError;
+    }
+  }
 }
 
 function isRoadmap(
@@ -1182,6 +1216,50 @@ export async function refundJob(
     status: 'failed',
     detail: failure?.detail ?? undefined,
   });
+}
+
+const STALE_QUEUED_MS = 10 * 60 * 1000;
+const STALE_RUNNING_MS = 15 * 60 * 1000;
+
+/**
+ * Sapu job yang pesan antreannya tidak pernah diproses atau prosesnya mati.
+ * Tanpa ini job bisa menggantung "queued" selamanya dan kredit pengguna tertahan.
+ */
+export async function sweepStaleJobs(env: Env): Promise<void> {
+  const db = await database(env);
+  const rows = await db
+    .select()
+    .from(generationJobs)
+    .where(inArray(generationJobs.status, ['queued', 'running']))
+    .limit(50);
+  const now = Date.now();
+  for (const job of rows) {
+    const createdAt = Date.parse(job.createdAt);
+    const startedAt = job.startedAt ? Date.parse(job.startedAt) : Number.NaN;
+    const staleQueued =
+      job.status === 'queued' &&
+      Number.isFinite(createdAt) &&
+      now - createdAt > STALE_QUEUED_MS;
+    const staleRunning =
+      job.status === 'running' &&
+      Number.isFinite(startedAt) &&
+      now - startedAt > STALE_RUNNING_MS;
+    if (!staleQueued && !staleRunning) continue;
+    await refundJob(env, db, job, {
+      code: 'queue_stale',
+      detail: staleQueued
+        ? 'Antrean tidak memproses pekerjaan ini dalam 10 menit.'
+        : 'Pemrosesan berjalan lebih dari 15 menit.',
+    });
+    logEvent({
+      message: 'generation_stale',
+      jobId: job.id,
+      userId: job.userId,
+      errorCode: 'queue_stale',
+      status: job.status,
+      detail: staleQueued ? 'queued' : 'running',
+    });
+  }
 }
 
 async function clearStaleLock(

@@ -203,6 +203,32 @@ describe('putaran belajar', () => {
     expect(payload.failureMessage).toContain('Kunci API penyedia ditolak');
   });
 
+  it('memperbaiki output yang salah skema sekali sebelum menyerah', async () => {
+    const cookie = await signIn('perbaikan@example.com');
+    const started = await startPath(cookie);
+    expect(await processGeneration(env, started.jobId, 1)).toBe('ack');
+    const lessonId = await firstLesson(cookie, started.pathId);
+    const opened = await api(`/api/lessons/${lessonId}/open`, {
+      method: 'POST',
+      json: {},
+      cookie,
+    });
+    expect(opened.status).toBe(202);
+    const job = await jsonBody<{ jobId: string }>(opened);
+
+    // Output pertama tidak punya markdown; percobaan kedua valid.
+    await env.APP_KV.put('dev:ai-mode', 'invalid-once');
+    expect(await processGeneration(env, job.jobId, 1)).toBe('ack');
+
+    const row = await env.DB.prepare(
+      'select status, error_code from generation_job where id = ?',
+    )
+      .bind(job.jobId)
+      .first<{ status: string; error_code: string | null }>();
+    expect(row?.status).toBe('succeeded');
+    expect(row?.error_code).toBeNull();
+  });
+
   it('status kuis tidak menghalangi pelajaran yang sudah siap', async () => {
     const cookie = await signIn('kuis@example.com');
     const lessonId = await readyLesson(cookie);

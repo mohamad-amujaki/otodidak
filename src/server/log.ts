@@ -8,6 +8,8 @@ type LogEvent = {
   host?: string;
   /** Ringkasan penyebab yang aman dibaca; jangan pernah berisi kunci API. */
   detail?: string;
+  /** Cuplikan bentuk output model saat validasi skema gagal. */
+  outputSample?: string;
   ms?: number;
   usage?: { prompt?: number; completion?: number; total?: number };
 };

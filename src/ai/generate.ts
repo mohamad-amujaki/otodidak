@@ -15,6 +15,11 @@ import {
   type TaskName,
 } from '../domain/schemas';
 import { logEvent } from '../server/log';
+import {
+  normalizeLessonOutput,
+  normalizeOutlineOutput,
+} from './output-normalize';
+import { describeOutput, schemaIssueSummary } from './output-shape';
 import { type ProviderFailureCode, providerFailure } from './provider-error';
 import { readProviderSecret } from './secrets';
 import type { ToolDefinition } from './tools';
@@ -34,7 +39,7 @@ export class ModelError extends Error {
     super(detail ? `${errorCode}: ${detail}` : errorCode);
     this.name = 'ModelError';
     this.errorCode = errorCode;
-    this.detail = detail?.trim().slice(0, 240) || null;
+    this.detail = detail?.trim().slice(0, 400) || null;
   }
 }
 
@@ -86,7 +91,12 @@ export async function completeJson(
   model: ModelRow,
   input: unknown,
   task: TaskName,
-  options?: { temperature?: number; tool?: ToolDefinition },
+  options?: {
+    temperature?: number;
+    tool?: ToolDefinition;
+    /** Instruksi tambahan saat mengulang karena output tidak sesuai skema. */
+    repair?: string;
+  },
 ): Promise<unknown> {
   if (model.authKind === 'workers_ai_binding')
     throw new ModelError(
@@ -175,17 +185,26 @@ async function requestCompletion(
   apiKey: string,
   input: unknown,
   task: TaskName,
-  options: { temperature?: number; tool?: ToolDefinition } | undefined,
+  options:
+    | { temperature?: number; tool?: ToolDefinition; repair?: string }
+    | undefined,
   useTools: boolean,
 ): Promise<CompletionPayload> {
   const base = model.baseUrl.replace(/\/$/, '');
   const host = baseHost(base);
+  const messages: Record<string, string>[] = [
+    { role: 'system', content: model.prompt },
+  ];
+  if (options?.repair) {
+    messages.push({
+      role: 'system',
+      content: `PERBAIKAN WAJIB: respons sebelumnya ditolak validator. ${options.repair} Kembalikan satu objek JSON lengkap sesuai skema. Jangan mengisi field opsional dengan null; hilangkan field tersebut bila tidak ada. Jangan menambah field di luar skema.`,
+    });
+  }
+  messages.push({ role: 'user', content: JSON.stringify(input) });
   const body: Record<string, unknown> = {
     model: model.modelName,
-    messages: [
-      { role: 'system', content: model.prompt },
-      { role: 'user', content: JSON.stringify(input) },
-    ],
+    messages,
     max_tokens: model.maxOutputTokens,
     temperature: options?.temperature ?? TASK_TEMPERATURE[task] ?? 0.4,
   };
@@ -262,12 +281,19 @@ async function requestCompletion(
 }
 
 export function parseOutlineLessonOutput(value: unknown): OutlineLessonOutput {
-  const parsed = outlineLessonOutputSchema.safeParse(value);
-  if (!parsed.success)
-    throw new ModelError(
-      'invalid_output',
-      'Saran pelajaran tidak sesuai skema.',
-    );
+  const normalized = normalizeOutlineOutput(value);
+  const parsed = outlineLessonOutputSchema.safeParse(normalized);
+  if (!parsed.success) {
+    const summary = schemaIssueSummary('outline', parsed.error.issues);
+    logEvent({
+      message: 'model_output_invalid',
+      errorCode: 'invalid_output',
+      status: 'outline',
+      detail: summary,
+      outputSample: describeOutput(normalized).slice(0, 800),
+    });
+    throw new ModelError('invalid_output', summary);
+  }
   return parsed.data;
 }
 
@@ -275,19 +301,26 @@ export function parseModelOutput(
   task: TaskName,
   value: unknown,
 ): RoadmapOutput | LessonOutput | QuizOutput {
+  const normalized = task === 'lesson' ? normalizeLessonOutput(value) : value;
   const parsed =
     task === 'roadmap'
-      ? roadmapOutputSchema.safeParse(value)
+      ? roadmapOutputSchema.safeParse(normalized)
       : task === 'lesson'
-        ? lessonOutputSchema.safeParse(value)
+        ? lessonOutputSchema.safeParse(normalized)
         : task === 'quiz'
-          ? quizOutputSchema.safeParse(value)
+          ? quizOutputSchema.safeParse(normalized)
           : null;
-  if (!parsed?.success)
-    throw new ModelError(
-      'invalid_output',
-      `Isi respons tidak sesuai skema ${task}.`,
-    );
+  if (!parsed?.success) {
+    const summary = schemaIssueSummary(task, parsed?.error.issues ?? []);
+    logEvent({
+      message: 'model_output_invalid',
+      errorCode: 'invalid_output',
+      status: task,
+      detail: summary,
+      outputSample: describeOutput(normalized).slice(0, 800),
+    });
+    throw new ModelError('invalid_output', summary);
+  }
   return parsed.data;
 }
 
@@ -302,6 +335,16 @@ async function mockCompletion(
   // Simulasi kunci ditolak: harus gagal cepat dan menyimpan penyebabnya.
   if (mode === 'auth')
     throw new ModelError('provider_auth', 'HTTP 401 · invalid API key');
+  // Simulasi output pertama yang tidak lolos skema, lalu pulih di percobaan kedua.
+  if (mode === 'invalid-once') {
+    const seen = await env.APP_KV.get('dev:ai-invalid-once');
+    if (!seen) {
+      await env.APP_KV.put('dev:ai-invalid-once', '1', {
+        expirationTtl: 120,
+      });
+      return { body: '', case: null, unexpected: true };
+    }
+  }
   if (task === 'roadmap') return mockRoadmap(input);
   if (task === 'lesson') {
     const mode =

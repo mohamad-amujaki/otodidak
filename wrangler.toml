@@ -67,6 +67,10 @@ queue = "generation-dlq"
 max_batch_size = 1
 max_retries = 1
 
+# Sapu job queued/running yang basi setiap 5 menit.
+[triggers]
+crons = ["*/5 * * * *"]
+
 [[routes]]
 pattern = "otodidak.web.id"
 custom_domain = true

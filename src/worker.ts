@@ -22,4 +22,7 @@ export default {
     return withSecurityHeaders(response, request, env);
   },
   queue: entry.queue,
+  scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+    return entry.scheduled(controller, env, ctx);
+  },
 } satisfies ExportedHandler<Env, GenerationMessage>;

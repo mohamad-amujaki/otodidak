@@ -11,7 +11,9 @@ const FAILURE_MESSAGES: Record<string, string> = {
   provider_request:
     'Penyedia menolak permintaan. Model atau parameter mungkin tidak didukung.',
   invalid_output:
-    'Jawaban model tidak sesuai format. Coba susun ulang topiknya.',
+    'Model tidak mengembalikan format yang diminta. Kredit sudah dikembalikan — coba lagi.',
+  queue_stale:
+    'Antrean tidak memproses pekerjaan ini. Kredit sudah dikembalikan — coba lagi.',
   queue_send_failed:
     'Antrean generasi gagal menerima pekerjaan ini. Kredit sudah dikembalikan.',
   generation_failed: 'Pembuatan gagal. Kredit sudah dikembalikan.',
