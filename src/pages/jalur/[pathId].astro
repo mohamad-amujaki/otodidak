@@ -18,7 +18,7 @@ import { applyOutlineAction } from '../../domain/outline';
 import { startQuiz, suggestChapterLesson } from '../../server/generation';
 import { saveOutline } from '../../server/outline-save';
 import { activateUserPath } from '../../server/path-actions';
-import { pathDetail } from '../../server/read';
+import { currentJob, pathDetail } from '../../server/read';
 import {
   createPathShareLink,
   ownerShareLink,
@@ -26,11 +26,11 @@ import {
   shareMessage,
   whatsappHref,
 } from '../../server/share';
-import { pageMe } from '../../server/ssr';
+import { pageShell } from '../../server/ssr';
 
 const { pathId } = Astro.params;
 if (!pathId) return Astro.redirect('/pustaka');
-const page = await pageMe(Astro.request, env);
+const page = await pageShell(Astro.request, env);
 if ('redirect' in page) return Astro.redirect(page.redirect);
 const { session, me: meRaw } = page;
 const me = record(meRaw);
@@ -185,7 +185,7 @@ const maxLessonsPerChapter =
   typeof config.maxLessonsPerChapter === 'number'
     ? config.maxLessonsPerChapter
     : 4;
-const activeJob = isRecord(me.activeJob) ? me.activeJob : null;
+const activeJob = await currentJob(session.db, session.user.id);
 
 type LessonView = {
   id: string;
@@ -199,7 +199,6 @@ type ChapterView = {
   id: string;
   title: string;
   summary: string;
-  quiz: unknown;
   quizStatusLabel: string;
   lessons: LessonView[];
 };
@@ -208,7 +207,6 @@ const chapterViews: ChapterView[] = chapters.map((chapter) => ({
   id: String(chapter.id),
   title: String(chapter.title ?? 'Bab'),
   summary: String(chapter.summary ?? ''),
-  quiz: chapter.quiz,
   quizStatusLabel: String(chapter.quizStatusLabel ?? ''),
   lessons: (Array.isArray(chapter.lessons)
     ? chapter.lessons.filter(isRecord)

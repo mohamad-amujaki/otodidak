@@ -8,10 +8,10 @@ import Shell from '../../components/Shell.astro';
 import { ledgerFilterOptions } from '../../domain/credit-ui';
 import { isRecord, record } from '../../domain/guard';
 import { creditsPayload } from '../../server/credits-page';
-import { pageMe } from '../../server/ssr';
+import { pageShell } from '../../server/ssr';
 
 const LIMIT = 20;
-const page = await pageMe(Astro.request, env);
+const page = await pageShell(Astro.request, env);
 if ('redirect' in page) return Astro.redirect(page.redirect);
 const { session, me: meRaw } = page;
 const me = record(meRaw);

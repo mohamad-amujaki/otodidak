@@ -204,6 +204,9 @@ async function syncPendingOrder(
     env.SUMOPOD_API_KEY === 'mock'
   )
     return order;
+  const checkKey = `payment-check:${order.id}`;
+  if (await env.APP_KV.get(checkKey)) return order;
+  await env.APP_KV.put(checkKey, '1', { expirationTtl: 20 });
   try {
     const remote = await readHostedPayment({
       url: order.paymentLinkUrl,

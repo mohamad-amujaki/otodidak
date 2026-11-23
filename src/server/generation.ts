@@ -920,34 +920,54 @@ async function lessonContext(db: Database, lessonId: string) {
   const path = pathRows[0];
   if (!path) return null;
   const chapterRowsAll = await db
-    .select()
+    .select({ id: chapters.id, position: chapters.position })
     .from(chapters)
     .where(eq(chapters.pathId, path.id));
+  const sortedChapters = [...chapterRowsAll].sort(
+    (left, right) => left.position - right.position,
+  );
+  const outlineRows =
+    sortedChapters.length === 0
+      ? []
+      : await db
+          .select({
+            id: lessons.id,
+            chapterId: lessons.chapterId,
+            title: lessons.title,
+            objective: lessons.objective,
+            position: lessons.position,
+            conceptsJson: lessons.conceptsJson,
+          })
+          .from(lessons)
+          .where(
+            inArray(
+              lessons.chapterId,
+              sortedChapters.map((item) => item.id),
+            ),
+          );
+  const byChapter = new Map<string, typeof outlineRows>();
+  for (const entry of outlineRows) {
+    const group = byChapter.get(entry.chapterId);
+    if (group) group.push(entry);
+    else byChapter.set(entry.chapterId, [entry]);
+  }
   const ordered: {
     id: string;
     chapterId: string;
     title: string;
     objective: string;
-    body: string | null;
     conceptsJson: string | null;
   }[] = [];
-  const sortedChapters = [...chapterRowsAll].sort(
-    (left, right) => left.position - right.position,
-  );
   for (const item of sortedChapters) {
-    const chapterLessons = await db
-      .select()
-      .from(lessons)
-      .where(eq(lessons.chapterId, item.id));
-    for (const entry of [...chapterLessons].sort(
+    const chapterLessons = [...(byChapter.get(item.id) ?? [])].sort(
       (left, right) => left.position - right.position,
-    ))
+    );
+    for (const entry of chapterLessons)
       ordered.push({
         id: entry.id,
-        chapterId: item.id,
+        chapterId: entry.chapterId,
         title: entry.title,
         objective: entry.objective,
-        body: entry.body ?? null,
         conceptsJson: entry.conceptsJson ?? null,
       });
   }
@@ -968,6 +988,17 @@ async function lessonContext(db: Database, lessonId: string) {
         concepts.set(concept.term, concept.gloss);
     }
   }
+  const bodyIds = earlier.slice(-3).map((item) => item.id);
+  const bodyRows =
+    bodyIds.length === 0
+      ? []
+      : await db
+          .select({ id: lessons.id, body: lessons.body })
+          .from(lessons)
+          .where(inArray(lessons.id, bodyIds));
+  const bodyById = new Map(bodyRows.map((row) => [row.id, row.body]));
+  const bodyOf = (id: string | undefined) =>
+    id ? (bodyById.get(id) ?? null) : null;
   return {
     chapterId: chapter.id,
     pathTitle: path.title,
@@ -984,7 +1015,7 @@ async function lessonContext(db: Database, lessonId: string) {
     previousLessons: earlier.slice(-6).map((item) => item.title),
     recentTakeaways: earlier
       .slice(-3)
-      .map((item) => takeawayOf(item.body))
+      .map((item) => takeawayOf(bodyOf(item.id)))
       .filter((item): item is string => Boolean(item)),
     neighbors: [previous?.title, next?.title].filter((item): item is string =>
       Boolean(item),
@@ -1001,11 +1032,11 @@ async function lessonContext(db: Database, lessonId: string) {
       .slice(-10)
       .map(([term, gloss]) => ({ term, gloss })),
     runningCase: parseCase(chapter.caseJson),
-    callback: takeawayOf(previous?.body ?? null),
+    callback: takeawayOf(bodyOf(previous?.id)),
     nextTeaser: next?.objective ?? null,
     earlierBodies: earlier
       .slice(-2)
-      .map((item) => item.body ?? '')
+      .map((item) => bodyOf(item.id) ?? '')
       .filter(Boolean),
   };
 }

@@ -87,7 +87,13 @@ import { ownedLesson } from './owned';
 import { activateUserPath } from './path-actions';
 import { handlePaymentWebhook } from './payment-webhook';
 import { submitQuizAttempt } from './quiz-actions';
-import { lessonContent, library, mePayload, pathDetail } from './read';
+import {
+  lessonContent,
+  lessonView,
+  library,
+  mePayload,
+  pathDetail,
+} from './read';
 import { devRoutesEnabled } from './runtime';
 import { isSecure } from './security';
 
@@ -230,7 +236,7 @@ export function createApp() {
     const db = await database(c.env);
     const detail = await ownedLesson(db, c.get('user').id, c.req.param('id'));
     if (!detail) throw new AppError('not_found');
-    return c.json(await lessonContent(db, detail.id));
+    return c.json(await lessonView(db, detail));
   });
 
   app.post('/api/lessons/:id/open', async (c) => {

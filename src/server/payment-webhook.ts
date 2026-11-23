@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import { syncStoredBalance } from '../billing/ledger';
 import { signSvix, verifySvix } from '../billing/webhook';
 import type { Database } from '../db/client';
 import { creditLedger, creditOrders, paymentEvents } from '../db/schema';
@@ -195,6 +196,7 @@ export async function grantPurchase(
     note: null,
     createdAt: paidAt,
   });
+  const balance = syncStoredBalance(db, order.userId);
   if (event) {
     await db.batch([
       db.insert(paymentEvents).values({
@@ -206,10 +208,11 @@ export async function grantPurchase(
       }),
       paid,
       ledger,
+      balance,
     ]);
     return;
   }
-  await db.batch([paid, ledger]);
+  await db.batch([paid, ledger, balance]);
 }
 
 export async function simulateDevPaymentCompletion(

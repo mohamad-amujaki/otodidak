@@ -24,7 +24,11 @@ import {
   completeLesson,
   lessonForUser,
 } from '../../../../server/lesson-actions';
-import { pathDetail } from '../../../../server/read';
+import {
+  currentJob,
+  latestQuizScore,
+  pathDetail,
+} from '../../../../server/read';
 import {
   createLessonShareLink,
   ownerShareLink,
@@ -32,17 +36,17 @@ import {
   shareMessage,
   whatsappHref,
 } from '../../../../server/share';
-import { pageMe } from '../../../../server/ssr';
+import { pageShell } from '../../../../server/ssr';
 
 const { pathId, lessonId } = Astro.params;
 if (!pathId || !lessonId) return Astro.redirect('/dasbor');
-const page = await pageMe(Astro.request, env);
+const page = await pageShell(Astro.request, env);
 if ('redirect' in page) return Astro.redirect(page.redirect);
 const { session, me: meRaw } = page;
 const me = record(meRaw);
 const user = record(me.user);
 const config = record(me.config);
-const activeJob = isRecord(me.activeJob) ? me.activeJob : null;
+const activeJob = await currentJob(session.db, session.user.id);
 // Job yang sedang berjalan bisa milik pelajaran ini, pelajaran lain, atau jalur.
 // Tanpa pemilahan ini halaman menampilkan tombol yang sebenarnya diblokir.
 const activeJobForThisLesson = Boolean(
@@ -161,7 +165,10 @@ const html =
     : '';
 const minutes =
   typeof config.lessonMinuteLabel === 'number' ? config.lessonMinuteLabel : 15;
-const pathRaw = await pathDetail(session.db, session.user.id, pathId);
+const [pathRaw, quizScore] = await Promise.all([
+  pathDetail(session.db, session.user.id, pathId),
+  latestQuizScore(session.db, lessonId),
+]);
 const outlineChapters =
   pathRaw && Array.isArray(pathRaw.chapters)
     ? pathRaw.chapters.filter(isRecord)
@@ -208,12 +215,6 @@ const quizStatusText = String(currentLessonRaw?.quizStatusLabel ?? '').trim();
 const quizChipText = currentChapterQuiz
   ? `Quiz sub-bab · ${quizStatusText || 'siap'}`
   : 'Quiz sub-bab · belum dibuat';
-const quizScore =
-  currentChapterQuiz &&
-  isRecord(currentChapterQuiz.attempt) &&
-  typeof currentChapterQuiz.attempt.scorePercent === 'number'
-    ? Number(currentChapterQuiz.attempt.scorePercent)
-    : null;
 const quizAffordable = hasEnoughCredits(balance, quizCost);
 const lessonAffordable = hasEnoughCredits(balance, cost);
 const resumeAction = String(Astro.url.searchParams.get('lanjut') ?? '');

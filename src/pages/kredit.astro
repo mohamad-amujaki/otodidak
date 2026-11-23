@@ -11,13 +11,13 @@ import { publicCreditPacks } from '../server/admin-data';
 import { redeemCreditCode } from '../server/credit-codes';
 import { createCreditPackOrder } from '../server/credit-orders-service';
 import { creditsPayload } from '../server/credits-page';
-import { pageMe } from '../server/ssr';
+import { pageShell } from '../server/ssr';
 
 const SNIPPET_ENTRIES = 6;
 const SNIPPET_ORDERS = 3;
 const PENDING_SNIPPET = 3;
 
-const page = await pageMe(Astro.request, env);
+const page = await pageShell(Astro.request, env);
 if ('redirect' in page) return Astro.redirect(page.redirect);
 const { session, me: meRaw } = page;
 const me = record(meRaw);

@@ -17,18 +17,18 @@ import {
 import { isRecord, record } from '../../../../domain/guard';
 import { startQuiz } from '../../../../server/generation';
 import { submitQuizAttempt } from '../../../../server/quiz-actions';
-import { pathDetail } from '../../../../server/read';
-import { pageMe } from '../../../../server/ssr';
+import { currentJob, lessonQuiz, pathDetail } from '../../../../server/read';
+import { pageShell } from '../../../../server/ssr';
 
 const { pathId, lessonId } = Astro.params;
 if (!pathId || !lessonId) return Astro.redirect('/dasbor');
-const page = await pageMe(Astro.request, env);
+const page = await pageShell(Astro.request, env);
 if ('redirect' in page) return Astro.redirect(page.redirect);
 const { session, me: meRaw } = page;
 const me = record(meRaw);
 const user = record(me.user);
 const config = record(me.config);
-const activeJob = isRecord(me.activeJob) ? me.activeJob : null;
+const activeJob = await currentJob(session.db, session.user.id);
 const balance = typeof me.balance === 'number' ? me.balance : 0;
 const cost = typeof config.costQuiz === 'number' ? config.costQuiz : 1;
 const quizAffordable = hasEnoughCredits(balance, cost);
@@ -47,7 +47,10 @@ let creditShortfall: { balance: number; cost: number } | null = null;
 let message = '';
 let messageIsInfo = false;
 let result: Record<string, unknown> | null = null;
-const pathRaw = await pathDetail(session.db, session.user.id, pathId);
+const [pathRaw, quizDetail] = await Promise.all([
+  pathDetail(session.db, session.user.id, pathId),
+  lessonQuiz(session.db, lessonId),
+]);
 if (!pathRaw) return Astro.redirect('/pustaka');
 const detail = record(pathRaw);
 const chapters = Array.isArray(detail.chapters)
@@ -67,7 +70,7 @@ for (const item of chapters) {
   }
 }
 if (!chapter || !lesson) return Astro.redirect(`/jalur/${pathId}`);
-const quiz = isRecord(lesson.quiz) ? lesson.quiz : null;
+const quiz = quizDetail && isRecord(quizDetail) ? quizDetail : null;
 const questions =
   quiz && Array.isArray(quiz.questions) ? quiz.questions.filter(isRecord) : [];
 const attempt = quiz && isRecord(quiz.attempt) ? quiz.attempt : null;

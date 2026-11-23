@@ -2,7 +2,7 @@ import type { Database } from '../db/client';
 import type { UserRow } from '../db/schema';
 import { database, ensureUser } from './account';
 import { type Identity, identify } from './auth';
-import { mePayload } from './read';
+import { mePayload, shellPayload } from './read';
 
 export type PageSession = {
   db: Database;
@@ -23,6 +23,7 @@ export async function pageSession(
 }
 
 export type PageMe = Awaited<ReturnType<typeof mePayload>>;
+export type PageShell = Awaited<ReturnType<typeof shellPayload>>;
 
 export async function pageMe(
   request: Request,
@@ -31,5 +32,16 @@ export async function pageMe(
   const session = await pageSession(request, env);
   if (!session) return { redirect: '/masuk' };
   const me = await mePayload(session.db, session.user);
+  return { session, me };
+}
+
+/** Halaman yang hanya butuh Shell: tanpa next lesson, job, atau tanggal selesai. */
+export async function pageShell(
+  request: Request,
+  env: Env,
+): Promise<{ session: PageSession; me: PageShell } | { redirect: '/masuk' }> {
+  const session = await pageSession(request, env);
+  if (!session) return { redirect: '/masuk' };
+  const me = await shellPayload(session.db, session.user);
   return { session, me };
 }

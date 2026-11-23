@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { providerFailure } from '../ai/provider-error';
 import { isMockSecret, readProviderSecret } from '../ai/secrets';
-import { balanceOf, balancesByUserIds } from '../billing/ledger';
+import { balanceOf } from '../billing/ledger';
 import type { Database } from '../db/client';
 import {
   adminAudit,
@@ -132,17 +132,13 @@ export async function listAdminUsers(db: Database, url: string) {
       .offset(query.offset),
     adminUsersTotal(db, query),
   ]);
-  const balances = await balancesByUserIds(
-    db,
-    rows.map((user) => user.id),
-  );
   const list = rows.map((user) => ({
     id: user.id,
     name: user.name,
     email: user.email,
     role: user.role,
     status: user.status,
-    balance: balances.get(user.id) ?? 0,
+    balance: user.balance,
     deletionRequestedAt: user.deletionRequestedAt,
   }));
   return { users: list, total };

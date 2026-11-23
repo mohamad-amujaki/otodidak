@@ -21,6 +21,7 @@ export const users = sqliteTable(
     streakLastDate: text('streak_last_date'),
     streakFreezeWeek: text('streak_freeze_week'),
     deletionRequestedAt: text('deletion_requested_at'),
+    balance: integer('balance').notNull().default(0),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
@@ -158,6 +159,8 @@ export const creditOrders = sqliteTable(
     uniqueIndex('credit_order_one_pending')
       .on(table.userId)
       .where(sql`status = 'pending'`),
+    index('credit_order_user_created').on(table.userId, table.createdAt),
+    index('credit_order_status_paid').on(table.status, table.paidAt),
   ],
 );
 
@@ -242,26 +245,36 @@ export const lessons = sqliteTable(
   ],
 );
 
-export const lessonSources = sqliteTable('lesson_source', {
-  id: text('id').primaryKey(),
-  lessonId: text('lesson_id')
-    .notNull()
-    .references(() => lessons.id),
-  kind: text('kind', { enum: ['web', 'youtube'] }).notNull(),
-  url: text('url').notNull(),
-  title: text('title').notNull(),
-  position: integer('position').notNull(),
-});
+export const lessonSources = sqliteTable(
+  'lesson_source',
+  {
+    id: text('id').primaryKey(),
+    lessonId: text('lesson_id')
+      .notNull()
+      .references(() => lessons.id),
+    kind: text('kind', { enum: ['web', 'youtube'] }).notNull(),
+    url: text('url').notNull(),
+    title: text('title').notNull(),
+    position: integer('position').notNull(),
+  },
+  (table) => [
+    index('lesson_source_lesson_position').on(table.lessonId, table.position),
+  ],
+);
 
-export const lessonClaims = sqliteTable('lesson_claim', {
-  id: text('id').primaryKey(),
-  lessonId: text('lesson_id')
-    .notNull()
-    .references(() => lessons.id),
-  quote: text('quote').notNull(),
-  unsourced: integer('unsourced').notNull(),
-  sourceId: text('source_id'),
-});
+export const lessonClaims = sqliteTable(
+  'lesson_claim',
+  {
+    id: text('id').primaryKey(),
+    lessonId: text('lesson_id')
+      .notNull()
+      .references(() => lessons.id),
+    quote: text('quote').notNull(),
+    unsourced: integer('unsourced').notNull(),
+    sourceId: text('source_id'),
+  },
+  (table) => [index('lesson_claim_lesson').on(table.lessonId)],
+);
 
 export const quizzes = sqliteTable(
   'quiz',
@@ -276,30 +289,42 @@ export const quizzes = sqliteTable(
   (table) => [index('quiz_lesson').on(table.lessonId)],
 );
 
-export const quizQuestions = sqliteTable('quiz_question', {
-  id: text('id').primaryKey(),
-  quizId: text('quiz_id')
-    .notNull()
-    .references(() => quizzes.id),
-  position: integer('position').notNull(),
-  stem: text('stem').notNull(),
-  choicesJson: text('choices_json').notNull(),
-  correctIndex: integer('correct_index').notNull(),
-  explanation: text('explanation').notNull(),
-});
+export const quizQuestions = sqliteTable(
+  'quiz_question',
+  {
+    id: text('id').primaryKey(),
+    quizId: text('quiz_id')
+      .notNull()
+      .references(() => quizzes.id),
+    position: integer('position').notNull(),
+    stem: text('stem').notNull(),
+    choicesJson: text('choices_json').notNull(),
+    correctIndex: integer('correct_index').notNull(),
+    explanation: text('explanation').notNull(),
+  },
+  (table) => [
+    index('quiz_question_quiz_position').on(table.quizId, table.position),
+  ],
+);
 
-export const quizAttempts = sqliteTable('quiz_attempt', {
-  id: text('id').primaryKey(),
-  quizId: text('quiz_id')
-    .notNull()
-    .references(() => quizzes.id),
-  userId: text('user_id')
-    .notNull()
-    .references(() => users.id),
-  scorePercent: integer('score_percent').notNull(),
-  answersJson: text('answers_json').notNull(),
-  createdAt: text('created_at').notNull(),
-});
+export const quizAttempts = sqliteTable(
+  'quiz_attempt',
+  {
+    id: text('id').primaryKey(),
+    quizId: text('quiz_id')
+      .notNull()
+      .references(() => quizzes.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    scorePercent: integer('score_percent').notNull(),
+    answersJson: text('answers_json').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    index('quiz_attempt_quiz_created').on(table.quizId, table.createdAt),
+  ],
+);
 
 export const generationJobs = sqliteTable(
   'generation_job',
@@ -326,6 +351,7 @@ export const generationJobs = sqliteTable(
   },
   (table) => [
     index('generation_job_user_status').on(table.userId, table.status),
+    index('generation_job_user_created').on(table.userId, table.createdAt),
     index('generation_job_ref_kind').on(table.refId, table.kind),
     uniqueIndex('generation_job_one_active')
       .on(table.userId)
@@ -412,7 +438,10 @@ export const adminAudit = sqliteTable(
     detail: text('detail'),
     createdAt: text('created_at').notNull(),
   },
-  (table) => [index('admin_audit_created').on(table.createdAt)],
+  (table) => [
+    index('admin_audit_created').on(table.createdAt),
+    index('admin_audit_target_created').on(table.targetId, table.createdAt),
+  ],
 );
 
 export type UserRow = typeof users.$inferSelect;

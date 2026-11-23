@@ -4,7 +4,7 @@ import type { UserRow } from '../src/db/schema';
 import { database } from '../src/server/account';
 import { processGeneration } from '../src/server/generation';
 import { submitQuizAttempt } from '../src/server/quiz-actions';
-import { pathDetail } from '../src/server/read';
+import { lessonQuiz, pathDetail } from '../src/server/read';
 import { api, jsonBody, signIn } from './helpers';
 
 async function userRow(email: string): Promise<UserRow> {
@@ -70,26 +70,7 @@ describe('data pembahasan kuis', () => {
     }>(quiz);
     expect(await processGeneration(env, quizJobId, 1)).toBe('ack');
 
-    const payload = (await pathDetail(db, user.id, pathId)) as unknown as {
-      chapters: {
-        id: string;
-        lessons: {
-          id: string;
-          quiz: {
-            id: string;
-            questions: {
-              id: string;
-              choices: string[];
-              selected: number | null;
-              correctIndex: number | null;
-            }[];
-          } | null;
-        }[];
-      }[];
-    };
-    const quizPayload = payload.chapters
-      .flatMap((chapter) => chapter.lessons)
-      .find((lesson) => lesson.id === lessonId)?.quiz;
+    const quizPayload = await lessonQuiz(db, lessonId);
     if (!quizPayload) throw new Error('kuis tidak ada');
     const questions = quizPayload.questions;
     expect(questions.length).toBeGreaterThanOrEqual(3);
@@ -124,25 +105,7 @@ describe('data pembahasan kuis', () => {
     );
     expect(result.scorePercent).toBe(expectedScore);
 
-    const after = (await pathDetail(db, user.id, pathId)) as unknown as {
-      chapters: {
-        id: string;
-        lessons: {
-          id: string;
-          quiz: {
-            questions: {
-              selected: number | null;
-              correctIndex: number | null;
-              explanation: string | null;
-            }[];
-            attempt: { scorePercent: number } | null;
-          } | null;
-        }[];
-      }[];
-    };
-    const reloaded = after.chapters
-      .flatMap((chapter) => chapter.lessons)
-      .find((lesson) => lesson.id === lessonId)?.quiz;
+    const reloaded = await lessonQuiz(db, lessonId);
     expect(reloaded?.attempt?.scorePercent).toBe(expectedScore);
     expect(reloaded?.questions[0]?.selected).toBe(wrongChoice);
     expect(reloaded?.questions[0]?.correctIndex).toBe(keys[0]);
@@ -153,21 +116,7 @@ describe('data pembahasan kuis', () => {
     const second = await submitQuizAttempt(db, user, quizId, perfect);
     expect(second.scorePercent).toBe(100);
 
-    const history = (await pathDetail(db, user.id, pathId)) as unknown as {
-      chapters: {
-        id: string;
-        lessons: {
-          id: string;
-          quiz: {
-            attempt: { scorePercent: number } | null;
-            attempts: { id: string; scorePercent: number; createdAt: string }[];
-          } | null;
-        }[];
-      }[];
-    };
-    const after2 = history.chapters
-      .flatMap((chapter) => chapter.lessons)
-      .find((lesson) => lesson.id === lessonId)?.quiz;
+    const after2 = await lessonQuiz(db, lessonId);
     expect(after2?.attempt?.scorePercent).toBe(100);
     expect(after2?.attempts.length).toBe(2);
     expect(

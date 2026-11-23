@@ -5,9 +5,9 @@ import { AppError } from '../domain/errors';
 import { isRecord, record } from '../domain/guard';
 import { activateUserPath } from '../server/path-actions';
 import { library } from '../server/read';
-import { pageMe } from '../server/ssr';
+import { pageShell } from '../server/ssr';
 
-const page = await pageMe(Astro.request, env);
+const page = await pageShell(Astro.request, env);
 if ('redirect' in page) return Astro.redirect(page.redirect);
 const { session, me: meRaw } = page;
 const me = record(meRaw);

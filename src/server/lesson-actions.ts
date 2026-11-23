@@ -5,7 +5,7 @@ import { AppError } from '../domain/errors';
 import { applyStreak } from '../domain/streak';
 import { jakartaDate, nowIso } from '../domain/time';
 import { ownedLesson } from './owned';
-import { lessonContent } from './read';
+import { lessonView } from './read';
 
 export async function lessonForUser(
   db: Database,
@@ -14,9 +14,7 @@ export async function lessonForUser(
 ) {
   const owned = await ownedLesson(db, userId, lessonId);
   if (!owned) throw new AppError('not_found');
-  const content = await lessonContent(db, lessonId);
-  if (!content) throw new AppError('not_found');
-  return content;
+  return lessonView(db, owned);
 }
 
 export async function completeLesson(

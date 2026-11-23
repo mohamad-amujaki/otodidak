@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { isRecord, record } from '../domain/guard';
 import { isSuperadmin } from './admin-access';
 import { fetchAdminStats } from './admin-data';
-import { mePayload } from './read';
+import { shellPayload } from './read';
 import { type PageSession, pageSession } from './ssr';
 
 export type AdminNavStats = {
@@ -42,7 +42,7 @@ export async function requireAdmin(
 ): Promise<AdminGate> {
   const session = await pageSession(request, env);
   if (!session) return { redirect: '/masuk' };
-  const meRaw = await mePayload(session.db, session.user);
+  const meRaw = await shellPayload(session.db, session.user);
   const me = meRaw as Record<string, unknown>;
   if (!isRecord(me)) return { redirect: '/masuk' };
   const user = record(me.user);

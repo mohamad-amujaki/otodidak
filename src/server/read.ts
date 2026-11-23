@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import {
   chapters,
@@ -19,54 +19,107 @@ import { streakSentences } from '../domain/streak';
 import { jakartaDate } from '../domain/time';
 import { balanceOf, loadConfig } from './account';
 
-export async function mePayload(db: Database, user: UserRow) {
-  const today = jakartaDate(new Date());
-  const [balance, config, active, jobs, completed] = await Promise.all([
+function publicUser(user: UserRow) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    status: user.status,
+    streakEnabled: user.streakEnabled === 1,
+    streakCount: user.streakCount,
+    deletionRequestedAt: user.deletionRequestedAt,
+  };
+}
+
+function publicConfig(config: Awaited<ReturnType<typeof loadConfig>>) {
+  return {
+    costRoadmap: config.costRoadmap,
+    costLesson: config.costLesson,
+    costQuiz: config.costQuiz,
+    lessonMinuteLabel: config.lessonMinuteLabel,
+    signupCredits: config.signupCredits,
+    maxChapters: config.maxChapters,
+    maxLessonsPerChapter: config.maxLessonsPerChapter,
+    passThreshold: config.quizPassPercent,
+  };
+}
+
+/** Nama, saldo, dan biaya. Dipakai Shell dan halaman yang tidak menyusun dasbor. */
+export async function shellPayload(db: Database, user: UserRow) {
+  const [balance, config] = await Promise.all([
     balanceOf(db, user.id),
     loadConfig(db),
-    db
-      .select()
-      .from(paths)
-      .where(
-        and(
-          eq(paths.userId, user.id),
-          eq(paths.isActive, 1),
-          eq(paths.status, 'ready'),
-        ),
-      )
-      .limit(1),
-    db
-      .select()
-      .from(generationJobs)
-      .where(eq(generationJobs.userId, user.id))
-      .orderBy(desc(generationJobs.createdAt))
-      .limit(5),
-    completedDates(db, user.id),
   ]);
-  const path = active[0] ?? null;
-  const next = path ? await nextLesson(db, path.id) : null;
-  const activeJob =
-    jobs.find((job) => job.status === 'queued' || job.status === 'running') ??
-    null;
-  // Hanya tampilkan kegagalan terbaru agar banner tidak menetap selamanya.
+  return { user: publicUser(user), balance, config: publicConfig(config) };
+}
+
+export async function currentJob(db: Database, userId: string) {
+  const rows = await db
+    .select({
+      id: generationJobs.id,
+      kind: generationJobs.kind,
+      status: generationJobs.status,
+      refId: generationJobs.refId,
+    })
+    .from(generationJobs)
+    .where(
+      and(
+        eq(generationJobs.userId, userId),
+        inArray(generationJobs.status, ['queued', 'running']),
+      ),
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function mePayload(db: Database, user: UserRow) {
+  const today = jakartaDate(new Date());
   const failureCutoff = new Date(
     Date.now() - 24 * 60 * 60 * 1000,
   ).toISOString();
-  const failedJob =
-    jobs.find(
-      (job) => job.status === 'failed' && job.createdAt >= failureCutoff,
-    ) ?? null;
-  const earlier = completed.some((date) => date < today);
+  const [balance, config, active, activeJob, failedRows, earlier] =
+    await Promise.all([
+      balanceOf(db, user.id),
+      loadConfig(db),
+      db
+        .select()
+        .from(paths)
+        .where(
+          and(
+            eq(paths.userId, user.id),
+            eq(paths.isActive, 1),
+            eq(paths.status, 'ready'),
+          ),
+        )
+        .limit(1),
+      currentJob(db, user.id),
+      db
+        .select({
+          id: generationJobs.id,
+          kind: generationJobs.kind,
+          refId: generationJobs.refId,
+          errorCode: generationJobs.errorCode,
+          errorDetail: generationJobs.errorDetail,
+          createdAt: generationJobs.createdAt,
+        })
+        .from(generationJobs)
+        .where(
+          and(
+            eq(generationJobs.userId, user.id),
+            eq(generationJobs.status, 'failed'),
+            gte(generationJobs.createdAt, failureCutoff),
+          ),
+        )
+        .orderBy(desc(generationJobs.createdAt))
+        .limit(1),
+      hasEarlierCompletion(db, user.id, today),
+    ]);
+  const path = active[0] ?? null;
+  const next = path ? await nextLesson(db, path.id) : null;
+  const failedJob = failedRows[0] ?? null;
   return {
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      status: user.status,
-      streakEnabled: user.streakEnabled === 1,
-      deletionRequestedAt: user.deletionRequestedAt,
-    },
+    user: publicUser(user),
     balance,
     streak:
       user.streakEnabled === 1
@@ -103,13 +156,7 @@ export async function mePayload(db: Database, user: UserRow) {
           createdAt: failedJob.createdAt,
         }
       : null,
-    config: {
-      costRoadmap: config.costRoadmap,
-      costLesson: config.costLesson,
-      costQuiz: config.costQuiz,
-      lessonMinuteLabel: config.lessonMinuteLabel,
-      signupCredits: config.signupCredits,
-    },
+    config: publicConfig(config),
   };
 }
 
@@ -207,22 +254,16 @@ export async function pathDetail(db: Database, userId: string, pathId: string) {
           .orderBy(desc(quizzes.createdAt))
       : Promise.resolve([]),
   ]);
-  const quizPayloads = await quizPayloadFor(
-    db,
-    quizRows.map((quiz) => quiz.id),
-  );
+  const latestQuizByLesson = new Map<string, string>();
+  for (const quiz of quizRows) {
+    if (quiz.lessonId && !latestQuizByLesson.has(quiz.lessonId))
+      latestQuizByLesson.set(quiz.lessonId, quiz.id);
+  }
   const lessonsByChapter = groupBy(lessonRows, (lesson) => lesson.chapterId);
-  const quizIdsByLesson = groupBy(
-    quizRows.filter((quiz) => quiz.lessonId),
-    (quiz) => String(quiz.lessonId),
-  );
   const chapterPayload = chapterRows.map((chapter) => {
     const lessons = (lessonsByChapter.get(chapter.id) ?? []).map((lesson) => {
-      const lessonQuizIds = quizIdsByLesson.get(lesson.id) ?? [];
-      const quiz =
-        lessonQuizIds
-          .map((row) => quizPayloads.get(row.id))
-          .find((payload) => payload !== undefined) ?? null;
+      const quizId = latestQuizByLesson.get(lesson.id);
+      const quiz = quizId ? { id: quizId } : null;
       return {
         id: lesson.id,
         title: lesson.title,
@@ -261,7 +302,10 @@ export async function pathDetail(db: Database, userId: string, pathId: string) {
       lessons,
     };
   });
-  const progress = await progressFor(db, path.id);
+  const progress = {
+    done: lessonRows.filter((lesson) => lesson.completedAt).length,
+    total: lessonRows.length,
+  };
   return {
     id: path.id,
     title: path.title,
@@ -273,23 +317,17 @@ export async function pathDetail(db: Database, userId: string, pathId: string) {
   };
 }
 
-export async function lessonContent(db: Database, lessonId: string) {
-  const rows = await db
-    .select()
-    .from(lessons)
-    .where(eq(lessons.id, lessonId))
-    .limit(1);
-  const lesson = rows[0];
-  if (!lesson) return null;
-  const sources = await db
-    .select()
-    .from(lessonSources)
-    .where(eq(lessonSources.lessonId, lessonId))
-    .orderBy(asc(lessonSources.position));
-  const claims = await db
-    .select()
-    .from(lessonClaims)
-    .where(eq(lessonClaims.lessonId, lessonId));
+type LessonRow = typeof lessons.$inferSelect;
+
+export async function lessonView(db: Database, lesson: LessonRow) {
+  const [sources, claims] = await Promise.all([
+    db
+      .select()
+      .from(lessonSources)
+      .where(eq(lessonSources.lessonId, lesson.id))
+      .orderBy(asc(lessonSources.position)),
+    db.select().from(lessonClaims).where(eq(lessonClaims.lessonId, lesson.id)),
+  ]);
   return {
     id: lesson.id,
     title: lesson.title,
@@ -308,6 +346,17 @@ export async function lessonContent(db: Database, lessonId: string) {
       unsourced: claim.unsourced === 1,
     })),
   };
+}
+
+export async function lessonContent(db: Database, lessonId: string) {
+  const rows = await db
+    .select()
+    .from(lessons)
+    .where(eq(lessons.id, lessonId))
+    .limit(1);
+  const lesson = rows[0];
+  if (!lesson) return null;
+  return lessonView(db, lesson);
 }
 
 type QuizPayload = {
@@ -359,7 +408,8 @@ async function quizPayloadFor(
       })
       .from(quizAttempts)
       .where(inArray(quizAttempts.quizId, quizIds))
-      .orderBy(desc(quizAttempts.createdAt)),
+      .orderBy(desc(quizAttempts.createdAt))
+      .limit(quizIds.length * MAX_QUIZ_ATTEMPT_HISTORY),
   ]);
   const questionsByQuiz = groupBy(questions, (question) => question.quizId);
   const latestAttempt = new Map<string, (typeof attempts)[number]>();
@@ -410,73 +460,65 @@ async function quizPayloadFor(
   return payloads;
 }
 
-async function progressFor(db: Database, pathId: string) {
+export async function lessonQuiz(db: Database, lessonId: string) {
   const rows = await db
-    .select({
-      total: count(lessons.id),
-      done: sql<number>`count(${lessons.completedAt})`,
-    })
-    .from(lessons)
-    .innerJoin(chapters, eq(lessons.chapterId, chapters.id))
-    .where(eq(chapters.pathId, pathId));
-  return {
-    done: Number(rows[0]?.done ?? 0),
-    total: Number(rows[0]?.total ?? 0),
-  };
+    .select({ id: quizzes.id })
+    .from(quizzes)
+    .where(eq(quizzes.lessonId, lessonId))
+    .orderBy(desc(quizzes.createdAt))
+    .limit(1);
+  const quiz = rows[0];
+  if (!quiz) return null;
+  const payloads = await quizPayloadFor(db, [quiz.id]);
+  return payloads.get(quiz.id) ?? null;
+}
+
+export async function latestQuizScore(
+  db: Database,
+  lessonId: string,
+): Promise<number | null> {
+  const row = await db.get<{ score: number | null }>(sql`
+    select quiz_attempt.score_percent as score
+    from quiz
+    inner join quiz_attempt on quiz_attempt.quiz_id = quiz.id
+    where quiz.lesson_id = ${lessonId}
+    order by quiz_attempt.created_at desc
+    limit 1
+  `);
+  return row ? Number(row.score) : null;
 }
 
 async function nextLesson(db: Database, pathId: string) {
-  const chapterRows = await db
-    .select({ id: chapters.id, title: chapters.title })
-    .from(chapters)
-    .where(eq(chapters.pathId, pathId))
-    .orderBy(asc(chapters.position));
-  if (chapterRows.length === 0) return null;
-  const lessonRows = await db
-    .select({
-      id: lessons.id,
-      chapterId: lessons.chapterId,
-      title: lessons.title,
-      completedAt: lessons.completedAt,
-    })
-    .from(lessons)
-    .where(
-      inArray(
-        lessons.chapterId,
-        chapterRows.map((chapter) => chapter.id),
-      ),
-    )
-    .orderBy(asc(lessons.position));
-  const lessonsByChapter = groupBy(lessonRows, (lesson) => lesson.chapterId);
-  for (const chapter of chapterRows) {
-    const lesson = (lessonsByChapter.get(chapter.id) ?? []).find(
-      (item) => !item.completedAt,
-    );
-    if (lesson)
-      return {
-        id: lesson.id,
-        title: lesson.title,
-        chapterTitle: chapter.title,
-      };
-  }
-  return null;
+  const row = await db.get<{
+    id: string;
+    title: string;
+    chapterTitle: string;
+  }>(sql`
+    select lesson.id as id, lesson.title as title, chapter.title as chapterTitle
+    from chapter
+    inner join lesson on lesson.chapter_id = chapter.id
+    where chapter.path_id = ${pathId} and lesson.completed_at is null
+    order by chapter.position, lesson.position
+    limit 1
+  `);
+  if (!row) return null;
+  return { id: row.id, title: row.title, chapterTitle: row.chapterTitle };
 }
 
-async function completedDates(db: Database, userId: string): Promise<string[]> {
-  const rows = await db
-    .select({ completedAt: lessons.completedAt })
-    .from(lessons)
-    .innerJoin(chapters, eq(lessons.chapterId, chapters.id))
-    .innerJoin(paths, eq(chapters.pathId, paths.id))
-    .where(
-      and(eq(paths.userId, userId), sql`${lessons.completedAt} is not null`),
-    );
-  const dates = new Set<string>();
-  for (const lesson of rows) {
-    if (lesson.completedAt)
-      dates.add(jakartaDate(new Date(lesson.completedAt)));
-  }
-  return [...dates];
+async function hasEarlierCompletion(
+  db: Database,
+  userId: string,
+  today: string,
+): Promise<boolean> {
+  const row = await db.get<{ first: string | null }>(sql`
+    select min(lesson.completed_at) as first
+    from lesson
+    inner join chapter on lesson.chapter_id = chapter.id
+    inner join path on chapter.path_id = path.id
+    where path.user_id = ${userId} and lesson.completed_at is not null
+  `);
+  if (!row?.first) return false;
+  return jakartaDate(new Date(row.first)) < today;
 }
 
 function groupBy<T, K>(rows: T[], key: (row: T) => K): Map<K, T[]> {

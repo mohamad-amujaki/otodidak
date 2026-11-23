@@ -2,15 +2,15 @@
 import { env } from 'cloudflare:workers';
 import Shell from '../components/Shell.astro';
 import { AppError } from '../domain/errors';
-import { isRecord, record } from '../domain/guard';
+import { record } from '../domain/guard';
 import {
   requestAccountDeletion,
   setStreakEnabled,
 } from '../server/profile-actions';
-import { mePayload } from '../server/read';
-import { pageMe } from '../server/ssr';
+import { shellPayload, userById } from '../server/read';
+import { pageShell } from '../server/ssr';
 
-const page = await pageMe(Astro.request, env);
+const page = await pageShell(Astro.request, env);
 if ('redirect' in page) return Astro.redirect(page.redirect);
 const { session } = page;
 let me = record(page.me);
@@ -30,7 +30,8 @@ if (Astro.request.method === 'POST') {
       await requestAccountDeletion(session.db, session.user.id);
       message =
         'Permintaan penghapusan tercatat. Admin yang menyelesaikan penghapusan materi.';
-      me = record(await mePayload(session.db, session.user));
+      const fresh = await userById(session.db, session.user.id);
+      me = record(await shellPayload(session.db, fresh ?? session.user));
     } catch (error) {
       message = error instanceof AppError ? error.message : 'Permintaan gagal.';
     }
@@ -49,9 +50,10 @@ if (Astro.request.method === 'POST') {
   }
 }
 const enabled = record(me.user).streakEnabled === true;
-const streak = isRecord(me.streak) ? me.streak : null;
 const streakCount =
-  streak && typeof streak.count === 'number' ? streak.count : 0;
+  typeof record(me.user).streakCount === 'number'
+    ? Number(record(me.user).streakCount)
+    : 0;
 ---
 <Shell title="Profil" sectionLabel="Profil" balance={typeof me.balance === 'number' ? me.balance : 0} role={user.role === 'admin' ? 'admin' : 'learner'} suspended={user.status === 'suspended'} userName={String(user.name)} userEmail={String(user.email)}>
   <div class="mx-auto max-w-3xl">
