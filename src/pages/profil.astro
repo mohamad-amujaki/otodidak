@@ -144,7 +144,7 @@ const streakCount =
               >
                 <span
                   class:list={[
-                    'absolute top-1/2 size-5 -translate-y-1/2 rounded-full bg-kartu shadow-sm transition-all',
+                    'absolute top-1/2 size-5 -translate-y-1/2 rounded-full bg-kartu shadow-sm transition-[left,right] duration-200 ease-out',
                     enabled ? 'right-0.5' : 'left-0.5',
                   ]}
                 />
@@ -190,7 +190,7 @@ const streakCount =
           <input type="hidden" name="csrf" value={Astro.locals.csrf} />
           <input type="hidden" name="aksi" value="hapus" />
           <button 
-            class="inline-flex min-h-11 items-center gap-2 rounded-kontrol border border-bahaya/30 bg-bahaya/5 px-6 font-medium text-bahaya transition-all hover:bg-bahaya/10 hover:border-bahaya" 
+            class="inline-flex min-h-11 items-center gap-2 rounded-kontrol border border-bahaya/30 bg-bahaya/5 px-6 font-medium text-bahaya transition-colors hover:bg-bahaya/10 hover:border-bahaya" 
             type="submit"
           >
             <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -210,7 +210,7 @@ const streakCount =
         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
         <input type="hidden" name="aksi" value="keluar" />
         <button 
-          class="inline-flex min-h-11 items-center gap-2 rounded-kontrol border border-garis bg-kartu px-6 font-medium text-tinta transition-all hover:bg-kertas hover:border-tinta-lembut" 
+          class="inline-flex min-h-11 items-center gap-2 rounded-kontrol border border-garis bg-kartu px-6 font-medium text-tinta transition-colors hover:bg-kertas hover:border-tinta-lembut" 
           type="submit"
         >
           <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">

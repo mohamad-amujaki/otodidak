@@ -1,8 +1,11 @@
 import { env } from 'cloudflare:workers';
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { debitIfEnough } from '../src/billing/ledger';
 import { signSvix } from '../src/billing/webhook';
+import { creditOrders } from '../src/db/schema';
 import { database } from '../src/server/account';
+import { applyReportedPayment } from '../src/server/credit-orders-service';
 import { processGeneration } from '../src/server/generation';
 import { api, jsonBody, signIn } from './helpers';
 
@@ -471,6 +474,100 @@ describe('webhook pembayaran', () => {
       .bind(order.orderId)
       .first<{ status: string }>();
     expect(row?.status).toBe('failed');
+  });
+
+  it('menerima webhook lunas yang membawa kolom tambahan', async () => {
+    const cookie = await signIn('tambahan@example.com');
+    const order = await createOrder(cookie);
+    const response = await webhook({
+      event_type: 'payment.completed',
+      currency: 'IDR',
+      data: {
+        payment_id: `pay_${order.orderId}`,
+        order_id: order.orderId,
+        amount: '25000',
+        fee: 175.5,
+        status: 'completed',
+        channel: 'qris',
+      },
+    });
+    expect(response.status).toBe(200);
+    const row = await env.DB.prepare(
+      'select status from credit_order where order_id = ?',
+    )
+      .bind(order.orderId)
+      .first<{ status: string }>();
+    expect(row?.status).toBe('paid');
+  });
+
+  it('mengakui event uji tanpa mengubah pesanan', async () => {
+    const response = await webhook({
+      event_type: 'payment.test',
+      data: { ok: true },
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it('menyalin status lunas dari penyedia saat webhook belum sampai', async () => {
+    const cookie = await signIn('selaras@example.com');
+    const created = await createOrder(cookie);
+    const row = await env.DB.prepare(
+      'select id, status from credit_order where order_id = ?',
+    )
+      .bind(created.orderId)
+      .first<{ id: string; status: string }>();
+    if (!row) throw new Error('pesanan tidak ada');
+    const db = await database(env);
+    const orders = (
+      await db
+        .select()
+        .from(creditOrders)
+        .where(eq(creditOrders.id, row.id))
+        .limit(1)
+    )[0];
+    if (!orders) throw new Error('pesanan tidak ada');
+    const paid = await applyReportedPayment(db, orders, {
+      status: 'completed',
+      amount: 25000,
+      orderId: created.orderId,
+      paymentId: orders.sumopodPaymentId,
+    });
+    expect(paid.status).toBe('paid');
+    const again = await applyReportedPayment(db, paid, {
+      status: 'completed',
+      amount: 25000,
+      orderId: created.orderId,
+      paymentId: orders.sumopodPaymentId,
+    });
+    expect(again.status).toBe('paid');
+    expect(
+      await count(
+        'select count(*) as n from credit_ledger where reason = ? and user_id = ?',
+        'purchase',
+        await userIdFor('selaras@example.com'),
+      ),
+    ).toBe(1);
+  });
+
+  it('tidak menambah kredit bila jumlah dari penyedia berbeda', async () => {
+    const cookie = await signIn('selisih@example.com');
+    const created = await createOrder(cookie);
+    const db = await database(env);
+    const orders = (
+      await db
+        .select()
+        .from(creditOrders)
+        .where(eq(creditOrders.orderId, created.orderId))
+        .limit(1)
+    )[0];
+    if (!orders) throw new Error('pesanan tidak ada');
+    const stayed = await applyReportedPayment(db, orders, {
+      status: 'completed',
+      amount: 1,
+      orderId: created.orderId,
+      paymentId: orders.sumopodPaymentId,
+    });
+    expect(stayed.status).toBe('pending');
   });
 });
 

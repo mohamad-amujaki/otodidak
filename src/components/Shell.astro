@@ -179,7 +179,7 @@ const showAccountMenu = role !== null;
             </nav>
           )}
           {balance !== null && (
-            <a class:list={["inline-flex min-h-11 items-center gap-1.5 rounded-kontrol border px-3 text-sm font-medium tabular-nums whitespace-nowrap shadow-sm transition-all hover:shadow-md",
+            <a class:list={["inline-flex min-h-11 items-center gap-1.5 rounded-kontrol border px-3 text-sm font-medium tabular-nums whitespace-nowrap transition-colors",
               lowCredit
                 ? "border-hangat/40 bg-hangat-lembut hover:border-hangat/60"
                 : "border-garis bg-kartu hover:border-jalur/30"]} href="/kredit" title={lowCredit ? 'Kredit hampir habis' : 'Saldo kredit'}>
@@ -203,13 +203,13 @@ const showAccountMenu = role !== null;
               {!isLoginPage &&
                 (realAuth && isLanding ? (
                   <AuthButton
-                    class="max-md:hidden min-h-11 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:brightness-110"
+                    class="btn-jalur min-h-11 max-md:hidden px-4 text-sm"
                     label="Mulai gratis"
                     real={realAuth}
                   />
                 ) : (
                   <a
-                    class="inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:brightness-110"
+                    class="btn-jalur min-h-11 px-4 text-sm"
                     href="/masuk"
                   >
                     Masuk
@@ -225,7 +225,7 @@ const showAccountMenu = role !== null;
                 aria-label={`Menu akun — ${displayName}`}
               >
                 <span
-                  class="inline-flex size-10 items-center justify-center rounded-full bg-jalur-lembut text-xs font-semibold tracking-wide text-jalur uppercase transition-shadow hover:shadow-md"
+                  class="inline-flex size-10 items-center justify-center rounded-full bg-jalur-lembut text-xs font-semibold tracking-wide text-jalur uppercase"
                   aria-hidden="true"
                 >
                   {initials}

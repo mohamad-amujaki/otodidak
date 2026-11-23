@@ -285,7 +285,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
         </span>
       )}
       {nextLesson && (
-        <a class="inline-flex min-h-11 items-center gap-1.5 rounded-kontrol bg-jalur px-3 text-xs font-semibold text-white shadow-sm transition-all hover:brightness-110" href={lessonHref(nextLesson.id)} aria-keyshortcuts="ArrowRight" title="Berikutnya (→)" data-lesson-next>
+        <a class="btn-jalur min-h-11 gap-1.5 px-3 text-xs" href={lessonHref(nextLesson.id)} aria-keyshortcuts="ArrowRight" title="Berikutnya (→)" data-lesson-next>
           Berikutnya <span aria-hidden="true">→</span>
           <kbd class="kbd-hint hidden lg:inline-flex">→</kbd>
         </a>
@@ -340,14 +340,14 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
         {resumeAction === 'kuis' ? (
           quizHref && currentChapter ? (
             currentChapterQuiz ? (
-              <a class="inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white" href={quizHref}>
+              <a class="btn-jalur min-h-11 px-4 text-sm" href={quizHref}>
                 Buka quiz sub-bab
               </a>
             ) : (
               <form method="post">
                 <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                 <input type="hidden" name="aksi" value="kuis" />
-                                <button class="min-h-11 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white" type="submit">
+                                <button class="btn-jalur min-h-11 px-4 text-sm" type="submit">
                   Ya, buat quiz
                 </button>
               </form>
@@ -357,7 +357,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
           <form method="post">
             <input type="hidden" name="csrf" value={Astro.locals.csrf} />
             <input type="hidden" name="aksi" value="buka" />
-            <button class="min-h-11 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white" type="submit">
+            <button class="btn-jalur min-h-11 px-4 text-sm" type="submit">
               Ya, buat pelajaran
             </button>
           </form>
@@ -422,7 +422,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
             <form method="post">
               <input type="hidden" name="csrf" value={Astro.locals.csrf} />
               <input type="hidden" name="aksi" value="buka" />
-              <button class="w-full rounded-kontrol bg-jalur px-4 text-white md:w-auto" type="submit">Buat pelajaran</button>
+              <button class="btn-jalur w-full px-4 md:w-auto" type="submit">Buat pelajaran</button>
               <p class="mt-2 text-sm leading-[1.4] text-tinta-lembut">Memakai {cost} kredit. Membaca ulang tidak mengurangi kredit.</p>
             </form>
           </div>
@@ -531,7 +531,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
                 <form class="min-[560px]:w-auto" method="post" id="complete-form">
                   <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                   <input type="hidden" name="aksi" value="selesai" />
-                  <button class="min-h-11 w-full rounded-kontrol bg-jalur px-6 font-semibold text-white transition-[filter] hover:brightness-110 min-[560px]:w-auto" type="submit">
+                  <button class="btn-jalur min-h-11 w-full px-6 min-[560px]:w-auto" type="submit">
                     Tandai Selesai
                   </button>
                 </form>
@@ -623,7 +623,7 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
         </span>
       )}
       {nextLesson ? (
-        <a class="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-kontrol bg-jalur px-4 text-sm font-semibold text-white" href={lessonHref(nextLesson.id)} data-lesson-next>
+        <a class="btn-jalur min-h-11 flex-1 px-4 text-sm" href={lessonHref(nextLesson.id)} data-lesson-next>
           Berikutnya →
         </a>
       ) : (

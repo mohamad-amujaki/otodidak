@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import { readHostedPayment } from '../billing/hosted-payment';
 import { createQrisPayment } from '../billing/sumopod';
 import type { Database } from '../db/client';
 import { creditOrders, creditPacks, type UserRow } from '../db/schema';
@@ -6,7 +7,7 @@ import { AppError } from '../domain/errors';
 import { nowIso } from '../domain/time';
 import { logEvent } from './log';
 import { requestAppOrigin } from './origin';
-import { simulateDevPaymentCompletion } from './payment-webhook';
+import { grantPurchase, simulateDevPaymentCompletion } from './payment-webhook';
 
 export function publicCreditOrder(order: typeof creditOrders.$inferSelect) {
   return {
@@ -120,10 +121,111 @@ export async function fetchUserCreditOrder(
     .limit(1);
   const order = rows[0];
   if (!order) throw new AppError('not_found');
+  const current = await syncPendingOrder(env, db, order);
   return {
-    ...publicCreditOrder(order),
+    ...publicCreditOrder(current),
     mock: env.SUMOPOD_API_KEY === 'mock',
   };
+}
+
+export async function applyReportedPayment(
+  db: Database,
+  order: typeof creditOrders.$inferSelect,
+  report: {
+    status: string;
+    amount: number | null;
+    orderId: string | null;
+    paymentId: string | null;
+  },
+): Promise<typeof creditOrders.$inferSelect> {
+  if (order.status !== 'pending') return order;
+  if (report.orderId && report.orderId !== order.orderId) return order;
+  if (
+    report.paymentId &&
+    order.sumopodPaymentId &&
+    report.paymentId !== order.sumopodPaymentId
+  )
+    return order;
+  const outcome = paymentOutcome(report.status);
+  if (outcome === 'pending') return order;
+  if (outcome === 'paid') {
+    if (report.amount !== order.amountIdr || !order.sumopodPaymentId) {
+      logEvent({
+        message: 'payment_sync_amount_mismatch',
+        userId: order.userId,
+        errorCode: 'validation',
+      });
+      return order;
+    }
+    try {
+      await grantPurchase(db, order, order.sumopodPaymentId, nowIso());
+    } catch {
+      logEvent({
+        message: 'payment_sync_failed',
+        userId: order.userId,
+        errorCode: 'validation',
+      });
+    }
+  } else {
+    await db
+      .update(creditOrders)
+      .set({ status: outcome })
+      .where(
+        and(eq(creditOrders.id, order.id), eq(creditOrders.status, 'pending')),
+      );
+  }
+  const rows = await db
+    .select()
+    .from(creditOrders)
+    .where(eq(creditOrders.id, order.id))
+    .limit(1);
+  return rows[0] ?? order;
+}
+
+async function syncPendingOrder(
+  env: Env,
+  db: Database,
+  order: typeof creditOrders.$inferSelect,
+) {
+  if (
+    order.status !== 'pending' ||
+    !order.sumopodPaymentId ||
+    !order.paymentLinkUrl ||
+    env.SUMOPOD_API_KEY === 'mock'
+  )
+    return order;
+  try {
+    const remote = await readHostedPayment({
+      url: order.paymentLinkUrl,
+      amount: order.amountIdr,
+      paymentId: order.sumopodPaymentId,
+    });
+    if (!remote) return order;
+    return applyReportedPayment(db, order, remote);
+  } catch {
+    return order;
+  }
+}
+
+function paymentOutcome(
+  status: string,
+): 'paid' | 'pending' | 'failed' | 'expired' {
+  switch (status.toLowerCase()) {
+    case 'completed':
+    case 'paid':
+    case 'success':
+    case 'succeeded':
+      return 'paid';
+    case 'failed':
+    case 'failure':
+      return 'failed';
+    case 'expired':
+    case 'cancelled':
+    case 'canceled':
+      return 'expired';
+    default:
+      return 'pending';
+  }
 }
 
 export { simulateDevPaymentCompletion };

@@ -33,6 +33,8 @@ const contoh = [
     isi: 'Tanda yang perlu dicek sebelum mengganti kebiasaan.',
   },
 ];
+const cuplikan =
+  'Siram saat permukaan tanah kering. Daun yang menguning biasanya minta air, bukan pupuk.';
 
 const personas = [
   {
@@ -203,7 +205,7 @@ const jsonLd = JSON.stringify({
   <script type="application/ld+json" set:html={jsonLd} />
 
   <!-- Hero -->
-  <section class="grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_21rem]">
+  <section class="grid items-start gap-8 sm:gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)] lg:gap-12">
     <div>
       <p class="eyebrow flex items-center gap-3">
         <span class="h-px w-8 bg-jalur/40" aria-hidden="true"></span>
@@ -244,29 +246,44 @@ const jsonLd = JSON.stringify({
       </dl>
     </div>
 
-    <div class="lg:pt-2">
-      <p class="text-xs font-semibold uppercase tracking-[0.08em] text-tinta-lembut">Contoh kerangka</p>
-      <p class="mt-1 text-base font-bold text-tinta">Menanam kopi di rumah</p>
-      <ol class="relative mt-5 pl-6">
-        <span class="absolute bottom-2 left-[3px] top-2 w-px bg-garis" aria-hidden="true"></span>
-        {contoh.map((bab, index) => (
-          <li class="relative pb-6 last:pb-0">
-            <span
-              class:list={[
-                'absolute -left-6 top-1.5 size-[7px] rounded-full',
-                index === 0 ? 'bg-jalur' : 'bg-garis',
-              ]}
-              aria-hidden="true"
-            />
-            <p class="text-sm font-semibold text-tinta">{bab.judul}</p>
-            <p class="mt-1 text-sm leading-[1.45] text-tinta-lembut">{bab.isi}</p>
-          </li>
-        ))}
-      </ol>
-      <p class="mt-6 border-t border-garis pt-3 text-xs text-tinta-lembut">
-        Contoh kerangka, bukan jalur sungguhan.
-      </p>
-    </div>
+    <aside class="w-full min-w-0 max-w-xl lg:max-w-none lg:pt-2">
+      <div class="rounded-kartu border border-garis bg-kartu p-4 sm:p-5">
+        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-tinta-lembut">
+          Contoh pelajaran
+        </p>
+        <div class="mock-susun">
+          <p class="mock-langkah mt-2 text-base font-bold text-balance text-tinta">
+            Menanam kopi di rumah
+          </p>
+          <ol class="relative mt-4 pl-6">
+            <span class="absolute bottom-2 left-[3px] top-2 w-px bg-garis" aria-hidden="true"></span>
+            {contoh.map((bab, index) => (
+              <li
+                class="mock-langkah relative pb-4 last:pb-0"
+                style={`--tunda: ${80 + index * 50}ms`}
+              >
+                <span
+                  class:list={[
+                    'absolute -left-6 top-1.5 size-[7px] rounded-full',
+                    index === 0 ? 'bg-jalur' : 'bg-garis',
+                  ]}
+                  aria-hidden="true"
+                />
+                <p class="text-sm font-semibold text-tinta">{bab.judul}</p>
+                <p class="mt-0.5 text-sm leading-snug text-tinta-lembut">{bab.isi}</p>
+              </li>
+            ))}
+          </ol>
+          <p
+            class="mock-langkah mt-4 border-t border-garis pt-4 font-serif text-sm leading-relaxed text-pretty text-tinta"
+            style="--tunda: 280ms"
+          >
+            {cuplikan}
+          </p>
+        </div>
+        <p class="mt-4 text-xs text-tinta-lembut">Contoh, bukan jalur sungguhan.</p>
+      </div>
+    </aside>
   </section>
 
   <!-- 01 · Untuk siapa -->
@@ -372,10 +389,10 @@ const jsonLd = JSON.stringify({
     </h2>
     <div class="mt-6 divide-y divide-garis border-y border-garis">
       {faq.map((item) => (
-        <details class="group">
-          <summary class="flex min-h-14 w-full cursor-pointer items-center justify-between gap-4 py-4 text-left font-semibold text-tinta">
-            <h3 class="max-w-2xl text-base font-semibold">{item.t}</h3>
-            <svg class="size-4 shrink-0 text-tinta-lembut transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <details class="group faq">
+          <summary class="flex min-h-14 w-full cursor-pointer items-start justify-between gap-4 py-4 text-left font-semibold text-tinta sm:items-center">
+            <h3 class="min-w-0 max-w-2xl text-base font-semibold text-pretty">{item.t}</h3>
+            <svg class="mt-1 size-4 shrink-0 text-tinta-lembut transition-transform group-open:rotate-180 sm:mt-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
             </svg>
           </summary>
@@ -399,7 +416,7 @@ const jsonLd = JSON.stringify({
       </div>
       <div class="shrink-0">
         <AuthButton
-          class="inline-flex min-h-12 items-center justify-center gap-2 rounded-kontrol bg-jalur px-8 text-base font-semibold text-white transition-[filter] hover:brightness-110 max-md:hidden"
+          class="btn-jalur max-md:hidden"
           label="Mulai gratis dengan Google"
           real={realAuth}
         />

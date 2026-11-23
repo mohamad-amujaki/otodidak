@@ -83,7 +83,17 @@ const statusConfig = {
   },
   failed: {
     title: 'Pembayaran Tidak Berhasil',
-    description: 'Pembayaran tidak diterima atau waktu habis',
+    description: 'Pembayaran tidak diterima. Kamu bisa membuat pesanan baru.',
+    bgColor: 'bg-bahaya/10',
+    borderColor: 'border-bahaya',
+    textColor: 'text-bahaya',
+    railColor: 'border-l-bahaya',
+    icon: 'x',
+  },
+  expired: {
+    title: 'Pembayaran Kedaluwarsa',
+    description:
+      'Waktu pembayaran habis. Buat pesanan baru untuk mencoba lagi.',
     bgColor: 'bg-bahaya/10',
     borderColor: 'border-bahaya',
     textColor: 'text-bahaya',
@@ -151,6 +161,7 @@ const config =
                 {status === 'pending' && 'Menunggu'}
                 {status === 'paid' && 'Berhasil'}
                 {status === 'failed' && 'Gagal'}
+                {status === 'expired' && 'Kedaluwarsa'}
               </span>
             </dd>
           </div>
@@ -221,7 +232,7 @@ const config =
           </div>
 
           <a 
-            class="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 text-base font-semibold text-white transition-[filter] hover:brightness-110" 
+            class="btn-jalur mt-6 w-full px-6" 
             href={paymentHref}
             target={typeof order.paymentCode === 'string' ? '_self' : '_blank'}
             rel={typeof order.paymentCode === 'string' ? undefined : 'noopener noreferrer'}
@@ -252,7 +263,7 @@ const config =
           Lihat Saldo Kredit
         </a>
         <a 
-          class="flex min-h-11 items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white transition-[filter] hover:brightness-110" 
+          class="btn-jalur min-h-11 px-6" 
           href={kembali ?? '/dasbor'}
         >
           <span>{kembali ? 'Kembali ke materi' : 'Mulai Belajar'}</span>
@@ -264,10 +275,10 @@ const config =
     )}
 
     <!-- Failed/Expired Actions -->
-    {status === 'failed' && (
+    {(status === 'failed' || status === 'expired') && (
       <div class="mb-6">
         <a 
-          class="flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white transition-[filter] hover:brightness-110" 
+          class="btn-jalur min-h-11 w-full px-6" 
           href="/kredit"
         >
           <span>Coba Lagi</span>
@@ -293,7 +304,7 @@ const config =
         <form method="post">
           <input type="hidden" name="csrf" value={Astro.locals.csrf} />
           <button 
-            class="w-full min-h-11 rounded-kontrol border border-hangat bg-hangat px-4 font-semibold text-white transition-all hover:brightness-110" 
+            class="btn-hangat min-h-11 w-full border border-hangat px-4" 
             type="submit"
           >
             Tandai Pembayaran Berhasil (Dev)
@@ -320,7 +331,7 @@ const config =
         </a>
         {kembali && (
           <a
-            class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white transition-[filter] hover:brightness-110"
+            class="btn-jalur min-h-11 flex-1 px-6"
             href={kembali}
           >
             Kembali ke materi

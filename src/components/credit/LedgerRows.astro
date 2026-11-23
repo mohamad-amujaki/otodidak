@@ -83,10 +83,10 @@ const rows = entries.filter(isRecord);
       const contextLabel =
         typeof entry.contextLabel === 'string' ? entry.contextLabel : '';
       const rowClass = [
-        'flex items-center gap-4 border border-garis bg-kartu',
+        'flex items-center gap-4 border border-garis bg-kartu transition-colors',
         compact
           ? 'rounded-kontrol px-3 py-2.5'
-          : 'rounded-kartu p-4 shadow-sm transition-all hover:shadow-md',
+          : 'rounded-kartu p-4 shadow-sm',
         href ? 'hover:border-jalur/30' : '',
       ];
       const inner = (

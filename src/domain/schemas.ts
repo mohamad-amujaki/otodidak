@@ -319,25 +319,49 @@ export const sumopodPaymentSchema = z
   })
   .strip();
 
-export const webhookSchema = z.strictObject({
-  event_type: z.enum([
-    'payment.completed',
-    'payment.failed',
-    'payment.expired',
-  ]),
-  data: z.strictObject({
-    payment_id: z.string().min(1),
-    order_id: z.string().min(1),
-    amount: z.number().int().nonnegative(),
-    fee: z.number().int().nonnegative().optional(),
-    net_amount: z.number().int().nonnegative().optional(),
-    status: z.string().min(1).optional(),
-    paid_at: z.string().nullable().optional(),
-    settled_at: z.string().nullable().optional(),
-    payment_method: z.string().optional(),
-    completed_at: z.string().nullable().optional(),
-  }),
-});
+const idrAmount = z.preprocess(
+  (value) =>
+    typeof value === 'string' && value.trim() !== '' ? Number(value) : value,
+  z.number().int().nonnegative(),
+);
+
+const idrFee = z.preprocess(
+  (value) =>
+    typeof value === 'string' && value.trim() !== '' ? Number(value) : value,
+  z.number().nonnegative().optional(),
+);
+
+export const webhookSchema = z
+  .object({
+    event_type: z.enum([
+      'payment.completed',
+      'payment.failed',
+      'payment.expired',
+    ]),
+    data: z
+      .object({
+        payment_id: z.string().min(1),
+        order_id: z.string().min(1),
+        amount: idrAmount,
+        fee: idrFee,
+        net_amount: idrFee,
+        status: z.string().min(1).optional(),
+        paid_at: z.string().nullable().optional(),
+        settled_at: z.string().nullable().optional(),
+        payment_method: z.string().optional(),
+        completed_at: z.string().nullable().optional(),
+      })
+      .strip(),
+  })
+  .strip();
+
+export function webhookEventName(body: unknown): string | null {
+  const parsed = z
+    .object({ event_type: z.string().min(1) })
+    .strip()
+    .safeParse(body);
+  return parsed.success ? parsed.data.event_type : null;
+}
 
 export const taskSchema = z.enum(['roadmap', 'lesson', 'quiz']);
 

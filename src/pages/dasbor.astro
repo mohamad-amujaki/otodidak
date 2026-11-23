@@ -190,7 +190,7 @@ const lowCredit = balance < cost;
         </div>
       )}
       <a
-        class="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-5 font-semibold text-white transition-[filter] hover:brightness-110 sm:w-auto"
+        class="btn-jalur mt-5 min-h-11 w-full px-5 sm:w-auto"
         href={`/jalur/${String(activePath.id)}/pelajaran/${String(nextLesson.id)}`}
       >
         Lanjut
@@ -357,7 +357,7 @@ const lowCredit = balance < cost;
             <span>Memakai <strong class="font-semibold text-tinta">{cost} kredit</strong></span>
           </div>
           <button
-            class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white transition-[filter] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
+            class="btn-jalur min-h-11 w-full px-6 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
             type="submit"
             disabled={Boolean(activeJob)}
           >

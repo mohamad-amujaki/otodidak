@@ -1,8 +1,9 @@
 import { and, eq } from 'drizzle-orm';
 import { signSvix, verifySvix } from '../billing/webhook';
+import type { Database } from '../db/client';
 import { creditLedger, creditOrders, paymentEvents } from '../db/schema';
 import { AppError, errorMessage } from '../domain/errors';
-import { webhookSchema } from '../domain/schemas';
+import { webhookEventName, webhookSchema } from '../domain/schemas';
 import { nowIso } from '../domain/time';
 import { database } from './account';
 import { logEvent } from './log';
@@ -35,6 +36,18 @@ export async function handlePaymentWebhook(
       { status: 400 },
     );
   }
+  const eventName = webhookEventName(json);
+  if (!eventName)
+    return Response.json(
+      { error: { code: 'validation', message: errorMessage.validation } },
+      { status: 400 },
+    );
+  if (
+    eventName !== 'payment.completed' &&
+    eventName !== 'payment.failed' &&
+    eventName !== 'payment.expired'
+  )
+    return Response.json({ ok: true });
   const parsed = webhookSchema.safeParse(json);
   if (!parsed.success)
     return Response.json(
@@ -103,41 +116,27 @@ export async function handlePaymentWebhook(
   }
   if (event.event_type === 'payment.completed') {
     try {
-      await db.batch([
-        db.insert(paymentEvents).values({
-          svixId,
-          orderId: order.orderId,
-          eventType: event.event_type,
-          paymentId: event.data.payment_id,
-          createdAt,
-        }),
-        db
-          .update(creditOrders)
-          .set({
-            status: 'paid',
-            paidAt: createdAt,
-            sumopodPaymentId: event.data.payment_id,
-          })
-          .where(
-            and(
-              eq(creditOrders.id, order.id),
-              eq(creditOrders.status, 'pending'),
-            ),
-          ),
-        db.insert(creditLedger).values({
-          id: crypto.randomUUID(),
-          userId: order.userId,
-          amount: order.credits,
-          reason: 'purchase',
-          refType: 'order',
-          refId: order.id,
-          idempotencyKey: `purchase:${event.data.payment_id}`,
-          note: null,
-          createdAt,
-        }),
-      ]);
+      await grantPurchase(db, order, event.data.payment_id, createdAt, {
+        svixId,
+        eventType: event.event_type,
+        paymentId: event.data.payment_id,
+      });
     } catch {
-      return Response.json({ ok: true });
+      const current = await db
+        .select({ status: creditOrders.status })
+        .from(creditOrders)
+        .where(eq(creditOrders.id, order.id))
+        .limit(1);
+      if (current[0]?.status === 'paid') return Response.json({ ok: true });
+      logEvent({
+        message: 'payment_completed_failed',
+        userId: order.userId,
+        errorCode: 'validation',
+      });
+      return Response.json(
+        { error: { code: 'validation', message: errorMessage.validation } },
+        { status: 500 },
+      );
     }
     logEvent({
       message: 'payment_completed',
@@ -164,6 +163,53 @@ export async function handlePaymentWebhook(
       and(eq(creditOrders.id, order.id), eq(creditOrders.status, 'pending')),
     );
   return Response.json({ ok: true });
+}
+
+type CreditOrderRow = typeof creditOrders.$inferSelect;
+
+export async function grantPurchase(
+  db: Database,
+  order: CreditOrderRow,
+  paymentId: string,
+  paidAt: string,
+  event?: { svixId: string; eventType: string; paymentId: string },
+): Promise<void> {
+  const paid = db
+    .update(creditOrders)
+    .set({
+      status: 'paid',
+      paidAt,
+      sumopodPaymentId: paymentId,
+    })
+    .where(
+      and(eq(creditOrders.id, order.id), eq(creditOrders.status, 'pending')),
+    );
+  const ledger = db.insert(creditLedger).values({
+    id: crypto.randomUUID(),
+    userId: order.userId,
+    amount: order.credits,
+    reason: 'purchase',
+    refType: 'order',
+    refId: order.id,
+    idempotencyKey: `purchase:${order.orderId}`,
+    note: null,
+    createdAt: paidAt,
+  });
+  if (event) {
+    await db.batch([
+      db.insert(paymentEvents).values({
+        svixId: event.svixId,
+        orderId: order.orderId,
+        eventType: event.eventType,
+        paymentId: event.paymentId,
+        createdAt: paidAt,
+      }),
+      paid,
+      ledger,
+    ]);
+    return;
+  }
+  await db.batch([paid, ledger]);
 }
 
 export async function simulateDevPaymentCompletion(

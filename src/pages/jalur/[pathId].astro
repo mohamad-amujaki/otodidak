@@ -408,7 +408,7 @@ function actionFrom(form: FormData): OutlineAction {
             <span class="font-semibold tabular-nums text-tinta">{percent}%</span>
           </div>
           <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-garis">
-            <div class="h-full rounded-full bg-jalur transition-all" style={`width: ${percent}%`}></div>
+            <div class="h-full rounded-full bg-jalur transition-[width] duration-300" style={`width: ${percent}%`}></div>
           </div>
         </div>
       )}
@@ -416,7 +416,7 @@ function actionFrom(form: FormData): OutlineAction {
 
     <div class="flex flex-wrap gap-2 min-[900px]:shrink-0">
       {isReady && isActive && nextLesson && (
-        <a class="inline-flex min-h-11 w-full min-w-0 items-center justify-center gap-2 rounded-kontrol bg-jalur px-5 text-sm font-semibold text-white shadow-md transition-all hover:brightness-110 hover:shadow-lg min-[900px]:w-auto" href={`/jalur/${pathId}/pelajaran/${nextLesson.id}`}>
+        <a class="btn-jalur min-h-11 w-full min-w-0 px-5 text-sm min-[900px]:w-auto" href={`/jalur/${pathId}/pelajaran/${nextLesson.id}`}>
           <svg class="size-4 shrink-0" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M8 5v14l11-7z" />
           </svg>
@@ -425,7 +425,7 @@ function actionFrom(form: FormData): OutlineAction {
         </a>
       )}
       {isReady && isActive && isComplete && firstLesson && (
-        <a class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-5 text-sm font-semibold text-white shadow-md transition-all hover:brightness-110 hover:shadow-lg min-[900px]:w-auto" href={`/jalur/${pathId}/pelajaran/${firstLesson.id}`}>
+        <a class="btn-jalur min-h-11 w-full px-5 text-sm min-[900px]:w-auto" href={`/jalur/${pathId}/pelajaran/${firstLesson.id}`}>
           <svg class="size-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M8 5v14l11-7z" />
           </svg>
@@ -436,7 +436,7 @@ function actionFrom(form: FormData): OutlineAction {
         <form class="w-full min-[900px]:w-auto" method="post">
           <input type="hidden" name="csrf" value={Astro.locals.csrf} />
           <input type="hidden" name="aksi" value="aktif" />
-          <button class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-5 text-sm font-semibold text-white shadow-md transition-all hover:brightness-110 hover:shadow-lg min-[900px]:w-auto" type="submit">
+          <button class="btn-jalur min-h-11 w-full px-5 text-sm min-[900px]:w-auto" type="submit">
             <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
@@ -797,7 +797,7 @@ function actionFrom(form: FormData): OutlineAction {
                   </div>
                 </div>
 
-                <details class="group mt-2 pl-9">
+                <details class="group ungkap mt-2 pl-9">
                   <summary class="inline-flex min-h-11 cursor-pointer items-center gap-1 text-xs font-medium text-tinta-lembut hover:text-jalur">
                     Ringkasan bab
                     <svg class="size-3.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -820,7 +820,7 @@ function actionFrom(form: FormData): OutlineAction {
                     <div class="rounded-kontrol border border-garis bg-kartu">
                       <div class="flex flex-wrap items-center gap-1 p-1.5 sm:flex-nowrap">
                         <span class="order-1 flex size-7 shrink-0 items-center justify-center rounded-md bg-kertas text-xs font-medium text-tinta-lembut">{alphaLabel(lessonIndex)}</span>
-                        <details class="group order-3 w-full min-w-0 sm:order-2 sm:w-auto sm:flex-1">
+                        <details class="group ungkap order-3 w-full min-w-0 sm:order-2 sm:w-auto sm:flex-1">
                           <summary class="flex min-h-11 cursor-pointer items-center gap-2 rounded-kontrol px-2 transition-colors hover:bg-kertas">
                             <span class="line-clamp-2 min-w-0 flex-1 text-sm font-medium leading-snug text-tinta">{lesson.title}</span>
                             <span class="hidden shrink-0 text-xs tabular-nums text-tinta-lembut sm:inline">~{minutes} mnt</span>
@@ -970,11 +970,11 @@ function actionFrom(form: FormData): OutlineAction {
             <form class="w-full sm:w-auto" method="post" id="setujui-jalur-form">
               <input type="hidden" name="csrf" value={Astro.locals.csrf} />
               <input type="hidden" name="aksi" value="aktif" />
-              <button class="min-h-11 w-full rounded-kontrol bg-tinta px-4 text-sm font-semibold text-white transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40" type="submit" id="setujui-jalur-btn" disabled>Setujui & buat</button>
+              <button class="btn-tinta min-h-11 w-full px-4 text-sm disabled:cursor-not-allowed disabled:opacity-40" type="submit" id="setujui-jalur-btn" disabled>Setujui & buat</button>
             </form>
           )}
           {isReady && isActive && (
-            <button class="min-h-11 rounded-kontrol bg-tinta px-4 text-sm font-semibold text-white transition-all hover:brightness-110" type="button" data-close-tinjau>Selesai meninjau</button>
+            <button class="btn-tinta min-h-11 px-4 text-sm" type="button" data-close-tinjau>Selesai meninjau</button>
           )}
         </div>
       </footer>

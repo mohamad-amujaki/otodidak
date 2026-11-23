@@ -155,7 +155,7 @@ const filtering = Boolean(query) || status !== 'semua';
         Mulai perjalanan belajarmu dengan membuat jalur pertama. Tulis topik yang ingin kamu kuasai dan kami akan menyusun roadmap untukmu.
       </p>
       <a 
-        class="mt-6 inline-flex min-h-11 items-center gap-2 rounded-kontrol bg-jalur px-6 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110" 
+        class="btn-jalur mt-6 min-h-11 px-6" 
         href="/dasbor?baru=1"
       >
         <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -269,7 +269,7 @@ const filtering = Boolean(query) || status !== 'semua';
               </div>
               {isActive && (
                 <div class="absolute right-3 top-3">
-                  <div class="flex items-center gap-1 rounded-kontrol bg-jalur px-2 py-1 text-xs font-semibold text-white shadow-md">
+                  <div class="flex items-center gap-1 rounded-kontrol bg-jalur px-2 py-1 text-xs font-semibold text-white">
                     <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
@@ -279,7 +279,7 @@ const filtering = Boolean(query) || status !== 'semua';
               )}
               {isComplete && !isActive && (
                 <div class="absolute right-3 top-3">
-                  <div class="flex items-center gap-1 rounded-kontrol bg-jalur px-2 py-1 text-xs font-semibold text-white shadow-md">
+                  <div class="flex items-center gap-1 rounded-kontrol bg-jalur px-2 py-1 text-xs font-semibold text-white">
                     <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                     </svg>
@@ -301,7 +301,7 @@ const filtering = Boolean(query) || status !== 'semua';
                 </div>
                 <div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-kertas">
                   <div 
-                    class={`h-full transition-all ${progressColor}`}
+                    class={`h-full transition-[width] duration-300 ${progressColor}`}
                     style={`width: ${percentage}%`}
                   ></div>
                 </div>
@@ -313,7 +313,7 @@ const filtering = Boolean(query) || status !== 'semua';
               <div class="mt-4">
                 {isActive ? (
                   <a 
-                    class="flex min-h-11 w-full items-center justify-center gap-2 rounded-kontrol bg-jalur px-4 font-semibold text-white shadow-md transition-all hover:shadow-lg hover:brightness-110" 
+                    class="btn-jalur min-h-11 w-full px-4 text-sm" 
                     href={`/jalur/${String(path.id)}`}
                   >
                     <span>Lanjutkan</span>
@@ -324,7 +324,7 @@ const filtering = Boolean(query) || status !== 'semua';
                 ) : (
                   <div class="flex gap-2">
                     <a 
-                      class="flex min-h-11 flex-1 items-center justify-center rounded-kontrol border border-garis bg-kartu font-medium text-tinta transition-all hover:bg-kertas" 
+                      class="flex min-h-11 flex-1 items-center justify-center rounded-kontrol border border-garis bg-kartu font-medium text-tinta transition-colors hover:bg-kertas" 
                       href={`/jalur/${String(path.id)}`}
                     >
                       Lihat Detail
@@ -333,7 +333,7 @@ const filtering = Boolean(query) || status !== 'semua';
                       <input type="hidden" name="csrf" value={Astro.locals.csrf} />
                       <input type="hidden" name="pathId" value={String(path.id)} />
                       <button 
-                        class="w-full min-h-11 rounded-kontrol border border-jalur bg-jalur-lembut font-medium text-jalur transition-all hover:bg-jalur hover:text-white" 
+                        class="w-full min-h-11 rounded-kontrol border border-jalur bg-jalur-lembut font-medium text-jalur transition-colors hover:bg-jalur hover:text-white" 
                         type="submit"
                       >
                         Aktifkan

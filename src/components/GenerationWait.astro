@@ -23,6 +23,12 @@ const {
   doneHref,
 } = Astro.props;
 const interval = Math.max(2, Math.round(intervalSeconds));
+const tahap =
+  lines === 3
+    ? ['Menyusun bab', 'Mengurutkan pelajaran', 'Menyambungkan jalurnya']
+    : title.toLowerCase().includes('quiz')
+      ? ['Membaca materi', 'Menyusun soal', 'Menyiapkan pilihan']
+      : ['Membaca kerangka', 'Menulis pelajaran', 'Menyusun contoh'];
 const lineWidths =
   lines === 3
     ? ['w-3/4', 'w-full', 'w-5/6']
@@ -58,7 +64,12 @@ const lineWidths =
       </svg>
     </div>
     <h2 class="mt-4 text-xl font-bold text-tinta">{title}</h2>
-    <p class="mt-2 text-sm leading-[1.6] text-tinta-lembut">{description}</p>
+    <p class="mt-2 text-sm leading-[1.6] text-pretty text-tinta-lembut">{description}</p>
+    <p class="tahap mt-1 text-sm font-medium text-tinta" aria-hidden="true">
+      {tahap.map((baris) => (
+        <span>{baris}</span>
+      ))}
+    </p>
     <p class="sr-only">Konten sedang dibuat. Halaman dapat diperbarui otomatis.</p>
     <div class="mt-6 w-full space-y-3" aria-hidden="true">
       {lineWidths.map((width) => (
@@ -94,7 +105,7 @@ const lineWidths =
     <p class="mt-1 text-xs text-bahaya" data-wait-code></p>
     <p class="mt-1 break-words text-[11px] text-tinta-lembut" data-wait-detail></p>
     <button
-      class="mt-4 inline-flex min-h-11 items-center rounded-kontrol bg-jalur px-5 text-sm font-semibold text-white transition-all hover:brightness-110"
+      class="btn-jalur mt-4 min-h-11 px-5 text-sm"
       type="button"
       data-wait-reload
     >
