@@ -1,5 +1,24 @@
 import { sumopodPaymentSchema } from '../domain/schemas';
 
+export const LIVE_SUMOPOD_BASE = 'https://api-pay.sumopod.com/api/v1';
+
+/** Production selalu ke API live. Sandbox hanya untuk dev dan tes. */
+export function sumopodApiBase(
+  environment: string,
+  configured: string,
+): string {
+  if (environment === 'production') return LIVE_SUMOPOD_BASE;
+  return configured.replace(/\/$/, '');
+}
+
+export function isSandboxPaymentUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname.toLowerCase().includes('sandbox');
+  } catch {
+    return false;
+  }
+}
+
 export type CreatedPayment = {
   paymentId: string;
   paymentLinkUrl: string;

@@ -1,6 +1,10 @@
 import { and, eq } from 'drizzle-orm';
 import { readHostedPayment } from '../billing/hosted-payment';
-import { createQrisPayment } from '../billing/sumopod';
+import {
+  createQrisPayment,
+  isSandboxPaymentUrl,
+  sumopodApiBase,
+} from '../billing/sumopod';
 import type { Database } from '../db/client';
 import { creditOrders, creditPacks, type UserRow } from '../db/schema';
 import { AppError } from '../domain/errors';
@@ -65,12 +69,18 @@ export async function createCreditPackOrder(
   try {
     const payment = await createQrisPayment({
       apiKey: env.SUMOPOD_API_KEY,
-      baseUrl: env.SUMOPOD_API_BASE,
+      baseUrl: sumopodApiBase(env.ENVIRONMENT, env.SUMOPOD_API_BASE),
       orderId,
       amount: pack.priceIdr,
       returnUrl,
       qrPageUrl,
     });
+    if (
+      env.ENVIRONMENT === 'production' &&
+      isSandboxPaymentUrl(payment.paymentLinkUrl)
+    ) {
+      throw new Error('sandbox_payment_in_production');
+    }
     const paymentLinkUrl = payment.paymentCode
       ? qrPageUrl
       : payment.paymentLinkUrl;
