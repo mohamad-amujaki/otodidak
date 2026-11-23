@@ -314,6 +314,10 @@ export const generationJobs = sqliteTable(
       enum: ['queued', 'running', 'succeeded', 'failed'],
     }).notNull(),
     errorCode: text('error_code'),
+    /** Pesan penyebab yang aman ditampilkan, mis. "HTTP 401 · invalid API key". */
+    errorDetail: text('error_detail'),
+    /** Diisi saat kredit sudah dikembalikan; kode error asli tidak ditimpa. */
+    refundedAt: text('refunded_at'),
     attempts: integer('attempts').notNull().default(0),
     promptVersion: integer('prompt_version'),
     createdAt: text('created_at').notNull(),

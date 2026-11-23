@@ -6,6 +6,7 @@ import {
   parseModelOutput,
   parseOutlineLessonOutput,
 } from '../ai/generate';
+import { isPermanentProviderFailure } from '../ai/provider-error';
 import { generatorTools } from '../ai/tools';
 import {
   debitIfEnough,
@@ -74,7 +75,13 @@ export async function handleQueue(
       const result = await processGeneration(env, jobId, message.attempts);
       if (result === 'retry') message.retry();
       else message.ack();
-    } catch {
+    } catch (error) {
+      logEvent({
+        message: 'queue_processing_error',
+        jobId,
+        errorCode: error instanceof Error ? error.name : 'error',
+        status: String(message.attempts),
+      });
       if (message.attempts >= QUEUE_MAX_ATTEMPTS) {
         await refundById(env, jobId);
         message.ack();
@@ -131,6 +138,8 @@ export async function processGeneration(
       .set({
         status: 'succeeded',
         errorCode: null,
+        errorDetail: null,
+        refundedAt: null,
         finishedAt: nowIso(),
         promptVersion: promptRow[0]?.version ?? null,
       })
@@ -144,20 +153,34 @@ export async function processGeneration(
     });
     return 'ack';
   } catch (error) {
-    const errorCode =
-      error instanceof ModelError ? error.errorCode : 'provider_timeout';
-    const invalidOutput =
-      error instanceof ModelError && error.errorCode === 'invalid_output';
+    const failure =
+      error instanceof ModelError
+        ? { code: error.errorCode, detail: error.detail }
+        : { code: 'generation_failed', detail: null };
+    // Pesan error tak terduga hanya masuk log, bukan UI pengguna.
+    const logDetail =
+      failure.detail ??
+      (error instanceof Error
+        ? error.message.trim().slice(0, 240) || undefined
+        : undefined);
+    await db
+      .update(generationJobs)
+      .set({ errorCode: failure.code, errorDetail: failure.detail })
+      .where(eq(generationJobs.id, job.id));
     logEvent({
       message: 'generation_failed',
       jobId: job.id,
       userId: job.userId,
-      errorCode,
+      errorCode: failure.code,
       status: String(attempt),
+      detail: logDetail,
     });
-    // Output invalid tidak akan membaik dengan input yang sama: gagal cepat.
-    if (invalidOutput || attempt >= QUEUE_MAX_ATTEMPTS) {
-      await refundJob(env, db, job);
+    // Kegagalan permanen tidak akan membaik dengan input yang sama.
+    if (
+      isPermanentProviderFailure(failure.code) ||
+      attempt >= QUEUE_MAX_ATTEMPTS
+    ) {
+      await refundJob(env, db, job, failure);
       return 'ack';
     }
     return 'retry';
@@ -495,12 +518,15 @@ async function enqueue(
   try {
     await env.GENERATION_QUEUE.send({ jobId: job.id });
   } catch {
-    await refundJob(env, db, job);
+    await refundJob(env, db, job, {
+      code: 'queue_send_failed',
+      detail: 'Antrean generasi gagal menerima job.',
+    });
     logEvent({
       message: 'queue_send_failed',
       jobId: job.id,
       userId: job.userId,
-      errorCode: 'refunded',
+      errorCode: 'queue_send_failed',
     });
     throw new AppError('generation_failed');
   }
@@ -1094,13 +1120,17 @@ async function refundById(env: Env, jobId: string): Promise<void> {
     .limit(1);
   const job = rows[0];
   if (!job || job.status === 'succeeded') return;
-  await refundJob(env, db, job);
+  await refundJob(env, db, job, {
+    code: job.errorCode ?? 'refunded',
+    detail: job.errorDetail ?? null,
+  });
 }
 
 export async function refundJob(
   env: Env,
   db: Database,
   job: { id: string; userId: string; kind: GenerationKind; refId: string },
+  failure?: { code: string; detail: string | null },
 ): Promise<void> {
   const { owed, debited } = await jobRefundState(db, job.id);
   if (owed > 0) {
@@ -1113,9 +1143,17 @@ export async function refundJob(
       idempotencyKey: `refund:${job.id}:${debited}`,
     });
   }
+  const refundedAt = nowIso();
   await db
     .update(generationJobs)
-    .set({ status: 'failed', errorCode: 'refunded', finishedAt: nowIso() })
+    .set({
+      status: 'failed',
+      // Kode asli dipertahankan supaya penyebab tidak tertutup "refunded".
+      errorCode: failure?.code ?? 'refunded',
+      errorDetail: failure?.detail ?? null,
+      refundedAt,
+      finishedAt: refundedAt,
+    })
     .where(eq(generationJobs.id, job.id));
   if (job.kind === 'lesson')
     await db
@@ -1140,8 +1178,9 @@ export async function refundJob(
     message: 'generation_refunded',
     jobId: job.id,
     userId: job.userId,
-    errorCode: 'refunded',
+    errorCode: failure?.code ?? 'refunded',
     status: 'failed',
+    detail: failure?.detail ?? undefined,
   });
 }
 
@@ -1176,7 +1215,7 @@ export async function adminRequeueGenerationJob(
   await clearStaleLock(env, db, job.userId);
   await requireActiveJobClear(db, job.userId);
 
-  if (job.errorCode === 'refunded') {
+  if (job.refundedAt != null || job.errorCode === 'refunded') {
     const config = await loadConfig(db);
     const cost =
       job.kind === 'roadmap'
@@ -1211,6 +1250,8 @@ export async function adminRequeueGenerationJob(
     .set({
       status: 'queued',
       errorCode: null,
+      errorDetail: null,
+      refundedAt: null,
       attempts: 0,
       startedAt: null,
       finishedAt: null,

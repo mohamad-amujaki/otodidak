@@ -14,6 +14,7 @@ import {
   errorMessage,
   errorStatus,
 } from '../domain/errors';
+import { generationFailureMessage } from '../domain/generation-failure';
 import { devAuthEnabled } from '../domain/guard';
 import {
   adminAdjustSchema,
@@ -22,6 +23,7 @@ import {
   configSchema,
   devSessionSchema,
   modelSchema,
+  modelTestSchema,
   packOrderSchema,
   packsSchema,
   promptSchema,
@@ -309,6 +311,9 @@ export function createApp() {
       kind: job.kind,
       status: job.status,
       errorCode: job.errorCode,
+      errorDetail: job.errorDetail,
+      failureMessage: generationFailureMessage(job.errorCode),
+      refundedAt: job.refundedAt,
       refId: job.refId,
     });
   });
@@ -533,8 +538,15 @@ export function createApp() {
 
   app.post('/api/admin/models/test', async (c) => {
     assertSuperadmin(c);
-    const body = await readJson(c, providerConnectionSchema);
-    return c.json(await testModelConnection(c.env, { ...body, refresh: true }));
+    const body = await readJson(c, modelTestSchema);
+    return c.json(
+      await testModelConnection(c.env, {
+        baseUrl: body.baseUrl,
+        secretName: body.secretName,
+        modelName: body.modelName,
+        refresh: true,
+      }),
+    );
   });
 
   app.put('/api/admin/provider', async (c) => {

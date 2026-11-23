@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
+import { providerFailure } from '../ai/provider-error';
 import { isMockSecret, readProviderSecret } from '../ai/secrets';
 import { balanceOf, balancesByUserIds } from '../billing/ledger';
 import type { Database } from '../db/client';
@@ -23,6 +24,7 @@ import {
 import {
   AI_MODEL_CACHE_TTL_SECONDS,
   AI_MODEL_FETCH_TIMEOUT_MS,
+  DEFAULT_MODEL_NAME,
 } from '../domain/defaults';
 import { AppError } from '../domain/errors';
 import {
@@ -284,6 +286,8 @@ export async function listAdminJobs(db: Database, url: string) {
         refId: generationJobs.refId,
         status: generationJobs.status,
         errorCode: generationJobs.errorCode,
+        errorDetail: generationJobs.errorDetail,
+        refundedAt: generationJobs.refundedAt,
         attempts: generationJobs.attempts,
         createdAt: generationJobs.createdAt,
         finishedAt: generationJobs.finishedAt,
@@ -299,6 +303,24 @@ export async function listAdminJobs(db: Database, url: string) {
     adminJobsTotal(db, query),
   ]);
   return { jobs, total };
+}
+
+/** Diagnostik ringkas untuk kartu AI: kegagalan terakhir beserta penyebabnya. */
+export async function listRecentGenerationFailures(db: Database, limit = 5) {
+  return db
+    .select({
+      id: generationJobs.id,
+      kind: generationJobs.kind,
+      errorCode: generationJobs.errorCode,
+      errorDetail: generationJobs.errorDetail,
+      attempts: generationJobs.attempts,
+      refundedAt: generationJobs.refundedAt,
+      createdAt: generationJobs.createdAt,
+    })
+    .from(generationJobs)
+    .where(eq(generationJobs.status, 'failed'))
+    .orderBy(desc(generationJobs.createdAt))
+    .limit(Math.min(Math.max(limit, 1), 20));
 }
 
 export async function listAdminLedger(db: Database, url: string) {
@@ -484,7 +506,12 @@ export async function listModelOptions(
       },
       signal: AbortSignal.timeout(AI_MODEL_FETCH_TIMEOUT_MS),
     });
-    if (!response.ok) return fallbackOptions(`HTTP ${response.status}`);
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      return fallbackOptions(
+        providerFailure(response.status, body, secret).detail,
+      );
+    }
     const models = normalizeModelPayload(await response.json());
     if (models.length === 0) return fallbackOptions('Daftar model kosong.');
     const merged = mergeModelOptions(models);
@@ -508,35 +535,105 @@ export async function listModelOptions(
   }
 }
 
-export async function testModelConnection(
-  env: Env,
-  input: { baseUrl: string; secretName: string; refresh?: boolean },
-): Promise<{ ok: boolean; message: string; options: ModelOptions }> {
-  const secret = readProviderSecret(env, input.secretName);
-  if (!secret)
+/**
+ * Uji auth yang sebenarnya: `/models` bisa saja publik, jadi hanya
+ * `/chat/completions` yang membuktikan kunci diterima.
+ */
+async function probeChatCompletion(
+  baseUrl: string,
+  secret: string,
+  modelName: string,
+): Promise<{ ok: boolean; code: string | null; detail: string; ms: number }> {
+  const startedAt = Date.now();
+  try {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: modelName,
+        messages: [{ role: 'user', content: 'Balas dengan {"ok":true}.' }],
+        max_tokens: 8,
+        temperature: 0,
+      }),
+      signal: AbortSignal.timeout(AI_MODEL_FETCH_TIMEOUT_MS),
+    });
+    const body = await response.text().catch(() => '');
+    const ms = Date.now() - startedAt;
+    if (response.ok) return { ok: true, code: null, detail: '', ms };
+    const failure = providerFailure(response.status, body, secret);
+    return { ok: false, code: failure.code, detail: failure.detail, ms };
+  } catch (error) {
+    const timeout = error instanceof Error && error.name === 'TimeoutError';
     return {
       ok: false,
-      message: 'Koneksi tidak diuji: secret belum terpasang di Worker.',
-      options: fallbackOptions('Secret belum terpasang di Worker.'),
+      code: timeout ? 'provider_timeout' : 'provider_network',
+      detail: timeout
+        ? `Waktu koneksi habis (${AI_MODEL_FETCH_TIMEOUT_MS / 1000} detik).`
+        : error instanceof Error
+          ? error.message.slice(0, 200)
+          : 'Permintaan jaringan gagal.',
+      ms: Date.now() - startedAt,
     };
+  }
+}
+
+export async function testModelConnection(
+  env: Env,
+  input: {
+    baseUrl: string;
+    secretName: string;
+    modelName?: string;
+    refresh?: boolean;
+  },
+): Promise<{ ok: boolean; message: string; options: ModelOptions }> {
+  const baseUrl = input.baseUrl.trim().replace(/\/+$/, '');
+  const rejected = (message: string) => ({
+    ok: false,
+    message: `Koneksi tidak diuji: ${message}`,
+    options: fallbackOptions(message),
+  });
+  if (!baseUrl) return rejected('URL dasar belum diisi.');
+  try {
+    assertAllowedLlmBaseUrl(baseUrl);
+  } catch (error) {
+    return rejected(
+      error instanceof Error ? error.message : 'URL dasar tidak diizinkan.',
+    );
+  }
+  const secret = readProviderSecret(env, input.secretName);
+  if (!secret) return rejected('secret belum terpasang di Worker.');
   if (isMockSecret(secret))
     return {
       ok: false,
       message: 'Koneksi tidak diuji: secret masih bernilai mock (mode dev).',
       options: fallbackOptions(null),
     };
-  const startedAt = Date.now();
-  const options = await listModelOptions(env, { ...input, refresh: true });
-  const ms = Date.now() - startedAt;
-  if (options.error)
+
+  const modelName = input.modelName?.trim() || DEFAULT_MODEL_NAME;
+  const probe = await probeChatCompletion(baseUrl, secret, modelName);
+  if (!probe.ok) {
+    const hint = probe.code === 'provider_auth' ? ' Kunci API ditolak.' : '';
     return {
       ok: false,
-      message: `Koneksi gagal (${ms} ms): ${options.error}`,
-      options,
+      message: `Koneksi gagal (${probe.ms} ms): ${probe.detail}.${hint}`,
+      options: fallbackOptions(probe.detail),
     };
+  }
+
+  const options = await listModelOptions(env, {
+    baseUrl,
+    secretName: input.secretName,
+    refresh: true,
+  });
+  const modelNote = options.error
+    ? 'daftar model tidak tersedia'
+    : `${options.models.length} model`;
   return {
     ok: true,
-    message: `Koneksi OK · ${options.models.length} model · ${ms} ms`,
-    options,
+    message: `Koneksi OK · chat ${modelName} · ${modelNote} · ${probe.ms} ms`,
+    options: options.error ? { ...options, error: null } : options,
   };
 }

@@ -10,8 +10,11 @@ import {
   aiTaskCostHints,
   aiTaskLabels,
   aiTasks,
+  jobKindLabels,
 } from '../../domain/admin-labels';
 import { MAX_PROMPT_CHARS } from '../../domain/defaults';
+import { formatWhenShort } from '../../domain/format';
+import { generationFailureMessage } from '../../domain/generation-failure';
 import { record } from '../../domain/guard';
 import { SEED_PROMPTS } from '../../domain/prompts';
 import { LLM_BASE_URL_PRESETS } from '../../domain/provider-url';
@@ -21,6 +24,7 @@ import {
   getActiveModelForTask,
   getPromptForTask,
   listModelOptions,
+  listRecentGenerationFailures,
 } from '../../server/admin-data';
 import { requireSuperadminPage } from '../../server/admin-guard';
 
@@ -65,6 +69,7 @@ const baseUrl = String(model.baseUrl ?? '');
 const secretName = String(model.secretName ?? '');
 const secretChoices = providerSecretOptions(env);
 const modelOptions = await listModelOptions(env, { baseUrl, secretName });
+const recentFailures = await listRecentGenerationFailures(session.db);
 const modelTokens: Record<string, number> = {};
 const modelIds: string[] = [];
 for (const option of modelOptions.models) {
@@ -122,6 +127,7 @@ function taskHref(task: string) {
 
       <form class="mt-6" method="post">
         <input type="hidden" name="csrf" value={Astro.locals.csrf} />
+        <input type="hidden" name="modelName" value={String(model.modelName ?? '')} />
         <section class="rounded-kartu border border-garis bg-kartu p-5" aria-labelledby="provider-heading">
           <div class="flex flex-wrap items-center gap-2">
             <h2 id="provider-heading" class="text-lg font-semibold text-tinta">Koneksi penyedia</h2>
@@ -211,8 +217,49 @@ function taskHref(task: string) {
               )}
             </p>
           </div>
+          <p class="mt-2 text-xs text-tinta-lembut">
+            Uji koneksi mengirim satu permintaan chat singkat untuk memastikan kunci benar-benar diterima — bukan hanya endpoint daftar model yang kadang publik.
+          </p>
         </section>
       </form>
+
+      {recentFailures.length > 0 && (
+        <section class="mt-6 rounded-kartu border border-garis bg-kartu p-5" aria-labelledby="diagnostics-heading">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h2 id="diagnostics-heading" class="text-lg font-semibold text-tinta">Diagnostik terakhir</h2>
+            <a class="text-sm font-medium text-jalur hover:underline" href="/admin/antrean?jobStatus=failed">
+              Lihat semua job gagal
+            </a>
+          </div>
+          <p class="mt-1 text-xs text-tinta-lembut">
+            Kegagalan paling baru beserta penyebab aslinya. Detail teknis aman ditampilkan tanpa membocorkan kunci.
+          </p>
+          <ul class="mt-3 divide-y divide-garis">
+            {recentFailures.map((failure) => (
+              <li class="py-2.5">
+                <div class="flex flex-wrap items-center gap-2 text-xs text-tinta-lembut">
+                  <span class="font-medium text-tinta">
+                    {jobKindLabels[String(failure.kind)] ?? failure.kind}
+                  </span>
+                  <span class="rounded bg-kertas px-1.5 py-0.5 font-mono">
+                    {String(failure.errorCode ?? '-')}
+                  </span>
+                  <span>{formatWhenShort(String(failure.createdAt ?? ''))}</span>
+                  {failure.refundedAt && <span>· kredit dikembalikan</span>}
+                </div>
+                <p class="mt-1 text-sm text-tinta">
+                  {generationFailureMessage(String(failure.errorCode ?? ''))}
+                </p>
+                {failure.errorDetail && (
+                  <p class="mt-0.5 break-words font-mono text-[11px] text-tinta-lembut">
+                    {String(failure.errorDetail)}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <nav class="-mx-4 mt-6 flex flex-nowrap gap-2 overflow-x-auto px-4 pb-1" aria-label="Tugas AI" role="tablist">
         {aiTasks.map((task) => (

@@ -4,6 +4,7 @@ import GenerationWait from '../components/GenerationWait.astro';
 import Shell from '../components/Shell.astro';
 import { AppError } from '../domain/errors';
 import { minuteLabel } from '../domain/format';
+import { generationFailureMessage } from '../domain/generation-failure';
 import { isRecord, record } from '../domain/guard';
 import { topicSchema } from '../domain/schemas';
 import { startRoadmap } from '../server/generation';
@@ -48,6 +49,7 @@ const activePath = isRecord(me.activePath) ? me.activePath : null;
 const nextLesson =
   activePath && isRecord(activePath.nextLesson) ? activePath.nextLesson : null;
 const activeJob = isRecord(me.activeJob) ? me.activeJob : null;
+const failedJob = isRecord(me.failedJob) ? me.failedJob : null;
 const streak = isRecord(me.streak) ? me.streak : null;
 const lines = Array.isArray(streak?.lines)
   ? streak.lines.filter((line) => typeof line === 'string')
@@ -116,6 +118,35 @@ const lowCredit = balance < cost;
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <p class="text-sm text-bahaya">{message}</p>
+      </div>
+    </div>
+  )}
+
+  {failedJob && !activeJob && (
+    <div class="mb-6 rounded-kontrol border border-bahaya/30 bg-bahaya/10 p-4">
+      <div class="flex gap-3">
+        <svg class="size-5 shrink-0 text-bahaya" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-bahaya">
+            Pembuatan terakhir gagal
+          </p>
+          <p class="mt-1 text-sm text-tinta">
+            {generationFailureMessage(String(failedJob.errorCode ?? ''))}
+          </p>
+          {failedJob.errorDetail && (
+            <p class="mt-1 break-words text-xs text-tinta-lembut">
+              {String(failedJob.errorDetail)}
+            </p>
+          )}
+          <a
+            class="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-jalur hover:underline"
+            href={failedJob.kind === 'roadmap' ? '/dasbor?baru' : '/pustaka'}
+          >
+            Coba lagi
+          </a>
+        </div>
       </div>
     </div>
   )}

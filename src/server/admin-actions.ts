@@ -156,6 +156,7 @@ export async function runAdminAction(
       const result = await testModelConnection(bindings, {
         baseUrl: String(form.get('baseUrl') ?? '').trim(),
         secretName: String(form.get('secretName') ?? '').trim(),
+        modelName: String(form.get('modelName') ?? '').trim() || undefined,
         refresh: true,
       });
       return result.message;

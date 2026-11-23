@@ -255,7 +255,7 @@ describe('admin AI — daftar model', () => {
         secretName: 'OPENAI_API_KEY',
       });
       expect(result.source).toBe('fallback');
-      expect(result.error).toBe('HTTP 502');
+      expect(result.error).toBe('HTTP 502 · gagal');
       expect(result.models.length).toBeGreaterThan(0);
     } finally {
       vi.unstubAllGlobals();
@@ -304,9 +304,14 @@ describe('admin AI — uji koneksi', () => {
   });
 
   it('melaporkan sukses beserta jumlah model saat provider merespons', async () => {
-    vi.stubGlobal('fetch', async () =>
-      Response.json({ data: [{ id: 'probe-model' }] }),
-    );
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/chat/completions'))
+        return Response.json({
+          choices: [{ message: { content: '{"ok":true}' } }],
+        });
+      return Response.json({ data: [{ id: 'probe-model' }] });
+    });
     try {
       const result = await testModelConnection(envWithSecret('sk-uji'), {
         baseUrl: 'https://ai.sumopod.com/v1',
@@ -314,7 +319,32 @@ describe('admin AI — uji koneksi', () => {
         refresh: true,
       });
       expect(result.ok).toBe(true);
-      expect(result.message).toMatch(/Koneksi OK · 5 model/);
+      expect(result.message).toMatch(/Koneksi OK · chat .* · 5 model/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('gagal walau daftar model sukses jika chat menolak kunci', async () => {
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
+      const url = String(input);
+      // Router bisa membalas /models tanpa auth, tetapi chat tetap 401.
+      if (url.endsWith('/chat/completions'))
+        return Response.json(
+          { error: { message: 'invalid API key' } },
+          { status: 401 },
+        );
+      return Response.json({ data: [{ id: 'probe-model' }] });
+    });
+    try {
+      const result = await testModelConnection(envWithSecret('sk-uji'), {
+        baseUrl: 'https://router.ariaseta.com/v1',
+        secretName: 'OPENAI_API_KEY',
+        refresh: true,
+      });
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain('HTTP 401');
+      expect(result.message).toContain('Kunci API ditolak');
     } finally {
       vi.unstubAllGlobals();
     }

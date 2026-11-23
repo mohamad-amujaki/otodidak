@@ -177,6 +177,11 @@ export const providerConnectionSchema = z.strictObject({
     .regex(/^[A-Z0-9_]+$/, 'Nama secret tidak valid.'),
 });
 
+/** Uji koneksi boleh menyebut model yang ingin diuji. */
+export const modelTestSchema = providerConnectionSchema.extend({
+  modelName: z.string().trim().min(1).max(120).optional(),
+});
+
 export const packInputSchema = z.strictObject({
   id: z.string().trim().min(1).max(64).optional(),
   name: z.string().trim().min(1).max(40),

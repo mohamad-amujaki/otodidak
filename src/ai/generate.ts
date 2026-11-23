@@ -15,16 +15,26 @@ import {
   type TaskName,
 } from '../domain/schemas';
 import { logEvent } from '../server/log';
+import { type ProviderFailureCode, providerFailure } from './provider-error';
 import { readProviderSecret } from './secrets';
 import type { ToolDefinition } from './tools';
 
-export class ModelError extends Error {
-  readonly errorCode: 'provider_timeout' | 'invalid_output';
+export type ModelErrorCode =
+  | ProviderFailureCode
+  | 'provider_timeout'
+  | 'provider_network'
+  | 'invalid_output';
 
-  constructor(errorCode: 'provider_timeout' | 'invalid_output') {
-    super(errorCode);
+export class ModelError extends Error {
+  readonly errorCode: ModelErrorCode;
+  /** Ringkasan penyebab yang aman ditampilkan ke admin/pengguna. */
+  readonly detail: string | null;
+
+  constructor(errorCode: ModelErrorCode, detail?: string | null) {
+    super(detail ? `${errorCode}: ${detail}` : errorCode);
     this.name = 'ModelError';
     this.errorCode = errorCode;
+    this.detail = detail?.trim().slice(0, 240) || null;
   }
 }
 
@@ -57,7 +67,11 @@ export async function loadModel(
     .where(and(eq(aiModels.task, task), eq(aiModels.active, 1)))
     .limit(1);
   const row = rows[0];
-  if (!row) throw new ModelError('invalid_output');
+  if (!row)
+    throw new ModelError(
+      'invalid_output',
+      `Model untuk tugas ${task} belum diatur.`,
+    );
   return { ...row, prompt };
 }
 
@@ -75,10 +89,19 @@ export async function completeJson(
   options?: { temperature?: number; tool?: ToolDefinition },
 ): Promise<unknown> {
   if (model.authKind === 'workers_ai_binding')
-    throw new ModelError('provider_timeout');
+    throw new ModelError(
+      'provider_auth',
+      'authKind workers_ai_binding tidak didukung oleh pengaturan penyedia saat ini.',
+    );
   const secretName = model.secretName;
   const apiKey = secretName ? readProviderSecret(env, secretName) : null;
-  if (!apiKey) throw new ModelError('provider_timeout');
+  if (!apiKey)
+    throw new ModelError(
+      'provider_auth',
+      secretName
+        ? `Secret ${secretName} belum terpasang di Worker.`
+        : 'Nama secret penyedia belum diatur.',
+    );
   if (apiKey === 'mock' || apiKey === 'fail')
     return mockCompletion(env, task, input, apiKey);
   requireAllowedLlmBaseUrl(model.baseUrl);
@@ -108,15 +131,18 @@ export async function completeJson(
     try {
       return JSON.parse(toolArguments) as unknown;
     } catch {
-      throw new ModelError('invalid_output');
+      throw new ModelError('invalid_output', 'Argumen tool bukan JSON valid.');
     }
   }
   const content = message?.content;
-  if (!content) throw new ModelError('invalid_output');
+  if (!content) throw new ModelError('invalid_output', 'Respons model kosong.');
   try {
     return JSON.parse(content) as unknown;
   } catch {
-    throw new ModelError('invalid_output');
+    throw new ModelError(
+      'invalid_output',
+      'Isi respons model bukan JSON valid.',
+    );
   }
 }
 
@@ -136,6 +162,14 @@ type CompletionPayload = {
 
 const TOOLS_FALLBACK_STATUSES = new Set([400, 404, 422]);
 
+function baseHost(base: string): string {
+  try {
+    return new URL(base).host;
+  } catch {
+    return 'host-tidak-valid';
+  }
+}
+
 async function requestCompletion(
   model: ModelRow,
   apiKey: string,
@@ -145,6 +179,7 @@ async function requestCompletion(
   useTools: boolean,
 ): Promise<CompletionPayload> {
   const base = model.baseUrl.replace(/\/$/, '');
+  const host = baseHost(base);
   const body: Record<string, unknown> = {
     model: model.modelName,
     messages: [
@@ -175,12 +210,24 @@ async function requestCompletion(
       signal: AbortSignal.timeout(model.timeoutMs),
     });
   } catch (error) {
+    const timeout = error instanceof Error && error.name === 'TimeoutError';
+    const detail = timeout
+      ? `Tidak ada respons dalam ${model.timeoutMs} ms.`
+      : error instanceof Error
+        ? error.message.slice(0, 200)
+        : 'Permintaan jaringan gagal.';
     logEvent({
       message: 'model_request_failed',
-      errorCode: 'provider_timeout',
+      errorCode: timeout ? 'provider_timeout' : 'provider_network',
       status: error instanceof Error ? error.name : 'error',
+      model: model.modelName,
+      host,
+      detail,
     });
-    throw new ModelError('provider_timeout');
+    throw new ModelError(
+      timeout ? 'provider_timeout' : 'provider_network',
+      detail,
+    );
   }
   if (!response.ok) {
     if (useTools && TOOLS_FALLBACK_STATUSES.has(response.status)) {
@@ -188,22 +235,39 @@ async function requestCompletion(
         message: 'model_tools_fallback',
         status: `${task}:${response.status}`,
         model: model.modelName,
+        host,
       });
       return requestCompletion(model, apiKey, input, task, options, false);
     }
+    const text = await response.text().catch(() => '');
+    const failure = providerFailure(response.status, text, apiKey);
     logEvent({
       message: 'model_status',
-      errorCode: 'provider_timeout',
+      errorCode: failure.code,
       status: String(response.status),
+      model: model.modelName,
+      host,
+      detail: failure.detail,
     });
-    throw new ModelError('provider_timeout');
+    throw new ModelError(failure.code, failure.detail);
   }
-  return (await response.json()) as CompletionPayload;
+  try {
+    return (await response.json()) as CompletionPayload;
+  } catch {
+    throw new ModelError(
+      'invalid_output',
+      'Respons penyedia bukan JSON yang valid.',
+    );
+  }
 }
 
 export function parseOutlineLessonOutput(value: unknown): OutlineLessonOutput {
   const parsed = outlineLessonOutputSchema.safeParse(value);
-  if (!parsed.success) throw new ModelError('invalid_output');
+  if (!parsed.success)
+    throw new ModelError(
+      'invalid_output',
+      'Saran pelajaran tidak sesuai skema.',
+    );
   return parsed.data;
 }
 
@@ -219,7 +283,11 @@ export function parseModelOutput(
         : task === 'quiz'
           ? quizOutputSchema.safeParse(value)
           : null;
-  if (!parsed?.success) throw new ModelError('invalid_output');
+  if (!parsed?.success)
+    throw new ModelError(
+      'invalid_output',
+      `Isi respons tidak sesuai skema ${task}.`,
+    );
   return parsed.data;
 }
 
@@ -231,6 +299,9 @@ async function mockCompletion(
 ): Promise<unknown> {
   const mode = apiKey === 'fail' ? 'fail' : await env.APP_KV.get('dev:ai-mode');
   if (mode === 'fail') throw new ModelError('provider_timeout');
+  // Simulasi kunci ditolak: harus gagal cepat dan menyimpan penyebabnya.
+  if (mode === 'auth')
+    throw new ModelError('provider_auth', 'HTTP 401 · invalid API key');
   if (task === 'roadmap') return mockRoadmap(input);
   if (task === 'lesson') {
     const mode =

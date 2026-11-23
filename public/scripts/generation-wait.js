@@ -10,6 +10,7 @@
     const timeoutBox = root.querySelector('[data-wait-timeout]');
     const elapsedEl = root.querySelector('[data-elapsed]');
     const codeEl = root.querySelector('[data-wait-code]');
+    const detailEl = root.querySelector('[data-wait-detail]');
     const startedAt = Date.now();
     let finished = false;
     let elapsedTimer = 0;
@@ -26,7 +27,7 @@
       window.location.assign(doneHref);
     };
 
-    const showFailed = (code) => {
+    const showFailed = (message, code, detail) => {
       if (finished) return;
       finished = true;
       stopTimer();
@@ -37,7 +38,8 @@
         failed.classList.remove('hidden');
         failed.classList.add('flex');
       }
-      if (codeEl) codeEl.textContent = code ? `Kode: ${code}` : '';
+      if (codeEl) codeEl.textContent = message || (code ? `Kode: ${code}` : '');
+      if (detailEl) detailEl.textContent = detail || '';
     };
 
     for (const button of root.querySelectorAll('[data-wait-reload]')) {
@@ -70,7 +72,9 @@
           cache: 'no-store',
         });
         if (response.status === 404) {
-          showFailed();
+          showFailed(
+            'Pekerjaan ini sudah tidak tersedia. Kembali lalu mulai lagi.',
+          );
           return;
         }
         if (!response.ok) throw new Error(String(response.status));
@@ -80,7 +84,7 @@
           return;
         }
         if (job.status === 'failed') {
-          showFailed(job.errorCode);
+          showFailed(job.failureMessage, job.errorCode, job.errorDetail);
           return;
         }
       } catch {

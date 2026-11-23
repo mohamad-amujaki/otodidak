@@ -5,6 +5,9 @@ type LogEvent = {
   status?: string;
   errorCode?: string;
   model?: string;
+  host?: string;
+  /** Ringkasan penyebab yang aman dibaca; jangan pernah berisi kunci API. */
+  detail?: string;
   ms?: number;
   usage?: { prompt?: number; completion?: number; total?: number };
 };

@@ -161,6 +161,48 @@ describe('putaran belajar', () => {
     expect(await balance(cookie)).toBe(24);
   });
 
+  it('kunci API ditolak gagal cepat, menyimpan penyebab, dan kredit kembali', async () => {
+    const cookie = await signIn('kunci-salah@example.com');
+    await env.APP_KV.put('dev:ai-mode', 'auth');
+    const started = await startPath(cookie);
+    // Kegagalan permanen tidak boleh dicoba ulang.
+    expect(await processGeneration(env, started.jobId, 1)).toBe('ack');
+    expect(await processGeneration(env, started.jobId, 1)).toBe('ack');
+
+    const row = await env.DB.prepare(
+      'select error_code, error_detail, refunded_at, status from generation_job where id = ?',
+    )
+      .bind(started.jobId)
+      .first<{
+        error_code: string | null;
+        error_detail: string | null;
+        refunded_at: string | null;
+        status: string;
+      }>();
+    expect(row?.status).toBe('failed');
+    expect(row?.error_code).toBe('provider_auth');
+    expect(row?.error_detail).toContain('HTTP 401');
+    expect(row?.refunded_at).toBeTruthy();
+    expect(
+      await count(
+        'select count(*) as n from credit_ledger where reason = ? and user_id = ?',
+        'refund',
+        await userIdFor('kunci-salah@example.com'),
+      ),
+    ).toBe(1);
+    expect(await balance(cookie)).toBe(24);
+
+    const status = await api(`/api/jobs/${started.jobId}`, { cookie });
+    expect(status.status).toBe(200);
+    const payload = await jsonBody<{
+      errorCode: string;
+      errorDetail: string;
+      failureMessage: string;
+    }>(status);
+    expect(payload.errorCode).toBe('provider_auth');
+    expect(payload.failureMessage).toContain('Kunci API penyedia ditolak');
+  });
+
   it('status kuis tidak menghalangi pelajaran yang sudah siap', async () => {
     const cookie = await signIn('kuis@example.com');
     const lessonId = await readyLesson(cookie);

@@ -48,7 +48,14 @@ export async function mePayload(db: Database, user: UserRow) {
   const activeJob =
     jobs.find((job) => job.status === 'queued' || job.status === 'running') ??
     null;
-  const failedJob = jobs.find((job) => job.status === 'failed') ?? null;
+  // Hanya tampilkan kegagalan terbaru agar banner tidak menetap selamanya.
+  const failureCutoff = new Date(
+    Date.now() - 24 * 60 * 60 * 1000,
+  ).toISOString();
+  const failedJob =
+    jobs.find(
+      (job) => job.status === 'failed' && job.createdAt >= failureCutoff,
+    ) ?? null;
   const earlier = completed.some((date) => date < today);
   return {
     user: {
@@ -92,6 +99,8 @@ export async function mePayload(db: Database, user: UserRow) {
           kind: failedJob.kind,
           refId: failedJob.refId,
           errorCode: failedJob.errorCode,
+          errorDetail: failedJob.errorDetail,
+          createdAt: failedJob.createdAt,
         }
       : null,
     config: {
