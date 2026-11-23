@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   assertAllowedLlmBaseUrl,
   assertAllowedSourceBaseUrl,
+  LLM_BASE_URL_PRESETS,
+  LLM_PROVIDER_HOSTS,
 } from '../src/domain/provider-url';
 
 describe('provider-url allowlist', () => {
@@ -12,6 +14,18 @@ describe('provider-url allowlist', () => {
     expect(assertAllowedLlmBaseUrl('https://ai.sumopod.com/v1/')).toBe(
       'https://ai.sumopod.com',
     );
+    expect(assertAllowedLlmBaseUrl('https://router.ariaseta.com/v1')).toBe(
+      'https://router.ariaseta.com',
+    );
+  });
+
+  it('semua preset form admin ada di allowlist', () => {
+    for (const preset of LLM_BASE_URL_PRESETS) {
+      expect(LLM_PROVIDER_HOSTS).toContain(preset.host);
+      expect(assertAllowedLlmBaseUrl(preset.baseUrl)).toBe(
+        new URL(preset.baseUrl).origin,
+      );
+    }
   });
 
   it('menolak host LLM arbitrer', () => {

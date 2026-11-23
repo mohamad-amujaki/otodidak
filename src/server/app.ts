@@ -2,8 +2,6 @@ import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { z } from 'zod';
 import {
-  aiModels,
-  aiProviders,
   appConfig,
   creditPacks,
   generationJobs,
@@ -17,7 +15,6 @@ import {
   errorStatus,
 } from '../domain/errors';
 import { devAuthEnabled } from '../domain/guard';
-import { assertAllowedLlmBaseUrl } from '../domain/provider-url';
 import {
   adminAdjustSchema,
   adminUserSchema,
@@ -28,6 +25,7 @@ import {
   packOrderSchema,
   packsSchema,
   promptSchema,
+  providerConnectionSchema,
   streakSchema,
   taskSchema,
   topicSchema,
@@ -46,7 +44,9 @@ import {
   listAdminOrders,
   listAdminUsers,
   listAllPacks,
+  listModelOptions,
   publicCreditPacks,
+  testModelConnection,
 } from './admin-data';
 import { adminLedgerExportCsv, adminOrdersExportCsv } from './admin-export';
 import { readAdminQuery } from './admin-list';
@@ -54,7 +54,9 @@ import {
   adminAdjustLedger,
   adminEraseUserLearning,
   patchAdminUser,
+  updateModelForTask,
   updatePromptTemplate,
+  updateProviderConnection,
 } from './admin-mutations';
 import { DEV_COOKIE, devIdentityFor, identify, signDevSession } from './auth';
 import {
@@ -517,6 +519,36 @@ export function createApp() {
     return c.json({ ok: true });
   });
 
+  app.get('/api/admin/models/available', async (c) => {
+    assertSuperadmin(c);
+    const db = await database(c.env);
+    const row = await getActiveModelForTask(db, 'roadmap');
+    return c.json(
+      await listModelOptions(c.env, {
+        baseUrl: row.baseUrl,
+        secretName: row.secretName,
+      }),
+    );
+  });
+
+  app.post('/api/admin/models/test', async (c) => {
+    assertSuperadmin(c);
+    const body = await readJson(c, providerConnectionSchema);
+    return c.json(await testModelConnection(c.env, { ...body, refresh: true }));
+  });
+
+  app.put('/api/admin/provider', async (c) => {
+    assertSuperadmin(c);
+    const body = await readJson(c, providerConnectionSchema);
+    await updateProviderConnection(
+      await database(c.env),
+      c.env,
+      c.get('user'),
+      body,
+    );
+    return c.json({ ok: true });
+  });
+
   app.get('/api/admin/models/:task', async (c) => {
     assertSuperadmin(c);
     const task = readTask(c.req.param('task'));
@@ -527,56 +559,13 @@ export function createApp() {
     assertSuperadmin(c);
     const task = readTask(c.req.param('task'));
     const body = await readJson(c, modelSchema);
-    if (
-      body.authKind !== 'workers_ai_binding' &&
-      body.secretName &&
-      !knownSecret(c.env, body.secretName)
-    ) {
-      throw new AppError(
-        'validation',
-        'Nama secret tidak ada di lingkungan Worker.',
-      );
-    }
-    const db = await database(c.env);
-    const rows = await db
-      .select()
-      .from(aiModels)
-      .where(eq(aiModels.task, task))
-      .limit(1);
-    const model = rows[0];
-    if (!model) throw new AppError('not_found');
-    const providerRows = await db
-      .select()
-      .from(aiProviders)
-      .where(eq(aiProviders.id, model.providerId))
-      .limit(1);
-    const provider = providerRows[0];
-    if (!provider) throw new AppError('not_found');
-    const nextBaseUrl = body.baseUrl ?? provider.baseUrl;
-    assertAllowedLlmBaseUrl(nextBaseUrl);
-    await db.batch([
-      db.update(aiModels).set({ active: 0 }).where(eq(aiModels.task, task)),
-      db
-        .update(aiModels)
-        .set({
-          active: 1,
-          modelName: body.modelName,
-          maxOutputTokens: body.maxOutputTokens,
-          timeoutMs: body.timeoutMs,
-        })
-        .where(eq(aiModels.id, model.id)),
-      db
-        .update(aiProviders)
-        .set({
-          baseUrl: nextBaseUrl,
-          secretName:
-            body.authKind === 'workers_ai_binding'
-              ? null
-              : (body.secretName ?? provider.secretName),
-          authKind: body.authKind ?? provider.authKind,
-        })
-        .where(eq(aiProviders.id, model.providerId)),
-    ]);
+    await updateModelForTask(
+      await database(c.env),
+      c.env,
+      c.get('user'),
+      task,
+      body,
+    );
     return c.json({ ok: true });
   });
 
@@ -662,16 +651,4 @@ async function readJson<T>(
       parsed.error.issues[0]?.message ?? errorMessage.validation,
     );
   return parsed.data;
-}
-
-function knownSecret(env: Env, name: string): boolean {
-  if (!/^[A-Z0-9_]+$/.test(name)) return false;
-  switch (name) {
-    case 'OPENAI_API_KEY':
-      return env.OPENAI_API_KEY.length > 0;
-    case 'YOUTUBE_API_KEY':
-      return env.YOUTUBE_API_KEY.length > 0;
-    default:
-      return false;
-  }
 }

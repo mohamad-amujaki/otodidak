@@ -1,4 +1,5 @@
 import { asc, eq, inArray, sql } from 'drizzle-orm';
+import { isKnownProviderSecret } from '../ai/secrets';
 import { debitIfEnough } from '../billing/ledger';
 import type { Database } from '../db/client';
 import {
@@ -21,24 +22,13 @@ import {
   modelSchema,
   packsSchema,
   promptSchema,
+  providerConnectionSchema,
   taskSchema,
 } from '../domain/schemas';
 import { nowIso } from '../domain/time';
 import { eraseLearning, loadConfig } from './account';
 import { assertSuperadmin, isSuperadmin } from './admin-access';
 import { recordAdminAudit } from './admin-audit';
-
-function knownSecret(env: Env, name: string): boolean {
-  if (!/^[A-Z0-9_]+$/.test(name)) return false;
-  switch (name) {
-    case 'OPENAI_API_KEY':
-      return env.OPENAI_API_KEY.length > 0;
-    case 'YOUTUBE_API_KEY':
-      return env.YOUTUBE_API_KEY.length > 0;
-    default:
-      return false;
-  }
-}
 
 function readTask(value: string) {
   const parsed = taskSchema.safeParse(value);
@@ -365,16 +355,6 @@ export async function updateModelForTask(
   assertSuperadmin(env, actor);
   const task = readTask(taskRaw);
   const body = modelSchema.parse(raw);
-  if (
-    body.authKind !== 'workers_ai_binding' &&
-    body.secretName &&
-    !knownSecret(env, body.secretName)
-  ) {
-    throw new AppError(
-      'validation',
-      'Nama secret tidak ada di lingkungan Worker.',
-    );
-  }
   const rows = await db
     .select()
     .from(aiModels)
@@ -382,15 +362,6 @@ export async function updateModelForTask(
     .limit(1);
   const model = rows[0];
   if (!model) throw new AppError('not_found');
-  const providerRows = await db
-    .select()
-    .from(aiProviders)
-    .where(eq(aiProviders.id, model.providerId))
-    .limit(1);
-  const provider = providerRows[0];
-  if (!provider) throw new AppError('not_found');
-  const nextBaseUrl = body.baseUrl ?? provider.baseUrl;
-  assertAllowedLlmBaseUrl(nextBaseUrl);
   await db.batch([
     db.update(aiModels).set({ active: 0 }).where(eq(aiModels.task, task)),
     db
@@ -402,18 +373,48 @@ export async function updateModelForTask(
         timeoutMs: body.timeoutMs,
       })
       .where(eq(aiModels.id, model.id)),
-    db
-      .update(aiProviders)
-      .set({
-        baseUrl: nextBaseUrl,
-        secretName:
-          body.authKind === 'workers_ai_binding'
-            ? null
-            : (body.secretName ?? provider.secretName),
-        authKind: body.authKind ?? provider.authKind,
-      })
-      .where(eq(aiProviders.id, model.providerId)),
   ]);
+}
+
+/**
+ * Koneksi penyedia dipakai bersama oleh semua tugas, jadi perubahan di sini
+ * sengaja tidak menyentuh model/prompt per tugas.
+ */
+export async function updateProviderConnection(
+  db: Database,
+  env: Env,
+  actor: UserRow,
+  raw: unknown,
+): Promise<void> {
+  assertSuperadmin(env, actor);
+  const parsed = providerConnectionSchema.safeParse(raw);
+  if (!parsed.success)
+    throw new AppError(
+      'validation',
+      parsed.error.issues[0]?.message ?? errorMessage.validation,
+    );
+  const body = parsed.data;
+  if (!isKnownProviderSecret(env, body.secretName))
+    throw new AppError(
+      'validation',
+      'Nama secret tidak ada di lingkungan Worker.',
+    );
+  assertAllowedLlmBaseUrl(body.baseUrl);
+  const baseUrl = body.baseUrl.replace(/\/+$/, '');
+  const providers = await db
+    .selectDistinct({ providerId: aiModels.providerId })
+    .from(aiModels)
+    .where(eq(aiModels.active, 1));
+  if (providers.length === 0) throw new AppError('not_found');
+  await db
+    .update(aiProviders)
+    .set({ baseUrl, secretName: body.secretName, authKind: 'bearer' })
+    .where(
+      inArray(
+        aiProviders.id,
+        providers.map((row) => row.providerId),
+      ),
+    );
 }
 
 export async function updateCreditPacks(

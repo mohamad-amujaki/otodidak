@@ -8,7 +8,23 @@
   const max = Number(root.dataset.promptMax ?? '8000');
   const taskCode = root.dataset.taskCode ?? '';
   const baselineModel = root.dataset.modelName ?? '';
-  const baselineUrl = root.dataset.baseUrl ?? '';
+  const modelSource = root.dataset.modelSource ?? 'fallback';
+  const modelIds = (() => {
+    try {
+      const parsed = JSON.parse(root.dataset.modelIds ?? '[]');
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      return [];
+    }
+  })();
+  const modelTokens = (() => {
+    try {
+      const parsed = JSON.parse(root.dataset.modelTokens ?? '{}');
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  })();
   const dialog = root.querySelector('[data-ai-confirm-dialog]');
   const confirmInput = root.querySelector('[data-ai-confirm-input]');
   const confirmBtn = root.querySelector('[data-ai-confirm-go]');
@@ -63,11 +79,39 @@
   syncCounter();
   syncCompare();
 
+  const modelInput = root.querySelector('[data-model-input]');
+  const modelHint = root.querySelector('[data-model-hint]');
+  const syncModelHint = () => {
+    if (!modelInput || !modelHint) return;
+    const id = modelInput.value.trim();
+    const max = modelTokens[id];
+    if (Number.isFinite(max)) {
+      modelHint.textContent = `Batas keluaran penyedia: ${Number(max).toLocaleString('id-ID')} token (aplikasi membatasi 8.000).`;
+      modelHint.classList.remove('text-hangat');
+      modelHint.classList.add('text-tinta-lembut');
+      return;
+    }
+    if (
+      id &&
+      modelSource !== 'fallback' &&
+      modelIds.length > 0 &&
+      !modelIds.includes(id)
+    ) {
+      modelHint.textContent =
+        'Nama model tidak ada di daftar penyedia. Periksa ejaannya.';
+      modelHint.classList.remove('text-tinta-lembut');
+      modelHint.classList.add('text-hangat');
+      return;
+    }
+    modelHint.textContent = '';
+  };
+  modelInput?.addEventListener('input', syncModelHint);
+  syncModelHint();
+
   const modelFieldsChanged = () => {
     if (!form) return false;
     const modelName = form.querySelector('[name="modelName"]')?.value ?? '';
-    const baseUrl = form.querySelector('[name="baseUrl"]')?.value ?? '';
-    return modelName !== baselineModel || baseUrl !== baselineUrl;
+    return modelName !== baselineModel;
   };
 
   const resetDialog = () => {

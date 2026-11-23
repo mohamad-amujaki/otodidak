@@ -8,7 +8,7 @@ export function adminMessageTone(
   )
     return 'danger';
   if (
-    /dilewati|sudah diterapkan|tidak ada perubahan|tidak dikenal|pilih minimal|terlampaui|jatah/i.test(
+    /dilewati|sudah diterapkan|tidak ada perubahan|tidak dikenal|tidak diuji|pilih minimal|terlampaui|jatah/i.test(
       message,
     )
   )

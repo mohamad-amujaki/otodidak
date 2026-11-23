@@ -1,8 +1,9 @@
 import { AppError } from './errors';
 
 /** Hostname HTTPS yang boleh dipakai untuk endpoint chat/completions. */
-const LLM_PROVIDER_HOSTS = new Set([
+export const LLM_PROVIDER_HOSTS = [
   'ai.sumopod.com',
+  'router.ariaseta.com',
   'api.openai.com',
   'openrouter.ai',
   'api.anthropic.com',
@@ -13,7 +14,76 @@ const LLM_PROVIDER_HOSTS = new Set([
   'api.deepseek.com',
   'api.perplexity.ai',
   'api.x.ai',
-]);
+] as const;
+
+const LLM_PROVIDER_HOST_SET = new Set<string>(LLM_PROVIDER_HOSTS);
+
+/**
+ * Preset untuk datalist di form admin. Semua host wajib ada di allowlist di atas;
+ * tes `provider-url.test.ts` menjaga keduanya tetap sinkron.
+ */
+export const LLM_BASE_URL_PRESETS = [
+  {
+    host: 'ai.sumopod.com',
+    label: 'Sumopod',
+    baseUrl: 'https://ai.sumopod.com/v1',
+  },
+  {
+    host: 'router.ariaseta.com',
+    label: 'Router Ariaseta',
+    baseUrl: 'https://router.ariaseta.com/v1',
+  },
+  {
+    host: 'api.openai.com',
+    label: 'OpenAI',
+    baseUrl: 'https://api.openai.com/v1',
+  },
+  {
+    host: 'openrouter.ai',
+    label: 'OpenRouter',
+    baseUrl: 'https://openrouter.ai/api/v1',
+  },
+  {
+    host: 'api.deepseek.com',
+    label: 'DeepSeek',
+    baseUrl: 'https://api.deepseek.com/v1',
+  },
+  {
+    host: 'api.groq.com',
+    label: 'Groq',
+    baseUrl: 'https://api.groq.com/openai/v1',
+  },
+  {
+    host: 'api.together.xyz',
+    label: 'Together AI',
+    baseUrl: 'https://api.together.xyz/v1',
+  },
+  {
+    host: 'api.mistral.ai',
+    label: 'Mistral',
+    baseUrl: 'https://api.mistral.ai/v1',
+  },
+  {
+    host: 'api.x.ai',
+    label: 'xAI',
+    baseUrl: 'https://api.x.ai/v1',
+  },
+  {
+    host: 'api.perplexity.ai',
+    label: 'Perplexity',
+    baseUrl: 'https://api.perplexity.ai',
+  },
+  {
+    host: 'generativelanguage.googleapis.com',
+    label: 'Google Gemini (OpenAI-compatible)',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+  },
+  {
+    host: 'api.anthropic.com',
+    label: 'Anthropic (bukan OpenAI-compatible)',
+    baseUrl: 'https://api.anthropic.com/v1',
+  },
+] as const;
 
 const SOURCE_PROVIDER_HOSTS: Record<'web' | 'youtube', Set<string>> = {
   web: new Set(['api.search.brave.com']),
@@ -66,7 +136,7 @@ function parseHttpsUrl(raw: string): URL {
 
 export function assertAllowedLlmBaseUrl(raw: string): string {
   const url = parseHttpsUrl(raw);
-  if (!LLM_PROVIDER_HOSTS.has(url.hostname))
+  if (!LLM_PROVIDER_HOST_SET.has(url.hostname))
     throw new AppError(
       'validation',
       'Host base URL model tidak ada di daftar yang diizinkan.',

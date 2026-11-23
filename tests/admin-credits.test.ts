@@ -243,5 +243,10 @@ describe('nada pesan admin', () => {
     expect(adminMessageTone('Muat ulang halaman, lalu kirim lagi.')).toBe(
       'danger',
     );
+    expect(adminMessageTone('Koneksi gagal (12 ms): HTTP 401')).toBe('danger');
+    expect(adminMessageTone('Koneksi OK · 5 model · 120 ms')).toBe('success');
+    expect(
+      adminMessageTone('Koneksi tidak diuji: secret belum terpasang.'),
+    ).toBe('warning');
   });
 });

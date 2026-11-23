@@ -15,6 +15,7 @@ import {
   type TaskName,
 } from '../domain/schemas';
 import { logEvent } from '../server/log';
+import { readProviderSecret } from './secrets';
 import type { ToolDefinition } from './tools';
 
 export class ModelError extends Error {
@@ -220,17 +221,6 @@ export function parseModelOutput(
           : null;
   if (!parsed?.success) throw new ModelError('invalid_output');
   return parsed.data;
-}
-
-function readProviderSecret(env: Env, name: string): string | null {
-  switch (name) {
-    case 'OPENAI_API_KEY':
-      return env.OPENAI_API_KEY || null;
-    case 'YOUTUBE_API_KEY':
-      return env.YOUTUBE_API_KEY || null;
-    default:
-      return null;
-  }
 }
 
 async function mockCompletion(

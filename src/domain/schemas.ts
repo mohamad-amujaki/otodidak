@@ -161,13 +161,20 @@ export const modelSchema = z.strictObject({
   modelName: z.string().trim().min(1).max(120),
   maxOutputTokens: z.number().int().min(100).max(8000),
   timeoutMs: z.number().int().min(1000).max(120_000),
-  baseUrl: z.url().optional(),
+});
+
+/** Koneksi penyedia berlaku untuk semua tugas, jadi disimpan terpisah dari model. */
+export const providerConnectionSchema = z.strictObject({
+  baseUrl: z
+    .url()
+    .refine(
+      (value) => value.startsWith('https://'),
+      'URL dasar harus memakai HTTPS.',
+    ),
   secretName: z
     .string()
-    .regex(/^[A-Z0-9_]+$/)
-    .nullable()
-    .optional(),
-  authKind: z.enum(['bearer', 'workers_ai_binding']).optional(),
+    .trim()
+    .regex(/^[A-Z0-9_]+$/, 'Nama secret tidak valid.'),
 });
 
 export const packInputSchema = z.strictObject({

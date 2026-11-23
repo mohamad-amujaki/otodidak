@@ -1,6 +1,7 @@
 import { configFieldGroups } from '../domain/admin-labels';
 import { SEED_PROMPTS } from '../domain/prompts';
 import { assertSuperadmin } from './admin-access';
+import { testModelConnection } from './admin-data';
 import {
   adminAdjustLedger,
   adminAdjustLedgerBulk,
@@ -11,6 +12,7 @@ import {
   updateCreditPacks,
   updateModelForTask,
   updatePromptTemplate,
+  updateProviderConnection,
 } from './admin-mutations';
 import { createCreditCode, setCreditCodeActive } from './credit-codes';
 import { adminRequeueGenerationJob } from './generation';
@@ -140,11 +142,23 @@ export async function runAdminAction(
         modelName: String(form.get('modelName') ?? ''),
         maxOutputTokens: Number(form.get('maxOutputTokens')),
         timeoutMs: Number(form.get('timeoutMs')),
-        baseUrl: String(form.get('baseUrl') ?? ''),
-        secretName: String(form.get('secretName') ?? ''),
-        authKind: String(form.get('authKind') ?? 'bearer'),
       });
       return 'Pengaturan AI untuk tugas ini diperbarui.';
+    }
+    if (action === 'ai-provider') {
+      await updateProviderConnection(db, bindings, user, {
+        baseUrl: String(form.get('baseUrl') ?? '').trim(),
+        secretName: String(form.get('secretName') ?? '').trim(),
+      });
+      return 'Koneksi penyedia diperbarui untuk semua tugas.';
+    }
+    if (action === 'tes-koneksi') {
+      const result = await testModelConnection(bindings, {
+        baseUrl: String(form.get('baseUrl') ?? '').trim(),
+        secretName: String(form.get('secretName') ?? '').trim(),
+        refresh: true,
+      });
+      return result.message;
     }
     if (action === 'reset-prompt') {
       const task = String(form.get('task') ?? '');
@@ -178,9 +192,6 @@ export async function runAdminAction(
           modelName: String(form.get('modelName') ?? ''),
           maxOutputTokens: Number(form.get('maxOutputTokens')),
           timeoutMs: Number(form.get('timeoutMs')),
-          baseUrl: String(form.get('baseUrl') ?? ''),
-          secretName: String(form.get('secretName') ?? ''),
-          authKind: String(form.get('authKind') ?? 'bearer'),
         },
       );
       return 'Model diperbarui.';

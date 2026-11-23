@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
+import { isMockSecret, readProviderSecret } from '../ai/secrets';
 import { balanceOf, balancesByUserIds } from '../billing/ledger';
 import type { Database } from '../db/client';
 import {
@@ -19,7 +20,19 @@ import {
   jakartaDayStartIso,
   mergeTrendRows,
 } from '../domain/admin-trend';
+import {
+  AI_MODEL_CACHE_TTL_SECONDS,
+  AI_MODEL_FETCH_TIMEOUT_MS,
+} from '../domain/defaults';
 import { AppError } from '../domain/errors';
+import {
+  fallbackModelOptions,
+  type ModelOption,
+  type ModelOptions,
+  mergeModelOptions,
+  normalizeModelPayload,
+} from '../domain/model-options';
+import { assertAllowedLlmBaseUrl } from '../domain/provider-url';
 import type { TaskName } from '../domain/schemas';
 import { jakartaDate } from '../domain/time';
 import {
@@ -422,4 +435,108 @@ export async function listActiveModelsForTasks(
   return map;
 }
 
+export type { ModelOption, ModelOptions } from '../domain/model-options';
 export { loadConfig };
+
+function modelCacheKey(baseUrl: string, secretName: string): string {
+  return `ai:models:${baseUrl.toLowerCase()}:${secretName}`;
+}
+
+function fallbackOptions(error: string | null): ModelOptions {
+  return {
+    models: fallbackModelOptions(),
+    source: 'fallback',
+    error,
+    checkedAt: null,
+  };
+}
+
+export async function listModelOptions(
+  env: Env,
+  input: { baseUrl: string; secretName: string | null; refresh?: boolean },
+): Promise<ModelOptions> {
+  const baseUrl = input.baseUrl.trim().replace(/\/+$/, '');
+  if (!baseUrl) return fallbackOptions('URL dasar belum diisi.');
+  try {
+    assertAllowedLlmBaseUrl(baseUrl);
+  } catch (error) {
+    return fallbackOptions(
+      error instanceof Error ? error.message : 'URL dasar tidak diizinkan.',
+    );
+  }
+  const secret = readProviderSecret(env, input.secretName);
+  if (!secret) return fallbackOptions('Secret belum terpasang di Worker.');
+  // Mode dev/test: jangan pernah memanggil jaringan.
+  if (isMockSecret(secret)) return fallbackOptions(null);
+
+  const key = modelCacheKey(baseUrl, input.secretName ?? '');
+  if (!input.refresh) {
+    const cached = await env.APP_KV.get<ModelOption[]>(key, 'json');
+    if (Array.isArray(cached) && cached.length > 0)
+      return { models: cached, source: 'cache', error: null, checkedAt: null };
+  }
+
+  try {
+    const response = await fetch(`${baseUrl}/models`, {
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        Accept: 'application/json',
+      },
+      signal: AbortSignal.timeout(AI_MODEL_FETCH_TIMEOUT_MS),
+    });
+    if (!response.ok) return fallbackOptions(`HTTP ${response.status}`);
+    const models = normalizeModelPayload(await response.json());
+    if (models.length === 0) return fallbackOptions('Daftar model kosong.');
+    const merged = mergeModelOptions(models);
+    await env.APP_KV.put(key, JSON.stringify(merged), {
+      expirationTtl: AI_MODEL_CACHE_TTL_SECONDS,
+    });
+    return {
+      models: merged,
+      source: 'live',
+      error: null,
+      checkedAt: new Date().toISOString(),
+    };
+  } catch (error) {
+    const reason =
+      error instanceof Error
+        ? error.name === 'TimeoutError'
+          ? 'Waktu koneksi habis.'
+          : error.message
+        : 'Gagal menghubungi provider.';
+    return fallbackOptions(reason);
+  }
+}
+
+export async function testModelConnection(
+  env: Env,
+  input: { baseUrl: string; secretName: string; refresh?: boolean },
+): Promise<{ ok: boolean; message: string; options: ModelOptions }> {
+  const secret = readProviderSecret(env, input.secretName);
+  if (!secret)
+    return {
+      ok: false,
+      message: 'Koneksi tidak diuji: secret belum terpasang di Worker.',
+      options: fallbackOptions('Secret belum terpasang di Worker.'),
+    };
+  if (isMockSecret(secret))
+    return {
+      ok: false,
+      message: 'Koneksi tidak diuji: secret masih bernilai mock (mode dev).',
+      options: fallbackOptions(null),
+    };
+  const startedAt = Date.now();
+  const options = await listModelOptions(env, { ...input, refresh: true });
+  const ms = Date.now() - startedAt;
+  if (options.error)
+    return {
+      ok: false,
+      message: `Koneksi gagal (${ms} ms): ${options.error}`,
+      options,
+    };
+  return {
+    ok: true,
+    message: `Koneksi OK · ${options.models.length} model · ${ms} ms`,
+    options,
+  };
+}

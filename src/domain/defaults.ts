@@ -45,7 +45,7 @@ export const SEED_PACKS = [
 export const SEED_PROVIDER_ID = 'provider_openai';
 
 /** OpenAI-compatible chat/completions; dipakai oleh `completeJson`. */
-export const DEFAULT_AI_BASE_URL = 'https://ai.sumopod.com/v1';
+export const DEFAULT_AI_BASE_URL = 'https://router.ariaseta.com/v1';
 
 export const SEED_MODELS = [
   {
@@ -64,6 +64,34 @@ export const SEED_MODELS = [
 ] as const;
 
 export const DEFAULT_MODEL_NAME = 'deepseek-v4.1-flash-1017';
+
+/** Daftar cadangan saat `/models` tidak bisa dihubungi, supaya admin tetap bisa ganti model. */
+export const CURATED_MODELS = [
+  {
+    id: 'deepseek-v4.1-flash-1017',
+    label: 'DeepSeek V4.1 Flash',
+    note: 'Default — cepat dan hemat',
+  },
+  {
+    id: 'deepseek-v4-flash',
+    label: 'DeepSeek V4 Flash',
+    note: 'Alternatif cepat',
+  },
+  {
+    id: 'deepseek-flash',
+    label: 'DeepSeek Flash',
+    note: 'Paling ringan',
+  },
+  {
+    id: 'deepseek-v4-pro',
+    label: 'DeepSeek V4 Pro',
+    note: 'Kualitas tertinggi',
+  },
+] as const;
+
+/** Cache daftar model di KV agar halaman admin tidak memanggil provider tiap muat. */
+export const AI_MODEL_CACHE_TTL_SECONDS = 60 * 60;
+export const AI_MODEL_FETCH_TIMEOUT_MS = 5_000;
 
 export const MAX_LESSON_CHARS = 100_000;
 export const MAX_PROMPT_CHARS = 8_000;
