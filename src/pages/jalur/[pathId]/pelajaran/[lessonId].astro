@@ -43,6 +43,13 @@ const me = record(meRaw);
 const user = record(me.user);
 const config = record(me.config);
 const activeJob = isRecord(me.activeJob) ? me.activeJob : null;
+// Job yang sedang berjalan bisa milik pelajaran ini, pelajaran lain, atau jalur.
+// Tanpa pemilahan ini halaman menampilkan tombol yang sebenarnya diblokir.
+const activeJobForThisLesson = Boolean(
+  activeJob &&
+    activeJob.kind === 'lesson' &&
+    String(activeJob.refId ?? '') === lessonId,
+);
 const balance = typeof me.balance === 'number' ? me.balance : 0;
 const cost = typeof config.costLesson === 'number' ? config.costLesson : 3;
 const quizCost = typeof config.costQuiz === 'number' ? config.costQuiz : 1;
@@ -87,7 +94,9 @@ if (Astro.request.method === 'POST') {
         error instanceof AppError &&
         error.code === 'generation_in_progress'
       ) {
-        /* tetap menunggu */
+        message =
+          'Masih ada materi yang sedang disusun. Tunggu sampai selesai, lalu coba lagi.';
+        messageIsInfo = true;
       } else if (
         error instanceof AppError &&
         error.code === 'insufficient_credits'
@@ -389,7 +398,26 @@ const lessonHref = (id: string) => `/jalur/${pathId}/pelajaran/${id}`;
         />
       )}
       {!html && lesson.status !== 'queued' && (
-        lessonAffordable ? (
+        activeJobForThisLesson ? (
+          <GenerationWait
+            title="Menyusun pelajaran"
+            description="Isi pelajaran sedang dibuat. Halaman akan diperbarui dalam beberapa detik."
+            compact
+            jobId={activeJob ? String(activeJob.id) : undefined}
+          />
+        ) : activeJob ? (
+          <div class="rounded-kartu border border-garis bg-kartu p-5">
+            <p class="text-sm font-semibold text-tinta">
+              Masih ada materi lain yang sedang disusun
+            </p>
+            <p class="mt-1 text-sm leading-[1.4] text-tinta-lembut">
+              Tunggu sampai proses di dasbor selesai, lalu muat ulang halaman ini. Pelajaran ini belum memakai kredit.
+            </p>
+            <a class="mt-3 inline-flex min-h-11 items-center rounded-kontrol border border-garis bg-kartu px-4 text-sm font-semibold text-tinta transition-colors hover:border-jalur/40" href="/dasbor">
+              Lihat status di dasbor
+            </a>
+          </div>
+        ) : lessonAffordable ? (
           <div class="rounded-kartu border border-garis bg-kartu p-5">
             <form method="post">
               <input type="hidden" name="csrf" value={Astro.locals.csrf} />

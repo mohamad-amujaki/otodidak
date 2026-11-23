@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, or, sql } from 'drizzle-orm';
 import {
   completeJson,
   loadModel,
@@ -104,8 +104,17 @@ export async function processGeneration(
     .where(eq(generationJobs.id, jobId))
     .limit(1);
   const job = rows[0];
-  if (!job || job.status === 'succeeded' || job.status === 'failed')
-    return 'ack';
+  if (!job) {
+    // Job yang belum terbaca bisa berarti replika belum menyusul atau job sudah
+    // dihapus. Jangan ack diam-diam: pesan yang hilang membuat job menggantung.
+    logEvent({
+      message: 'queue_job_missing',
+      jobId,
+      status: String(attempt),
+    });
+    return attempt < QUEUE_MAX_ATTEMPTS ? 'retry' : 'ack';
+  }
+  if (job.status === 'succeeded' || job.status === 'failed') return 'ack';
   const now = nowIso();
   await db
     .update(generationJobs)
@@ -238,6 +247,7 @@ export async function openLesson(
   lessonId: string,
 ) {
   const db = await database(env);
+  await expireStaleActiveJobs(env, db, user.id);
   const lesson = await ownedLesson(db, user.id, lessonId);
   if (!lesson) throw new AppError('not_found');
   if (lesson.body && lesson.status === 'ready')
@@ -472,6 +482,8 @@ async function beginJob(
     throw new AppError('rate_limited');
   await assertUserGenerationRate(db, user.id);
   await clearStaleLock(env, db, user.id);
+  // Job yang pesan antreannya hilang tidak boleh memblokir pengguna selamanya.
+  await expireStaleActiveJobs(env, db, user.id);
   await requireActiveJobClear(db, user.id);
   const debited = await debitIfEnough(db, {
     userId: user.id,
@@ -1221,6 +1233,53 @@ export async function refundJob(
 const STALE_QUEUED_MS = 10 * 60 * 1000;
 const STALE_RUNNING_MS = 15 * 60 * 1000;
 
+function staleJobDetail(job: {
+  status: string;
+  createdAt: string;
+  startedAt: string | null;
+}): string | null {
+  const createdAt = Date.parse(job.createdAt);
+  if (job.status === 'queued')
+    return Number.isFinite(createdAt) &&
+      Date.now() - createdAt > STALE_QUEUED_MS
+      ? 'Antrean tidak memproses pekerjaan ini dalam 10 menit.'
+      : null;
+  if (job.status === 'running') {
+    const startedAt = job.startedAt ? Date.parse(job.startedAt) : createdAt;
+    return Number.isFinite(startedAt) &&
+      Date.now() - startedAt > STALE_RUNNING_MS
+      ? 'Pemrosesan berjalan lebih dari 15 menit.'
+      : null;
+  }
+  return null;
+}
+
+/**
+ * Bersihkan job aktif milik satu pengguna yang sudah basi. Dipanggil sebelum
+ * job baru dibuat supaya satu pesan antrean yang hilang tidak memblokir
+ * seluruh pembuatan materi pengguna.
+ */
+async function expireStaleActiveJobs(
+  env: Env,
+  db: Database,
+  userId: string,
+): Promise<void> {
+  const rows = await db
+    .select()
+    .from(generationJobs)
+    .where(
+      and(
+        eq(generationJobs.userId, userId),
+        or(
+          eq(generationJobs.status, 'queued'),
+          eq(generationJobs.status, 'running'),
+        ),
+      ),
+    )
+    .limit(5);
+  for (const job of rows) await expireJob(env, db, job, 'on-demand');
+}
+
 /**
  * Sapu job yang pesan antreannya tidak pernah diproses atau prosesnya mati.
  * Tanpa ini job bisa menggantung "queued" selamanya dan kredit pengguna tertahan.
@@ -1232,32 +1291,44 @@ export async function sweepStaleJobs(env: Env): Promise<void> {
     .from(generationJobs)
     .where(inArray(generationJobs.status, ['queued', 'running']))
     .limit(50);
-  const now = Date.now();
-  for (const job of rows) {
-    const createdAt = Date.parse(job.createdAt);
-    const startedAt = job.startedAt ? Date.parse(job.startedAt) : Number.NaN;
-    const staleQueued =
-      job.status === 'queued' &&
-      Number.isFinite(createdAt) &&
-      now - createdAt > STALE_QUEUED_MS;
-    const staleRunning =
-      job.status === 'running' &&
-      Number.isFinite(startedAt) &&
-      now - startedAt > STALE_RUNNING_MS;
-    if (!staleQueued && !staleRunning) continue;
-    await refundJob(env, db, job, {
-      code: 'queue_stale',
-      detail: staleQueued
-        ? 'Antrean tidak memproses pekerjaan ini dalam 10 menit.'
-        : 'Pemrosesan berjalan lebih dari 15 menit.',
-    });
+  for (const job of rows) await expireJob(env, db, job, 'cron');
+}
+
+async function expireJob(
+  env: Env,
+  db: Database,
+  job: {
+    id: string;
+    userId: string;
+    kind: GenerationKind;
+    refId: string;
+    status: string;
+    createdAt: string;
+    startedAt: string | null;
+  },
+  source: 'cron' | 'on-demand',
+): Promise<void> {
+  const detail = staleJobDetail(job);
+  if (!detail) return;
+  try {
+    await refundJob(env, db, job, { code: 'queue_stale', detail });
     logEvent({
       message: 'generation_stale',
       jobId: job.id,
       userId: job.userId,
       errorCode: 'queue_stale',
       status: job.status,
-      detail: staleQueued ? 'queued' : 'running',
+      detail: source,
+    });
+  } catch (error) {
+    // Satu job bermasalah tidak boleh menghentikan sapuan lainnya.
+    logEvent({
+      message: 'generation_stale_failed',
+      jobId: job.id,
+      userId: job.userId,
+      errorCode: error instanceof Error ? error.name : 'error',
+      status: job.status,
+      detail: source,
     });
   }
 }

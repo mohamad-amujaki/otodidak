@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { debitIfEnough } from '../src/billing/ledger';
 import { generationJobs } from '../src/db/schema';
 import { database } from '../src/server/account';
-import { sweepStaleJobs } from '../src/server/generation';
+import {
+  handleQueue,
+  processGeneration,
+  sweepStaleJobs,
+} from '../src/server/generation';
 import { api, jsonBody, signIn } from './helpers';
 
 beforeEach(async () => {
@@ -71,6 +75,75 @@ describe('sweeper job basi', () => {
     const me = await api('/api/me', { cookie });
     const body = await jsonBody<{ balance: number }>(me);
     expect(body.balance).toBe(startingBalance);
+  });
+
+  it('tidak memblokir pelajaran baru karena job basi', async () => {
+    const cookie = await signIn('terblokir@example.com');
+    const started = await api('/api/paths', {
+      method: 'POST',
+      json: { topic: 'Menulis ringkasan eksekutif' },
+      cookie,
+    });
+    expect(started.status).toBe(202);
+    const path = await jsonBody<{ jobId: string; pathId: string }>(started);
+    expect(await processGeneration(env, path.jobId, 1)).toBe('ack');
+    const detail = await jsonBody<{
+      chapters: { lessons: { id: string }[] }[];
+    }>(await api(`/api/paths/${path.pathId}`, { cookie }));
+    const lessonId = detail.chapters[0]?.lessons[0]?.id;
+    if (!lessonId) throw new Error('pelajaran tidak ada');
+
+    // Job lama yang pesan antreannya hilang: status queued, tidak pernah jalan.
+    const userId = await userIdFor('terblokir@example.com');
+    const db = await database(env);
+    const staleId = crypto.randomUUID();
+    await db.insert(generationJobs).values({
+      id: staleId,
+      userId,
+      kind: 'lesson',
+      refId: crypto.randomUUID(),
+      status: 'queued',
+      attempts: 0,
+      createdAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+    });
+
+    const opened = await api(`/api/lessons/${lessonId}/open`, {
+      method: 'POST',
+      json: {},
+      cookie,
+    });
+    expect(opened.status).toBe(202);
+    const created = await jsonBody<{ jobId: string }>(opened);
+    expect(created.jobId).not.toBe(staleId);
+
+    const stale = await env.DB.prepare(
+      'select status, error_code from generation_job where id = ?',
+    )
+      .bind(staleId)
+      .first<{ status: string; error_code: string | null }>();
+    expect(stale?.status).toBe('failed');
+    expect(stale?.error_code).toBe('queue_stale');
+  });
+
+  it('mengulang pesan antrean bila job belum terbaca', async () => {
+    let retried = 0;
+    await handleQueue(
+      {
+        queue: 'generation',
+        messages: [
+          {
+            body: { jobId: crypto.randomUUID() },
+            attempts: 1,
+            ack() {},
+            retry() {
+              retried += 1;
+            },
+          },
+        ],
+      } as unknown as MessageBatch<{ jobId: string }>,
+      env,
+    );
+    expect(retried).toBe(1);
   });
 
   it('membiarkan job queued yang masih baru', async () => {
